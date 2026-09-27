@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mission Famille — socle</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;max-width:480px;margin:30px auto;padding:0 20px;color:#2a2340}
+  h1{font-size:22px}
+  h2{font-size:16px;color:#666;margin:22px 0 8px}
+  label{font-size:13px;font-weight:700;color:#666;display:block;margin-top:8px}
+  input,select{width:100%;padding:11px;margin:4px 0;border:2px solid #eee;border-radius:10px;font-size:15px;box-sizing:border-box}
+  button{padding:11px 16px;margin-top:8px;border:0;border-radius:10px;background:#6c5ce7;color:#fff;font-weight:700;font-size:15px;cursor:pointer}
+  button.secondary{background:#eee;color:#333}
+  button.small{padding:6px 12px;font-size:13px}
+  .task{display:flex;justify-content:space-between;align-items:center;background:#f7f5ff;border-radius:12px;padding:12px 14px;margin-bottom:8px}
+  .task b{display:block}
+  .task span{font-size:13px;color:#666}
+  .msg{margin-top:10px;padding:10px;border-radius:8px;font-size:13px;white-space:pre-wrap}
+  .msg.err{background:#ffe3e3;color:#b00}
+  .msg.ok{background:#e3ffe9;color:#0a0}
+  .stars{font-size:26px;font-weight:800;text-align:center;background:#fff8e1;border-radius:12px;padding:14px;margin-bottom:16px}
+  .setup{background:#fff8e1;border-radius:12px;padding:14px;margin-bottom:20px}
+  #app{display:none}
+</style>
+</head>
+<body>
+
+<div class="setup" id="setup">
+  <label>Project URL</label>
+  <input id="url" placeholder="https://xxxxxxxx.supabase.co">
+  <label>Clé publique (anon)</label>
+  <input id="key" placeholder="eyJhbGciOi...">
+  <label>URL de la fonction pairing</label>
+  <input id="fnurl" placeholder="https://xxxxxxxx.supabase.co/functions/v1/pairing">
+  <button onclick="boot()">Continuer</button>
+</div>
+
+<div id="entry" style="display:none">
+  <h1>🏡 Mission Famille</h1>
+  <h2>Connexion parent</h2>
+  <label>E-mail</label><input id="pemail" type="email">
+  <label>Mot de passe</label><input id="ppass" type="password">
+  <button onclick="parentLogin()">Se connecter</button>
+  <h2>Connexion enfant (jumelage)</h2>
+  <label>Code reçu du parent</label>
+  <input id="pairCode" style="text-transform:uppercase;text-align:center">
+  <button onclick="childPair()">Utiliser ce code</button>
+  <div id="entryMsg" class="msg"></div>
+</div>
+
+<div id="app">
+  <h1 id="hello"></h1>
+  <button class="secondary small" onclick="logout()">Se déconnecter</button>
+
+  <div id="parentView" style="display:none">
+    <h2>Créer une mission</h2>
+    <label>Titre</label><input id="ntitle" placeholder="Ex : Faire son lit">
+    <label>Étoiles</label><input id="npoints" type="number" value="5">
+    <label>Pour qui ?</label><select id="nchild"></select>
+    <button onclick="createTask()">Créer</button>
+    <div id="createMsg" class="msg"></div>
+
+    <h2>Missions à valider</h2>
+    <div id="pendingList"></div>
+    <button class="secondary small" onclick="loadParent()">🔄 Actualiser</button>
+  </div>
+
+  <div id="childView" style="display:none">
+    <div class="stars" id="starTotal"></div>
+    <h2>Mes missions</h2>
+    <div id="myTasks"></div>
+    <button class="secondary small" onclick="loadChild()">🔄 Actualiser</button>
+  </div>
+</div>
+
+<script>
+localStorage.setItem('mf_url', 'https://fpkuhwqsmnxhfbacksqa.supabase.co');
+localStorage.setItem('mf_key', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwa3Vod3FzbW54aGZiYWNrc3FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MjMzODYsImV4cCI6MjEwNTk5OTM4Nn0.fIZe8gyQcxLYrT1sA_4dxlzulYmMgBpZoGfpXw49AoI');
+localStorage.setItem('mf_fnurl', 'https://fpkuhwqsmnxhfbacksqa.supabase.co/functions/v1/https://fpkuhwqsmnxhfbacksqa.supabase.co/functions/v1/rapid-processor');
+let client, me, myProfile;
+
+window.addEventListener('load', () => {
+  const u = localStorage.getItem('mf_url'), k = localStorage.getItem('mf_key'), f = localStorage.getItem('mf_fnurl');
+  if(u) document.getElementById('url').value = u;
+  if(k) document.getElementById('key').value = k;
+  if(f) document.getElementById('fnurl').value = f;
+});
+
+async function boot(){
+  const url = document.getElementById('url').value.trim();
+  const key = document.getElementById('key').value.trim();
+  const fnurl = document.getElementById('fnurl').value.trim();
+  localStorage.setItem('mf_url', url); localStorage.setItem('mf_key', key); localStorage.setItem('mf_fnurl', fnurl);
+  client = supabase.createClient(url, key);
+  document.getElementById('setup').style.display = 'none';
+
+  const { data: { session } } = await client.auth.getSession();
+  if(session){ await afterLogin(); } else { document.getElementById('entry').style.display = 'block'; }
+}
+
+function showMsg(id, text, type){ const el=document.getElementById(id); el.textContent=text; el.className='msg '+(type||''); }
+
+async function parentLogin(){
+  const email = document.getElementById('pemail').value.trim();
+  const password = document.getElementById('ppass').value;
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  if(error){ showMsg('entryMsg', '❌ ' + error.message, 'err'); return; }
+  await afterLogin();
+}
+
+async function childPair(){
+  const code = document.getElementById('pairCode').value.trim().toUpperCase();
+  const fnurl = document.getElementById('fnurl').value.trim();
+  if(!fnurl){ showMsg('entryMsg', '❌ L’URL de la fonction pairing n’est pas renseignée (en haut de la page).', 'err'); return; }
+  try{
+    showMsg('entryMsg', 'Vérification du code...', '');
+    const res = await fetch(fnurl, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'redeem', code }) });
+    const out = await res.json();
+    if(!res.ok){ showMsg('entryMsg', '❌ ' + (out.error||res.statusText), 'err'); return; }
+    const { error } = await client.auth.verifyOtp({ token_hash: out.token_hash, type: 'magiclink' });
+    if(error){ showMsg('entryMsg', '❌ ' + error.message, 'err'); return; }
+    await afterLogin();
+  }catch(e){
+    showMsg('entryMsg', '❌ Erreur technique : ' + e.message + '\n(vérifiez que l’URL de la fonction est correcte et complète)', 'err');
+  }
+}
+
+async function afterLogin(){
+  const { data: { user } } = await client.auth.getUser();
+  me = user;
+  const { data: profile } = await client.from('profiles').select('*').eq('id', me.id).single();
+  myProfile = profile;
+  document.getElementById('entry').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('hello').textContent = (profile.role==='parent'?'👋 ':'🙂 ') + profile.display_name;
+  if(profile.role === 'parent'){
+    document.getElementById('parentView').style.display = 'block';
+    await loadChildrenList();
+    await loadParent();
+  } else {
+    document.getElementById('childView').style.display = 'block';
+    await loadChild();
+  }
+}
+
+async function logout(){
+  await client.auth.signOut();
+  location.reload();
+}
+
+// ---------- PARENT ----------
+async function loadChildrenList(){
+  const { data } = await client.from('profiles').select('id, display_name').eq('family_id', myProfile.family_id).eq('role', 'child');
+  document.getElementById('nchild').innerHTML = (data||[]).map(c => '<option value="'+c.id+'">'+c.display_name+'</option>').join('');
+}
+
+async function createTask(){
+  const title = document.getElementById('ntitle').value.trim();
+  const points = parseInt(document.getElementById('npoints').value, 10) || 5;
+  const childId = document.getElementById('nchild').value;
+  if(!title || !childId){ showMsg('createMsg', 'Titre et enfant requis.', 'err'); return; }
+
+  const { data: task, error } = await client.from('tasks').insert({
+    family_id: myProfile.family_id, title, points, recurring: false, created_by: me.id
+  }).select().single();
+  if(error){ showMsg('createMsg', '❌ ' + error.message, 'err'); return; }
+
+  const { error: aerr } = await client.from('task_assignees').insert({ task_id: task.id, child_id: childId, family_id: myProfile.family_id });
+  if(aerr){ showMsg('createMsg', '❌ ' + aerr.message, 'err'); return; }
+
+  document.getElementById('ntitle').value = '';
+  showMsg('createMsg', '✅ Mission créée.', 'ok');
+  await loadParent();
+}
+
+async function loadParent(){
+  const { data, error } = await client.from('task_logs').select('*, profiles!task_logs_child_id_fkey(display_name)').eq('status', 'pending').order('created_at');
+  const el = document.getElementById('pendingList');
+  if(error){ el.textContent = '❌ ' + error.message; return; }
+  if(!data.length){ el.innerHTML = '<p style="color:#888">Rien à valider pour le moment.</p>'; return; }
+  el.innerHTML = data.map(l => '<div class="task"><div><b>'+l.title+'</b><span>'+(l.profiles?.display_name||'?')+' · +'+l.points+' ⭐</span></div><button class="small" onclick="validate(\''+l.id+'\')">✅ Valider</button></div>').join('');
+}
+
+async function validate(logId){
+  const { error } = await client.from('task_logs').update({ status: 'validated', validated_at: new Date().toISOString() }).eq('id', logId);
+  if(error){ alert('❌ ' + error.message); return; }
+  await loadParent();
+}
+
+// ---------- ENFANT ----------
+async function loadChild(){
+  const { data: assigned } = await client.from('task_assignees').select('task_id, tasks(*)').eq('child_id', me.id);
+  const { data: logs } = await client.from('task_logs').select('*').eq('child_id', me.id);
+  const { data: validated } = await client.from('task_logs').select('points').eq('child_id', me.id).eq('status', 'validated');
+  const total = (validated||[]).reduce((s,l)=>s+l.points, 0);
+  document.getElementById('starTotal').textContent = '⭐ ' + total;
+
+  const el = document.getElementById('myTasks');
+  const list = (assigned||[]).map(a => a.tasks).filter(Boolean);
+  if(!list.length){ el.innerHTML = '<p style="color:#888">Aucune mission pour l’instant.</p>'; return; }
+  el.innerHTML = list.map(t => {
+    const log = (logs||[]).find(l => l.task_id === t.id);
+    let right = '<button class="small" onclick="doTask(\''+t.id+'\',\''+t.title.replace(/'/g,"\\'")+'\','+t.points+')">C’est fait !</button>';
+    if(log?.status === 'pending') right = '<span style="font-size:13px;color:#b8860b">⏳ à valider</span>';
+    if(log?.status === 'validated') right = '<span style="font-size:13px;color:#0a0">✅ validé</span>';
+    return '<div class="task"><div><b>'+t.title+'</b><span>+'+t.points+' ⭐</span></div>'+right+'</div>';
+  }).join('');
+}
+
+async function doTask(taskId, title, points){
+  const { error } = await client.from('task_logs').insert({
+    family_id: myProfile.family_id, task_id: taskId, child_id: me.id, title, points, status: 'pending'
+  });
+  if(error){ alert('❌ ' + error.message); return; }
+  await loadChild();
+}
+</script>
+</body>
+</html>
