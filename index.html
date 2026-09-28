@@ -101,6 +101,20 @@
     <h2>Mes missions récurrentes</h2>
     <div id="recurringList"></div>
 
+    <h2>Nouvelle mission spéciale</h2>
+    <div class="card">
+      <label>Titre</label><input id="stitle" placeholder="Ex : Laver la voiture">
+      <label>Étoiles</label><input id="spoints" type="number" value="10">
+      <label>Attribution</label>
+      <select id="smode" onchange="document.getElementById('skidsBox').style.display=this.value==='each'?'flex':'none'">
+        <option value="race">⚡ Tous — le premier qui la fait</option>
+        <option value="each">👥 Enfants choisis — chacun doit la faire</option>
+      </select>
+      <div id="skidsBox" class="kids" style="display:none"></div>
+      <button onclick="createSpecial()">Créer la mission spéciale</button>
+      <div id="createSMsg" class="msg"></div>
+    </div>
+
     <h2>Missions à valider</h2>
     <div id="pendingList"></div>
     <button class="secondary small" onclick="loadParent()">🔄 Actualiser</button>
@@ -118,6 +132,7 @@
 localStorage.setItem('mf_url', 'https://fpkuhwqsmnxhfbacksqa.supabase.co');
 localStorage.setItem('mf_key', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwa3Vod3FzbW54aGZiYWNrc3FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MjMzODYsImV4cCI6MjEwNTk5OTM4Nn0.fIZe8gyQcxLYrT1sA_4dxlzulYmMgBpZoGfpXw49AoI');
 localStorage.setItem('mf_fnurl', 'https://fpkuhwqsmnxhfbacksqa.supabase.co/functions/v1/https://fpkuhwqsmnxhfbacksqa.supabase.co/functions/v1/rapid-processor');
+
 let client, me, myProfile, familyChildren = [];
 const DAY_LABEL = {0:'dim.',1:'lun.',2:'mar.',3:'mer.',4:'jeu.',5:'ven.',6:'sam.'};
 const SLOT_LABEL = {none:'', morning:'☀️ Matin', day:'🌤️ Journée', evening:'🌙 Soir'};
@@ -200,6 +215,8 @@ async function loadChildrenList(){
   document.getElementById('kidsBox').innerHTML =
     '<label><input type="checkbox" id="kidAll" onchange="toggleAllKids(this)">👨‍👩‍👧 Tous les enfants</label>' +
     familyChildren.map(c => '<label><input type="checkbox" class="kidPick" value="'+c.id+'">'+c.display_name+'</label>').join('');
+  document.getElementById('skidsBox').innerHTML =
+    familyChildren.map(c => '<label><input type="checkbox" class="skidPick" value="'+c.id+'">'+c.display_name+'</label>').join('');
 }
 function toggleAllKids(el){
   document.querySelectorAll('.kidPick').forEach(cb => { cb.checked = false; cb.disabled = el.checked; });
@@ -262,17 +279,57 @@ async function deleteTask(taskId){
   await loadRecurringList();
 }
 
+async function createSpecial(){
+  const title = document.getElementById('stitle').value.trim();
+  const points = parseInt(document.getElementById('spoints').value,10)||10;
+  const mode = document.getElementById('smode').value;
+  const picked = [...document.querySelectorAll('.skidPick:checked')].map(x=>x.value);
+  if(!title){ showMsg('createSMsg','❌ Un titre est nécessaire.','err'); return; }
+  if(mode==='each' && !picked.length){ showMsg('createSMsg','❌ Choisissez au moins un enfant.','err'); return; }
+
+  const { data: task, error } = await client.from('tasks').insert({
+    family_id: myProfile.family_id, title, points, recurring:false,
+    assign_all: mode==='race', created_by: me.id
+  }).select().single();
+  if(error){ showMsg('createSMsg','❌ '+error.message,'err'); return; }
+
+  if(mode==='each'){
+    const { error: aerr } = await client.from('task_assignees').insert(picked.map(cid=>({task_id:task.id, child_id:cid, family_id:myProfile.family_id})));
+    if(aerr){ showMsg('createSMsg','❌ '+aerr.message,'err'); return; }
+  }
+  document.getElementById('stitle').value='';
+  showMsg('createSMsg','✅ Mission spéciale créée.','ok');
+}
+
 async function loadParent(){
   await loadRecurringList();
-  const { data, error } = await client.from('task_logs').select('*, profiles!task_logs_child_id_fkey(display_name)').eq('status', 'pending').order('created_at');
+  const { data, error } = await client.from('task_logs').select('*, profiles!task_logs_child_id_fkey(display_name), tasks(assign_all,recurring)').eq('status', 'pending').order('created_at');
   const el = document.getElementById('pendingList');
   if(error){ el.textContent = '❌ ' + error.message; return; }
   if(!data.length){ el.innerHTML = '<p style="color:#888">Rien à valider pour le moment.</p>'; return; }
-  el.innerHTML = data.map(l => '<div class="task"><div><b>'+l.title+'</b><span>'+(l.profiles?.display_name||'?')+' · +'+l.points+' ⭐</span></div><button class="small" onclick="validate(\''+l.id+'\')">✅ Valider</button></div>').join('');
+  el.innerHTML = data.map(l => {
+    const canShare = l.tasks?.assign_all && !l.tasks?.recurring && familyChildren.length>1;
+    const comment = l.comment ? '<br><i>💬 '+l.comment+'</i>' : '';
+    return '<div class="task"><div><b>'+l.title+'</b><span>'+(l.profiles?.display_name||'?')+' · +'+l.points+' ⭐'+comment+'</span></div>'+
+      '<div>'+(canShare?'<button class="small secondary" onclick="shareStars(\''+l.id+'\','+l.points+')">🤝</button> ':'')+
+      '<button class="small" onclick="validate(\''+l.id+'\')">✅</button></div></div>';
+  }).join('');
+}
+
+async function shareStars(logId, totalPoints){
+  const name = prompt('Partager avec quel enfant ? (prénom exact)');
+  if(!name) return;
+  const kid = familyChildren.find(c=>c.display_name.toLowerCase()===name.trim().toLowerCase());
+  if(!kid){ alert('Enfant introuvable : '+name); return; }
+  const amt = parseInt(prompt('Combien d’étoiles pour '+kid.display_name+' ? (sur '+totalPoints+')'),10);
+  if(!amt || amt<1 || amt>=totalPoints){ alert('Montant invalide.'); return; }
+  await client.from('task_logs').update({ points: totalPoints-amt, status:'validated', validated_at:new Date().toISOString(), comment:null }).eq('id', logId);
+  await client.from('task_shares').insert({ log_id: logId, child_id: kid.id, points: amt });
+  await loadParent();
 }
 
 async function validate(logId){
-  const { error } = await client.from('task_logs').update({ status: 'validated', validated_at: new Date().toISOString() }).eq('id', logId);
+  const { error } = await client.from('task_logs').update({ status: 'validated', validated_at: new Date().toISOString(), comment: null }).eq('id', logId);
   if(error){ alert('❌ ' + error.message); return; }
   await loadParent();
 }
@@ -291,14 +348,29 @@ async function loadChild(){
   const mine = (allTasks||[]).filter(t => t.assign_all || assignedIds.has(t.id));
   const dueToday = mine.filter(isDueToday);
 
+  const { data: specials } = await client.from('tasks').select('*').eq('family_id', myProfile.family_id).eq('recurring', false);
+  const myLogs = specials?.length ? (await client.from('task_logs').select('*').in('task_id', specials.map(t=>t.id))).data : [];
+  const mySpecials = (specials||[]).filter(t => t.assign_all || assignedIds.has(t.id)).map(t => {
+    const raceLog = t.assign_all ? (myLogs||[]).find(l=>l.task_id===t.id && (l.status==='pending'||l.status==='validated')) : null;
+    return { t, taken: raceLog && raceLog.child_id!==me.id, myLog: (myLogs||[]).find(l=>l.task_id===t.id && l.child_id===me.id) };
+  }).filter(x => !(x.t.assign_all && x.taken && !x.myLog));
+
   const { data: logsToday } = await client.from('task_logs').select('*').eq('child_id', me.id).eq('date', todayStr());
   const { data: validated } = await client.from('task_logs').select('points').eq('child_id', me.id).eq('status', 'validated');
-  const total = (validated||[]).reduce((s,l)=>s+l.points, 0);
+  const { data: shares } = await client.from('task_shares').select('points').eq('child_id', me.id);
+  const total = (validated||[]).reduce((s,l)=>s+l.points,0) + (shares||[]).reduce((s,l)=>s+l.points,0);
   document.getElementById('starTotal').textContent = '⭐ ' + total;
 
   const el = document.getElementById('myTasks');
-  if(!dueToday.length){ el.innerHTML = '<p style="color:#888">Aucune mission aujourd’hui.</p>'; return; }
-  el.innerHTML = dueToday.map(t => {
+  let html = '';
+  mySpecials.forEach(({t, myLog}) => {
+    let right = '<button class="small" onclick="doSpecial(\''+t.id+'\',\''+t.title.replace(/'/g,"\\'")+'\','+t.points+')">C’est fait !</button>';
+    if(myLog?.status === 'pending') right = '<span style="font-size:13px;color:#b8860b">⏳ à valider</span>';
+    if(myLog?.status === 'validated') right = '<span style="font-size:13px;color:#0a0">✅ validé</span>';
+    html += '<div class="task"><div><b>✨ '+t.title+'</b><span>'+t.points+' ⭐ · '+(t.assign_all?'le premier qui la fait':'')+'</span></div>'+right+'</div>';
+  });
+  if(!dueToday.length && !mySpecials.length){ el.innerHTML = '<p style="color:#888">Aucune mission aujourd’hui.</p>'; return; }
+  html += dueToday.map(t => {
     const log = (logsToday||[]).find(l => l.task_id === t.id);
     let right = '<button class="small" onclick="doTask(\''+t.id+'\',\''+t.title.replace(/'/g,"\\'")+'\','+t.points+')">C’est fait !</button>';
     if(log?.status === 'pending') right = '<span style="font-size:13px;color:#b8860b">⏳ à valider</span>';
@@ -306,6 +378,16 @@ async function loadChild(){
     const meta = [SLOT_LABEL[t.slot]||'', t.points+' ⭐', freqLabel(t)].filter(Boolean).join(' · ');
     return '<div class="task"><div><b>'+t.title+'</b><span>'+meta+'</span></div>'+right+'</div>';
   }).join('');
+  el.innerHTML = html;
+}
+
+async function doSpecial(taskId, title, points){
+  const comment = prompt('Un petit mot pour tes parents ? (facultatif)') || null;
+  const { error } = await client.from('task_logs').insert({
+    family_id: myProfile.family_id, task_id: taskId, child_id: me.id, title, points, status:'pending', date: todayStr(), comment
+  });
+  if(error){ alert('❌ ' + error.message); return; }
+  await loadChild();
 }
 
 async function doTask(taskId, title, points){
