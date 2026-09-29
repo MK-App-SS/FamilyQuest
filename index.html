@@ -117,6 +117,35 @@
 
     <h2>Missions à valider</h2>
     <div id="pendingList"></div>
+
+    <h2>⏸️ Pauses</h2>
+    <div class="card">
+      <label>Qui est en pause ?</label>
+      <select id="pauseChild">
+        <option value="">👨‍👩‍👧 Toute la famille</option>
+      </select>
+      <label>Du</label>
+      <input id="pauseFrom" type="date">
+      <label>Au <span style="font-weight:400;color:#999">(vide = indéfini)</span></label>
+      <input id="pauseTo" type="date">
+      <button onclick="createPause()">Mettre en pause</button>
+      <div id="pauseMsg" class="msg"></div>
+    </div>
+    <div id="pauseList"></div>
+
+    <h2>⭐ Ajustement manuel</h2>
+    <div class="card">
+      <label>Enfant</label>
+      <select id="adjChild"></select>
+      <label>Étoiles <span style="font-weight:400;color:#999">(négatif pour retirer)</span></label>
+      <input id="adjPoints" type="number" placeholder="Ex : 5 ou -3">
+      <label>Raison <span style="font-weight:400;color:#999">(facultatif)</span></label>
+      <input id="adjReason" placeholder="Ex : bonus effort">
+      <button onclick="createAdjustment()">Ajouter</button>
+      <div id="adjMsg" class="msg"></div>
+    </div>
+    <div id="adjList"></div>
+
     <button class="secondary small" onclick="loadParent()">🔄 Actualiser</button>
   </div>
 
@@ -131,7 +160,7 @@
 <script>
 localStorage.setItem('mf_url', 'https://fpkuhwqsmnxhfbacksqa.supabase.co');
 localStorage.setItem('mf_key', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwa3Vod3FzbW54aGZiYWNrc3FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MjMzODYsImV4cCI6MjEwNTk5OTM4Nn0.fIZe8gyQcxLYrT1sA_4dxlzulYmMgBpZoGfpXw49AoI');
-localStorage.setItem('mf_fnurl', 'https://fpkuhwqsmnxhfbacksqa.supabase.co/functions/v1/https://fpkuhwqsmnxhfbacksqa.supabase.co/functions/v1/rapid-processor');
+localStorage.setItem('mf_fnurl', 'https://fpkuhwqsmnxhfbacksqa.supabase.co/functions/v1/rapid-processor');
 
 let client, me, myProfile, familyChildren = [];
 const DAY_LABEL = {0:'dim.',1:'lun.',2:'mar.',3:'mer.',4:'jeu.',5:'ven.',6:'sam.'};
@@ -217,6 +246,11 @@ async function loadChildrenList(){
     familyChildren.map(c => '<label><input type="checkbox" class="kidPick" value="'+c.id+'">'+c.display_name+'</label>').join('');
   document.getElementById('skidsBox').innerHTML =
     familyChildren.map(c => '<label><input type="checkbox" class="skidPick" value="'+c.id+'">'+c.display_name+'</label>').join('');
+  document.getElementById('pauseChild').innerHTML =
+    '<option value="">👨‍👩‍👧 Toute la famille</option>' +
+    familyChildren.map(c => '<option value="'+c.id+'">'+c.display_name+'</option>').join('');
+  if(!document.getElementById('pauseFrom').value) document.getElementById('pauseFrom').value = todayStr();
+  document.getElementById('adjChild').innerHTML = familyChildren.map(c => '<option value="'+c.id+'">'+c.display_name+'</option>').join('');
 }
 function toggleAllKids(el){
   document.querySelectorAll('.kidPick').forEach(cb => { cb.checked = false; cb.disabled = el.checked; });
@@ -306,14 +340,93 @@ async function loadParent(){
   const { data, error } = await client.from('task_logs').select('*, profiles!task_logs_child_id_fkey(display_name), tasks(assign_all,recurring)').eq('status', 'pending').order('created_at');
   const el = document.getElementById('pendingList');
   if(error){ el.textContent = '❌ ' + error.message; return; }
-  if(!data.length){ el.innerHTML = '<p style="color:#888">Rien à valider pour le moment.</p>'; return; }
-  el.innerHTML = data.map(l => {
-    const canShare = l.tasks?.assign_all && !l.tasks?.recurring && familyChildren.length>1;
-    const comment = l.comment ? '<br><i>💬 '+l.comment+'</i>' : '';
-    return '<div class="task"><div><b>'+l.title+'</b><span>'+(l.profiles?.display_name||'?')+' · +'+l.points+' ⭐'+comment+'</span></div>'+
-      '<div>'+(canShare?'<button class="small secondary" onclick="shareStars(\''+l.id+'\','+l.points+')">🤝</button> ':'')+
-      '<button class="small" onclick="validate(\''+l.id+'\')">✅</button></div></div>';
+  if(!data.length){ el.innerHTML = '<p style="color:#888">Rien à valider pour le moment.</p>'; }
+  else {
+    el.innerHTML = data.map(l => {
+      const canShare = l.tasks?.assign_all && !l.tasks?.recurring && familyChildren.length>1;
+      const comment = l.comment ? '<br><i>💬 '+l.comment+'</i>' : '';
+      return '<div class="task"><div><b>'+l.title+'</b><span>'+(l.profiles?.display_name||'?')+' · +'+l.points+' ⭐'+comment+'</span></div>'+
+        '<div>'+(canShare?'<button class="small secondary" onclick="shareStars(\''+l.id+'\','+l.points+')">🤝</button> ':'')+
+        '<button class="small" onclick="validate(\''+l.id+'\')">✅</button></div></div>';
+    }).join('');
+  }
+  await loadPauses();
+  await loadAdjustments();
+}
+
+// ---------- PAUSES ----------
+async function createPause(){
+  const childId = document.getElementById('pauseChild').value || null;
+  const from = document.getElementById('pauseFrom').value;
+  const to = document.getElementById('pauseTo').value || null;
+  if(!from){ showMsg('pauseMsg','❌ Une date de début est nécessaire.','err'); return; }
+  if(to && to < from){ showMsg('pauseMsg','❌ La date de fin doit être après la date de début.','err'); return; }
+  const { error } = await client.from('pauses').insert({ family_id: myProfile.family_id, child_id: childId, from_date: from, to_date: to });
+  if(error){ showMsg('pauseMsg','❌ '+error.message,'err'); return; }
+  document.getElementById('pauseTo').value = '';
+  showMsg('pauseMsg','✅ Pause enregistrée.','ok');
+  await loadPauses();
+}
+
+async function loadPauses(){
+  const { data, error } = await client.from('pauses').select('*').eq('family_id', myProfile.family_id).order('from_date', { ascending:false });
+  const el = document.getElementById('pauseList');
+  if(error){ el.textContent = '❌ ' + error.message; return; }
+  if(!data || !data.length){ el.innerHTML = '<p style="color:#888">Aucune pause enregistrée.</p>'; return; }
+  const today = todayStr();
+  el.innerHTML = data.map(p => {
+    const who = p.child_id ? (familyChildren.find(c=>c.id===p.child_id)?.display_name || '?') : '👨‍👩‍👧 Toute la famille';
+    const ongoing = (!p.to_date || p.to_date >= today);
+    const status = !ongoing ? '✅ terminée' : (p.from_date > today ? '🔜 à venir' : '⏸️ en cours');
+    const dates = 'du ' + p.from_date + (p.to_date ? (' au ' + p.to_date) : ' (indéfini)');
+    return '<div class="task"><div><b>'+who+'</b><span>'+dates+' · '+status+'</span></div>'+
+      (ongoing ? '<button class="danger" onclick="endPause(\''+p.id+'\')">Arrêter</button>' : '') +
+      '</div>';
   }).join('');
+}
+
+async function endPause(pauseId){
+  if(!confirm('Terminer cette pause maintenant ?')) return;
+  const today = todayStr();
+  const { error } = await client.from('pauses').update({ to_date: today }).eq('id', pauseId);
+  if(error){ alert('❌ ' + error.message); return; }
+  await loadPauses();
+}
+
+// ---------- AJUSTEMENTS ----------
+async function createAdjustment(){
+  const childId = document.getElementById('adjChild').value;
+  const points = parseInt(document.getElementById('adjPoints').value, 10);
+  const reason = document.getElementById('adjReason').value.trim() || null;
+  if(!childId){ showMsg('adjMsg', '❌ Choisissez un enfant.', 'err'); return; }
+  if(!points){ showMsg('adjMsg', '❌ Indiquez un nombre d’étoiles (positif ou négatif, différent de zéro).', 'err'); return; }
+  const { error } = await client.from('adjustments').insert({ family_id: myProfile.family_id, child_id: childId, points, reason });
+  if(error){ showMsg('adjMsg', '❌ ' + error.message, 'err'); return; }
+  document.getElementById('adjPoints').value = '';
+  document.getElementById('adjReason').value = '';
+  showMsg('adjMsg', '✅ Ajustement enregistré.', 'ok');
+  await loadAdjustments();
+}
+
+async function loadAdjustments(){
+  const { data, error } = await client.from('adjustments').select('*').eq('family_id', myProfile.family_id).order('created_at', { ascending:false }).limit(20);
+  const el = document.getElementById('adjList');
+  if(error){ el.textContent = '❌ ' + error.message; return; }
+  if(!data || !data.length){ el.innerHTML = '<p style="color:#888">Aucun ajustement pour l’instant.</p>'; return; }
+  el.innerHTML = data.map(a => {
+    const who = familyChildren.find(c=>c.id===a.child_id)?.display_name || '?';
+    const sign = a.points > 0 ? '+' : '';
+    const reason = a.reason ? (' · ' + a.reason) : '';
+    return '<div class="task"><div><b>'+who+'</b><span>'+sign+a.points+' ⭐'+reason+'</span></div>'+
+      '<button class="danger" onclick="deleteAdjustment(\''+a.id+'\')">🗑️</button></div>';
+  }).join('');
+}
+
+async function deleteAdjustment(adjId){
+  if(!confirm('Supprimer cet ajustement ?')) return;
+  const { error } = await client.from('adjustments').delete().eq('id', adjId);
+  if(error){ alert('❌ ' + error.message); return; }
+  await loadAdjustments();
 }
 
 async function shareStars(logId, totalPoints){
@@ -341,6 +454,25 @@ function isDueToday(t){
 }
 
 async function loadChild(){
+  const today = todayStr();
+  const { data: activePauses } = await client.from('pauses').select('*').eq('family_id', myProfile.family_id)
+    .or('child_id.eq.' + me.id + ',child_id.is.null').lte('from_date', today);
+  const pause = (activePauses || []).find(p => !p.to_date || p.to_date >= today);
+
+  const { data: validatedForStars } = await client.from('task_logs').select('points').eq('child_id', me.id).eq('status', 'validated');
+  const { data: sharesForStars } = await client.from('task_shares').select('points').eq('child_id', me.id);
+  const { data: adjustmentsForStars } = await client.from('adjustments').select('points').eq('child_id', me.id);
+  document.getElementById('starTotal').textContent = '⭐ ' + (
+    (validatedForStars||[]).reduce((s,l)=>s+l.points,0) +
+    (sharesForStars||[]).reduce((s,l)=>s+l.points,0) +
+    (adjustmentsForStars||[]).reduce((s,l)=>s+l.points,0)
+  );
+
+  if(pause){
+    document.getElementById('myTasks').innerHTML = '<p style="color:#888">⏸️ Pause en cours' + (pause.to_date ? (' jusqu\'au ' + pause.to_date) : '') + '. Aucune mission pour le moment.</p>';
+    return;
+  }
+
   const { data: assigned } = await client.from('task_assignees').select('task_id').eq('child_id', me.id);
   const assignedIds = new Set((assigned||[]).map(a=>a.task_id));
 
@@ -355,11 +487,7 @@ async function loadChild(){
     return { t, taken: raceLog && raceLog.child_id!==me.id, myLog: (myLogs||[]).find(l=>l.task_id===t.id && l.child_id===me.id) };
   }).filter(x => !(x.t.assign_all && x.taken && !x.myLog));
 
-  const { data: logsToday } = await client.from('task_logs').select('*').eq('child_id', me.id).eq('date', todayStr());
-  const { data: validated } = await client.from('task_logs').select('points').eq('child_id', me.id).eq('status', 'validated');
-  const { data: shares } = await client.from('task_shares').select('points').eq('child_id', me.id);
-  const total = (validated||[]).reduce((s,l)=>s+l.points,0) + (shares||[]).reduce((s,l)=>s+l.points,0);
-  document.getElementById('starTotal').textContent = '⭐ ' + total;
+  const { data: logsToday } = await client.from('task_logs').select('*').eq('child_id', me.id).eq('date', today);
 
   const el = document.getElementById('myTasks');
   let html = '';
