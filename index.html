@@ -708,14 +708,19 @@ async function loadChild(){
 async function loadRewardShop(total){
   const { data: rewards } = await client.from('rewards').select('*').eq('family_id', myProfile.family_id).order('cost');
   const { data: myRedemptions } = await client.from('redemptions').select('*').eq('child_id', me.id).order('created_at', { ascending:false }).limit(10);
+  const { data: myPending } = await client.from('redemptions').select('reward_id').eq('child_id', me.id).eq('status', 'pending');
+  const pendingRewardIds = new Set((myPending||[]).map(r=>r.reward_id));
   const el = document.getElementById('rewardShop');
   let html = '';
   if(rewards && rewards.length){
     html += rewards.map(r => {
+      const isPending = pendingRewardIds.has(r.id);
       const can = total >= r.cost;
       const label = r.title.replace(/'/g, "\\'");
-      return '<div class="task"><div><b>'+(r.emoji?r.emoji+' ':'')+r.title+'</b><span>'+r.cost+' ⭐</span></div>'+
-        '<button class="small" '+(can?'':'disabled style="opacity:.4"')+' onclick="requestReward(\''+r.id+'\',\''+label+'\','+r.cost+',\''+(r.emoji||'')+'\')">Demander</button></div>';
+      const right = isPending
+        ? '<span style="font-size:13px;color:#b8860b">⏳ en attente</span>'
+        : '<button class="small" '+(can?'':'disabled style="opacity:.4"')+' onclick="requestReward(this,\''+r.id+'\',\''+label+'\','+r.cost+',\''+(r.emoji||'')+'\')">Demander</button>';
+      return '<div class="task"><div><b>'+(r.emoji?r.emoji+' ':'')+r.title+'</b><span>'+r.cost+' ⭐</span></div>'+right+'</div>';
     }).join('');
   } else {
     html += '<p style="color:#888">Aucune récompense disponible pour l’instant.</p>';
@@ -730,11 +735,15 @@ async function loadRewardShop(total){
   el.innerHTML = html;
 }
 
-async function requestReward(rewardId, title, cost, emoji){
+async function requestReward(btn, rewardId, title, cost, emoji){
+  btn.disabled = true;
+  btn.textContent = '...';
   const total = await computeStars(me.id);
-  if(total < cost){ alert('Pas assez d’étoiles pour cette récompense.'); return; }
+  if(total < cost){ alert('Pas assez d’étoiles pour cette récompense.'); btn.disabled = false; btn.textContent = 'Demander'; return; }
+  const { data: existing } = await client.from('redemptions').select('id').eq('child_id', me.id).eq('reward_id', rewardId).eq('status', 'pending');
+  if(existing && existing.length){ await loadChild(); return; }
   const { error } = await client.from('redemptions').insert({ family_id: myProfile.family_id, child_id: me.id, reward_id: rewardId, title, emoji: emoji || null, cost, status: 'pending' });
-  if(error){ alert('❌ ' + error.message); return; }
+  if(error){ alert('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Demander'; return; }
   await loadChild();
 }
 
