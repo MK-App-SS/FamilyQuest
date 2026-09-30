@@ -147,6 +147,7 @@
     <div id="adjList"></div>
 
     <h2>🏅 Badges de la famille</h2>
+    <div id="badgeDiag"></div>
     <div id="badgeList"></div>
 
     <button class="secondary small" onclick="loadParent()">🔄 Actualiser</button>
@@ -474,13 +475,15 @@ function weekDates(mondayStr){
 }
 
 async function awardBadge(childId, badgeId, scope, period){
-  const { data: existing } = await client.from('badges').select('id').eq('child_id', childId).eq('badge_id', badgeId).eq('period', period).maybeSingle();
-  if(existing) return;
+  const { data: existing, error: checkErr } = await client.from('badges').select('id').eq('child_id', childId).eq('badge_id', badgeId).eq('period', period);
+  if(checkErr){ console.error('Badge check error:', checkErr); window.__lastBadgeError = checkErr.message; return; }
+  if(existing && existing.length) return;
   const reward = BADGE_REWARD[badgeId] || 0;
   const { error } = await client.from('badges').insert({ family_id: myProfile.family_id, child_id: childId, badge_id: badgeId, scope, period, reward, seen: false });
-  if(error) return;
+  if(error){ console.error('Badge insert error:', error); window.__lastBadgeError = error.message; return; }
   if(reward){
-    await client.from('adjustments').insert({ family_id: myProfile.family_id, child_id: childId, points: reward, reason: BADGE_LABEL[badgeId] || badgeId });
+    const { error: adjErr } = await client.from('adjustments').insert({ family_id: myProfile.family_id, child_id: childId, points: reward, reason: BADGE_LABEL[badgeId] || badgeId });
+    if(adjErr) console.error('Badge reward adjustment error:', adjErr);
   }
 }
 
@@ -512,6 +515,7 @@ async function checkAndAwardBadges(childId){
 }
 
 async function loadBadges(){
+  await loadBadgeDiagnostics();
   const { data, error } = await client.from('badges').select('*, profiles!badges_child_id_fkey(display_name)').eq('family_id', myProfile.family_id).order('created_at', { ascending:false }).limit(30);
   const el = document.getElementById('badgeList');
   if(error){ el.textContent = '❌ ' + error.message; return; }
@@ -520,6 +524,32 @@ async function loadBadges(){
     const who = b.profiles?.display_name || familyChildren.find(c=>c.id===b.child_id)?.display_name || '?';
     return '<div class="task"><div><b>'+(BADGE_LABEL[b.badge_id]||b.badge_id)+'</b><span>'+who+' · '+b.period+' · +'+b.reward+' ⭐</span></div></div>';
   }).join('');
+}
+
+// Panneau de debug : montre pour chaque enfant l'état de sa "journée parfaite" du jour.
+async function loadBadgeDiagnostics(){
+  const el = document.getElementById('badgeDiag');
+  if(!familyChildren.length){ el.innerHTML = ''; return; }
+  const dateStr = todayStr();
+  const rows = [];
+  for(const c of familyChildren){
+    const { data: assigned } = await client.from('task_assignees').select('task_id').eq('child_id', c.id);
+    const assignedIds = new Set((assigned||[]).map(a=>a.task_id));
+    const { data: allTasks } = await client.from('tasks').select('*').eq('family_id', myProfile.family_id).eq('recurring', true);
+    const mine = (allTasks||[]).filter(t => t.assign_all || assignedIds.has(t.id));
+    const dueToday = mine.filter(isDueToday);
+    const { data: logsToday } = await client.from('task_logs').select('task_id,status').eq('child_id', c.id).eq('date', dateStr);
+    const byTask = new Map((logsToday||[]).map(l=>[l.task_id, l.status]));
+    const details = dueToday.map(t => {
+      const st = byTask.get(t.id);
+      const mark = st==='validated' ? '✅' : (st==='pending' ? '⏳' : '❌');
+      return mark+' '+t.title;
+    }).join(' · ');
+    const doneCount = dueToday.filter(t => byTask.get(t.id)==='validated').length;
+    rows.push('<div class="task"><div><b>'+c.display_name+'</b><span>'+doneCount+'/'+dueToday.length+' validée(s) aujourd’hui'+(dueToday.length?(' · '+details):' · aucune mission récurrente due aujourd’hui')+'</span></div></div>');
+  }
+  const errNote = window.__lastBadgeError ? '<p style="color:#c00;font-size:13px">⚠️ Dernière erreur badge : '+window.__lastBadgeError+'</p>' : '';
+  el.innerHTML = '<p style="font-size:12px;color:#999">Diagnostic (mis à jour à chaque actualisation) :</p>' + rows.join('') + errNote;
 }
 
 // ---------- ENFANT ----------
