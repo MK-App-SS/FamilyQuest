@@ -150,6 +150,19 @@
     <div id="badgeDiag"></div>
     <div id="badgeList"></div>
 
+    <h2>🎁 Récompenses</h2>
+    <div class="card">
+      <label>Titre</label><input id="rtitle" placeholder="Ex : Soirée pyjama">
+      <label>Emoji <span style="font-weight:400;color:#999">(facultatif)</span></label><input id="remoji" placeholder="🎬" maxlength="4">
+      <label>Coût en étoiles</label><input id="rcost" type="number" value="20">
+      <button onclick="createReward()">Créer la récompense</button>
+      <div id="createRMsg" class="msg"></div>
+    </div>
+    <div id="rewardList"></div>
+
+    <h2>📥 Demandes de récompenses</h2>
+    <div id="redemptionList"></div>
+
     <button class="secondary small" onclick="loadParent()">🔄 Actualiser</button>
   </div>
 
@@ -158,6 +171,8 @@
     <div id="badgeSummary"></div>
     <h2>Aujourd'hui</h2>
     <div id="myTasks"></div>
+    <h2>🎁 Récompenses</h2>
+    <div id="rewardShop"></div>
     <button class="secondary small" onclick="loadChild()">🔄 Actualiser</button>
   </div>
 </div>
@@ -358,6 +373,8 @@ async function loadParent(){
   await loadPauses();
   await loadAdjustments();
   await loadBadges();
+  await loadRewards();
+  await loadRedemptions();
 }
 
 // ---------- PAUSES ----------
@@ -526,7 +543,6 @@ async function loadBadges(){
   }).join('');
 }
 
-// Panneau de debug : montre pour chaque enfant l'état de sa "journée parfaite" du jour.
 async function loadBadgeDiagnostics(){
   const el = document.getElementById('badgeDiag');
   if(!familyChildren.length){ el.innerHTML = ''; return; }
@@ -552,10 +568,74 @@ async function loadBadgeDiagnostics(){
   el.innerHTML = '<p style="font-size:12px;color:#999">Diagnostic (mis à jour à chaque actualisation) :</p>' + rows.join('') + errNote;
 }
 
+// ---------- RÉCOMPENSES (parent) ----------
+async function createReward(){
+  const title = document.getElementById('rtitle').value.trim();
+  const emoji = document.getElementById('remoji').value.trim() || null;
+  const cost = parseInt(document.getElementById('rcost').value, 10);
+  if(!title){ showMsg('createRMsg', '❌ Un titre est nécessaire.', 'err'); return; }
+  if(!cost || cost < 1){ showMsg('createRMsg', '❌ Indiquez un coût en étoiles supérieur à 0.', 'err'); return; }
+  const { error } = await client.from('rewards').insert({ family_id: myProfile.family_id, title, emoji, cost });
+  if(error){ showMsg('createRMsg', '❌ ' + error.message, 'err'); return; }
+  document.getElementById('rtitle').value = '';
+  document.getElementById('remoji').value = '';
+  showMsg('createRMsg', '✅ Récompense créée.', 'ok');
+  await loadRewards();
+}
+
+async function loadRewards(){
+  const { data, error } = await client.from('rewards').select('*').eq('family_id', myProfile.family_id).order('cost');
+  const el = document.getElementById('rewardList');
+  if(error){ el.textContent = '❌ ' + error.message; return; }
+  if(!data || !data.length){ el.innerHTML = '<p style="color:#888">Aucune récompense créée.</p>'; return; }
+  el.innerHTML = data.map(r =>
+    '<div class="task"><div><b>'+(r.emoji?r.emoji+' ':'')+r.title+'</b><span>'+r.cost+' ⭐</span></div>'+
+    '<button class="danger" onclick="deleteReward(\''+r.id+'\')">🗑️</button></div>'
+  ).join('');
+}
+
+async function deleteReward(rewardId){
+  if(!confirm('Supprimer cette récompense ?')) return;
+  const { error } = await client.from('rewards').delete().eq('id', rewardId);
+  if(error){ alert('❌ ' + error.message); return; }
+  await loadRewards();
+}
+
+async function loadRedemptions(){
+  const { data, error } = await client.from('redemptions').select('*, profiles!redemptions_child_id_fkey(display_name)').eq('family_id', myProfile.family_id).eq('status', 'pending').order('created_at');
+  const el = document.getElementById('redemptionList');
+  if(error){ el.textContent = '❌ ' + error.message; return; }
+  if(!data || !data.length){ el.innerHTML = '<p style="color:#888">Aucune demande en attente.</p>'; return; }
+  el.innerHTML = data.map(r => {
+    const who = r.profiles?.display_name || '?';
+    const label = ((r.emoji?r.emoji+' ':'') + r.title).replace(/'/g, "\\'");
+    return '<div class="task"><div><b>'+(r.emoji?r.emoji+' ':'')+r.title+'</b><span>'+who+' · '+r.cost+' ⭐</span></div>'+
+      '<div><button class="small" onclick="decideRedemption(\''+r.id+'\',\'given\',\''+r.child_id+'\','+r.cost+',\''+label+'\')">✅</button> '+
+      '<button class="small secondary" onclick="decideRedemption(\''+r.id+'\',\'refused\',null,0,null)">❌</button></div></div>';
+  }).join('');
+}
+
+async function decideRedemption(redId, decision, childId, cost, label){
+  const { error } = await client.from('redemptions').update({ status: decision, decided_at: new Date().toISOString() }).eq('id', redId);
+  if(error){ alert('❌ ' + error.message); return; }
+  if(decision === 'given' && childId){
+    const { error: adjErr } = await client.from('adjustments').insert({ family_id: myProfile.family_id, child_id: childId, points: -cost, reason: '🎁 ' + label });
+    if(adjErr) alert('⚠️ Récompense marquée donnée, mais erreur lors du débit des étoiles : ' + adjErr.message);
+  }
+  await loadRedemptions();
+}
+
 // ---------- ENFANT ----------
 function isDueToday(t){
   if(t.freq === 'weekly') return (t.days||[]).includes(todayDow());
   return true;
+}
+
+async function computeStars(childId){
+  const { data: v } = await client.from('task_logs').select('points').eq('child_id', childId).eq('status', 'validated');
+  const { data: s } = await client.from('task_shares').select('points').eq('child_id', childId);
+  const { data: a } = await client.from('adjustments').select('points').eq('child_id', childId);
+  return (v||[]).reduce((t,l)=>t+l.points,0) + (s||[]).reduce((t,l)=>t+l.points,0) + (a||[]).reduce((t,l)=>t+l.points,0);
 }
 
 async function loadChild(){
@@ -564,14 +644,8 @@ async function loadChild(){
     .or('child_id.eq.' + me.id + ',child_id.is.null').lte('from_date', today);
   const pause = (activePauses || []).find(p => !p.to_date || p.to_date >= today);
 
-  const { data: validatedForStars } = await client.from('task_logs').select('points').eq('child_id', me.id).eq('status', 'validated');
-  const { data: sharesForStars } = await client.from('task_shares').select('points').eq('child_id', me.id);
-  const { data: adjustmentsForStars } = await client.from('adjustments').select('points').eq('child_id', me.id);
-  document.getElementById('starTotal').textContent = '⭐ ' + (
-    (validatedForStars||[]).reduce((s,l)=>s+l.points,0) +
-    (sharesForStars||[]).reduce((s,l)=>s+l.points,0) +
-    (adjustmentsForStars||[]).reduce((s,l)=>s+l.points,0)
-  );
+  const total = await computeStars(me.id);
+  document.getElementById('starTotal').textContent = '⭐ ' + total;
 
   const { data: myBadges } = await client.from('badges').select('*').eq('child_id', me.id).order('created_at', { ascending:false });
   const badgeEl = document.getElementById('badgeSummary');
@@ -590,6 +664,7 @@ async function loadChild(){
 
   if(pause){
     document.getElementById('myTasks').innerHTML = '<p style="color:#888">⏸️ Pause en cours' + (pause.to_date ? (' jusqu\'au ' + pause.to_date) : '') + '. Aucune mission pour le moment.</p>';
+    await loadRewardShop(total);
     return;
   }
 
@@ -617,7 +692,7 @@ async function loadChild(){
     if(myLog?.status === 'validated') right = '<span style="font-size:13px;color:#0a0">✅ validé</span>';
     html += '<div class="task"><div><b>✨ '+t.title+'</b><span>'+t.points+' ⭐ · '+(t.assign_all?'le premier qui la fait':'')+'</span></div>'+right+'</div>';
   });
-  if(!dueToday.length && !mySpecials.length){ el.innerHTML = '<p style="color:#888">Aucune mission aujourd’hui.</p>'; return; }
+  if(!dueToday.length && !mySpecials.length){ el.innerHTML = '<p style="color:#888">Aucune mission aujourd’hui.</p>'; await loadRewardShop(total); return; }
   html += dueToday.map(t => {
     const log = (logsToday||[]).find(l => l.task_id === t.id);
     let right = '<button class="small" onclick="doTask(\''+t.id+'\',\''+t.title.replace(/'/g,"\\'")+'\','+t.points+')">C’est fait !</button>';
@@ -627,6 +702,40 @@ async function loadChild(){
     return '<div class="task"><div><b>'+t.title+'</b><span>'+meta+'</span></div>'+right+'</div>';
   }).join('');
   el.innerHTML = html;
+  await loadRewardShop(total);
+}
+
+async function loadRewardShop(total){
+  const { data: rewards } = await client.from('rewards').select('*').eq('family_id', myProfile.family_id).order('cost');
+  const { data: myRedemptions } = await client.from('redemptions').select('*').eq('child_id', me.id).order('created_at', { ascending:false }).limit(10);
+  const el = document.getElementById('rewardShop');
+  let html = '';
+  if(rewards && rewards.length){
+    html += rewards.map(r => {
+      const can = total >= r.cost;
+      const label = r.title.replace(/'/g, "\\'");
+      return '<div class="task"><div><b>'+(r.emoji?r.emoji+' ':'')+r.title+'</b><span>'+r.cost+' ⭐</span></div>'+
+        '<button class="small" '+(can?'':'disabled style="opacity:.4"')+' onclick="requestReward(\''+r.id+'\',\''+label+'\','+r.cost+',\''+(r.emoji||'')+'\')">Demander</button></div>';
+    }).join('');
+  } else {
+    html += '<p style="color:#888">Aucune récompense disponible pour l’instant.</p>';
+  }
+  if(myRedemptions && myRedemptions.length){
+    html += '<p style="font-size:12px;color:#999;margin-top:14px">Mes demandes :</p>';
+    html += myRedemptions.map(r => {
+      const st = r.status==='pending' ? '⏳ en attente' : (r.status==='given' ? '✅ reçue' : '❌ refusée');
+      return '<div class="task"><div><b>'+(r.emoji?r.emoji+' ':'')+r.title+'</b><span>'+r.cost+' ⭐ · '+st+'</span></div></div>';
+    }).join('');
+  }
+  el.innerHTML = html;
+}
+
+async function requestReward(rewardId, title, cost, emoji){
+  const total = await computeStars(me.id);
+  if(total < cost){ alert('Pas assez d’étoiles pour cette récompense.'); return; }
+  const { error } = await client.from('redemptions').insert({ family_id: myProfile.family_id, child_id: me.id, reward_id: rewardId, title, emoji: emoji || null, cost, status: 'pending' });
+  if(error){ alert('❌ ' + error.message); return; }
+  await loadChild();
 }
 
 async function doSpecial(taskId, title, points){
