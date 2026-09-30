@@ -146,11 +146,15 @@
     </div>
     <div id="adjList"></div>
 
+    <h2>🏅 Badges de la famille</h2>
+    <div id="badgeList"></div>
+
     <button class="secondary small" onclick="loadParent()">🔄 Actualiser</button>
   </div>
 
   <div id="childView" style="display:none">
     <div class="stars" id="starTotal"></div>
+    <div id="badgeSummary"></div>
     <h2>Aujourd'hui</h2>
     <div id="myTasks"></div>
     <button class="secondary small" onclick="loadChild()">🔄 Actualiser</button>
@@ -346,12 +350,13 @@ async function loadParent(){
       const canShare = l.tasks?.assign_all && !l.tasks?.recurring && familyChildren.length>1;
       const comment = l.comment ? '<br><i>💬 '+l.comment+'</i>' : '';
       return '<div class="task"><div><b>'+l.title+'</b><span>'+(l.profiles?.display_name||'?')+' · +'+l.points+' ⭐'+comment+'</span></div>'+
-        '<div>'+(canShare?'<button class="small secondary" onclick="shareStars(\''+l.id+'\','+l.points+')">🤝</button> ':'')+
-        '<button class="small" onclick="validate(\''+l.id+'\')">✅</button></div></div>';
+        '<div>'+(canShare?'<button class="small secondary" onclick="shareStars(\''+l.id+'\','+l.points+',\''+l.child_id+'\')">🤝</button> ':'')+
+        '<button class="small" onclick="validate(\''+l.id+'\',\''+l.child_id+'\')">✅</button></div></div>';
     }).join('');
   }
   await loadPauses();
   await loadAdjustments();
+  await loadBadges();
 }
 
 // ---------- PAUSES ----------
@@ -429,7 +434,7 @@ async function deleteAdjustment(adjId){
   await loadAdjustments();
 }
 
-async function shareStars(logId, totalPoints){
+async function shareStars(logId, totalPoints, childId){
   const name = prompt('Partager avec quel enfant ? (prénom exact)');
   if(!name) return;
   const kid = familyChildren.find(c=>c.display_name.toLowerCase()===name.trim().toLowerCase());
@@ -438,13 +443,83 @@ async function shareStars(logId, totalPoints){
   if(!amt || amt<1 || amt>=totalPoints){ alert('Montant invalide.'); return; }
   await client.from('task_logs').update({ points: totalPoints-amt, status:'validated', validated_at:new Date().toISOString(), comment:null }).eq('id', logId);
   await client.from('task_shares').insert({ log_id: logId, child_id: kid.id, points: amt });
+  await checkAndAwardBadges(childId);
+  await checkAndAwardBadges(kid.id);
   await loadParent();
 }
 
-async function validate(logId){
+async function validate(logId, childId){
   const { error } = await client.from('task_logs').update({ status: 'validated', validated_at: new Date().toISOString(), comment: null }).eq('id', logId);
   if(error){ alert('❌ ' + error.message); return; }
+  await checkAndAwardBadges(childId);
   await loadParent();
+}
+
+// ---------- SÉRIES & BADGES ----------
+const BADGE_LABEL = { daily_perfect: '🔥 Journée parfaite', weekly_perfect: '🏆 Semaine parfaite' };
+const BADGE_REWARD = { daily_perfect: 2, weekly_perfect: 10 };
+
+function getWeekStart(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0,10);
+}
+function weekDates(mondayStr){
+  const d = new Date(mondayStr + 'T00:00:00');
+  const arr = [];
+  for(let i=0;i<7;i++){ const dt = new Date(d); dt.setDate(d.getDate()+i); arr.push(dt.toISOString().slice(0,10)); }
+  return arr;
+}
+
+async function awardBadge(childId, badgeId, scope, period){
+  const { data: existing } = await client.from('badges').select('id').eq('child_id', childId).eq('badge_id', badgeId).eq('period', period).maybeSingle();
+  if(existing) return;
+  const reward = BADGE_REWARD[badgeId] || 0;
+  const { error } = await client.from('badges').insert({ family_id: myProfile.family_id, child_id: childId, badge_id: badgeId, scope, period, reward, seen: false });
+  if(error) return;
+  if(reward){
+    await client.from('adjustments').insert({ family_id: myProfile.family_id, child_id: childId, points: reward, reason: BADGE_LABEL[badgeId] || badgeId });
+  }
+}
+
+async function checkAndAwardBadges(childId){
+  if(!childId) return;
+  const dateStr = todayStr();
+
+  const { data: assigned } = await client.from('task_assignees').select('task_id').eq('child_id', childId);
+  const assignedIds = new Set((assigned||[]).map(a=>a.task_id));
+  const { data: allTasks } = await client.from('tasks').select('*').eq('family_id', myProfile.family_id).eq('recurring', true);
+  const mine = (allTasks||[]).filter(t => t.assign_all || assignedIds.has(t.id));
+  const dueToday = mine.filter(isDueToday);
+  if(!dueToday.length) return;
+
+  const { data: logsToday } = await client.from('task_logs').select('task_id').eq('child_id', childId).eq('date', dateStr).eq('status', 'validated');
+  const validatedIds = new Set((logsToday||[]).map(l=>l.task_id));
+  const allDone = dueToday.every(t => validatedIds.has(t.id));
+  if(!allDone) return;
+
+  await awardBadge(childId, 'daily_perfect', 'daily', dateStr);
+
+  const weekStart = getWeekStart(dateStr);
+  const days = weekDates(weekStart);
+  const { data: weekBadges } = await client.from('badges').select('period').eq('child_id', childId).eq('badge_id', 'daily_perfect').in('period', days);
+  const gotDays = new Set((weekBadges||[]).map(b=>b.period));
+  if(days.every(d => gotDays.has(d))){
+    await awardBadge(childId, 'weekly_perfect', 'weekly', weekStart);
+  }
+}
+
+async function loadBadges(){
+  const { data, error } = await client.from('badges').select('*, profiles!badges_child_id_fkey(display_name)').eq('family_id', myProfile.family_id).order('created_at', { ascending:false }).limit(30);
+  const el = document.getElementById('badgeList');
+  if(error){ el.textContent = '❌ ' + error.message; return; }
+  if(!data || !data.length){ el.innerHTML = '<p style="color:#888">Aucun badge décroché pour l’instant.</p>'; return; }
+  el.innerHTML = data.map(b => {
+    const who = b.profiles?.display_name || familyChildren.find(c=>c.id===b.child_id)?.display_name || '?';
+    return '<div class="task"><div><b>'+(BADGE_LABEL[b.badge_id]||b.badge_id)+'</b><span>'+who+' · '+b.period+' · +'+b.reward+' ⭐</span></div></div>';
+  }).join('');
 }
 
 // ---------- ENFANT ----------
@@ -467,6 +542,21 @@ async function loadChild(){
     (sharesForStars||[]).reduce((s,l)=>s+l.points,0) +
     (adjustmentsForStars||[]).reduce((s,l)=>s+l.points,0)
   );
+
+  const { data: myBadges } = await client.from('badges').select('*').eq('child_id', me.id).order('created_at', { ascending:false });
+  const badgeEl = document.getElementById('badgeSummary');
+  if(myBadges && myBadges.length){
+    const dailyCount = myBadges.filter(b=>b.badge_id==='daily_perfect').length;
+    const weeklyCount = myBadges.filter(b=>b.badge_id==='weekly_perfect').length;
+    const newOnes = myBadges.filter(b=>!b.seen);
+    badgeEl.innerHTML = '<div class="card">🔥 '+dailyCount+' journée(s) parfaite(s) · 🏆 '+weeklyCount+' semaine(s) parfaite(s)'+
+      (newOnes.length ? '<br><b>🎉 Nouveau badge débloqué !</b>' : '') + '</div>';
+    if(newOnes.length){
+      await client.from('badges').update({ seen:true }).in('id', newOnes.map(b=>b.id));
+    }
+  } else {
+    badgeEl.innerHTML = '';
+  }
 
   if(pause){
     document.getElementById('myTasks').innerHTML = '<p style="color:#888">⏸️ Pause en cours' + (pause.to_date ? (' jusqu\'au ' + pause.to_date) : '') + '. Aucune mission pour le moment.</p>';
