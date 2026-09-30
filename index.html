@@ -503,14 +503,14 @@ async function checkAndAwardBadges(childId){
   const allDone = dueToday.every(t => validatedIds.has(t.id));
   if(!allDone) return;
 
-  await awardBadge(childId, 'daily_perfect', 'daily', dateStr);
+  await awardBadge(childId, 'daily_perfect', 'day', dateStr);
 
   const weekStart = getWeekStart(dateStr);
   const days = weekDates(weekStart);
   const { data: weekBadges } = await client.from('badges').select('period').eq('child_id', childId).eq('badge_id', 'daily_perfect').in('period', days);
   const gotDays = new Set((weekBadges||[]).map(b=>b.period));
   if(days.every(d => gotDays.has(d))){
-    await awardBadge(childId, 'weekly_perfect', 'weekly', weekStart);
+    await awardBadge(childId, 'weekly_perfect', 'week', weekStart);
   }
 }
 
