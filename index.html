@@ -218,8 +218,9 @@ async function computeStars(childId){
 // À appeler après toute action qui change ses étoiles (validation, partage, ajustement, récompense donnée...).
 async function recalcBalance(childId){
   var total=await computeStars(childId);
-  var {error}=await client.from('profiles').update({star_balance:total}).eq('id',childId);
-  if(error) console.error('recalcBalance error:',error);
+  var {data,error}=await client.from('profiles').update({star_balance:total}).eq('id',childId).select();
+  if(error){ console.error('recalcBalance error:',error); alert('⚠️ Le solde n’a pas pu être mis à jour : '+error.message); return total; }
+  if(!data||!data.length){ console.warn('recalcBalance: 0 ligne mise à jour (RLS ?) pour', childId); alert('⚠️ Mission validée, mais le solde n’a pas été mis à jour (probablement une policy RLS sur profiles qui bloque l’update).'); }
   return total;
 }
 
@@ -353,8 +354,8 @@ function mform(){
   if(!ui.newOpen) return '';
   if(ui.mview==='daily'){
     return '<div class="sheet-inline" style="margin-bottom:16px">'+
-      '<label class="lbl">Titre</label><input class="inp" data-field="ntitle" placeholder="Ex : Faire son lit">'+
-      '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="npoints" value="5">'+
+      '<label class="lbl">Titre</label><input class="inp" data-field="ntitle" placeholder="Ex : Faire son lit" value="'+esc(ui.newTitle||'')+'">'+
+      '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="npoints" value="'+esc(ui.newPoints!=null?ui.newPoints:5)+'">'+
       '<label class="lbl">Fréquence</label><div class="chiprow"><button class="chip '+(ui.newFreq==='daily'?'sel':'')+'" data-a="setFreq" data-v="daily">🔁 Chaque jour</button><button class="chip '+(ui.newFreq==='weekly'?'sel':'')+'" data-a="setFreq" data-v="weekly">📆 Certains jours</button></div>'+
       (ui.newFreq==='weekly'?'<div class="chiprow" style="margin-top:8px">'+[1,2,3,4,5,6,0].map(function(d){return '<button class="chip '+(ui.newDays.indexOf(d)>-1?'sel':'')+'" data-a="toggleDay" data-v="'+d+'">'+DAY_LABEL[d]+'</button>'}).join('')+'</div>':'')+
       '<label class="lbl">Moment de la journée</label><div class="chiprow">'+Object.keys(SLOT_LABEL).map(function(k){return '<button class="chip '+(ui.newSlot===k?'sel':'')+'" data-a="setSlot" data-v="'+k+'">'+SLOT_LABEL[k]+'</button>'}).join('')+'</div>'+
@@ -367,8 +368,8 @@ function mform(){
       '</div>';
   }
   return '<div class="sheet-inline" style="margin-bottom:16px">'+
-    '<label class="lbl">Titre</label><input class="inp" data-field="stitle" placeholder="Ex : Trier ses jouets">'+
-    '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="spoints" value="10">'+
+    '<label class="lbl">Titre</label><input class="inp" data-field="stitle" placeholder="Ex : Trier ses jouets" value="'+esc(ui.newSTitle||'')+'">'+
+    '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="spoints" value="'+esc(ui.newSPoints!=null?ui.newSPoints:10)+'">'+
     '<label class="lbl">Règle</label><div class="chiprow">'+
     '<button class="chip '+(ui.newSMode==='race'?'sel':'')+'" data-a="setSMode" data-v="race">⚡ Le premier qui la fait</button>'+
     '<button class="chip '+(ui.newSMode==='each'?'sel':'')+'" data-a="setSMode" data-v="each">✅ Chacun doit la faire</button></div>'+
@@ -521,7 +522,7 @@ var A={
   },
 
   mview:function(d){ ui.mview=d.v; ui.newOpen=false; ui.formErr=null; render(); },
-  openNew:function(){ ui.newOpen=true; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; render(); },
+  openNew:function(){ ui.newOpen=true; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='5'; ui.newSTitle=''; ui.newSPoints='10'; render(); },
   closeForm:function(){ ui.newOpen=false; render(); },
   setFreq:function(d){ ui.newFreq=d.v; render(); },
   toggleDay:function(d){ var v=+d.v,i=ui.newDays.indexOf(v); if(i>-1)ui.newDays.splice(i,1); else ui.newDays.push(v); render(); },
@@ -532,8 +533,8 @@ var A={
   toggleSPick:function(d){ var i=ui.newSPicked.indexOf(d.v); if(i>-1)ui.newSPicked.splice(i,1); else ui.newSPicked.push(d.v); render(); },
 
   createRecurring:async function(){
-    var title=((document.querySelector('[data-field="ntitle"]')||{}).value||'').trim();
-    var points=parseInt((document.querySelector('[data-field="npoints"]')||{}).value,10)||5;
+    var title=(ui.newTitle||'').trim();
+    var points=parseInt(ui.newPoints,10)||5;
     if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
     if(ui.newFreq==='weekly' && !ui.newDays.length){ ui.formErr='Choisissez au moins un jour de la semaine.'; render(); return; }
     var {data:task,error}=await client.from('tasks').insert({
@@ -549,8 +550,8 @@ var A={
     await loadParentData(); render();
   },
   createSpecial:async function(){
-    var title=((document.querySelector('[data-field="stitle"]')||{}).value||'').trim();
-    var points=parseInt((document.querySelector('[data-field="spoints"]')||{}).value,10)||10;
+    var title=(ui.newSTitle||'').trim();
+    var points=parseInt(ui.newSPoints,10)||10;
     if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
     if(ui.newSMode==='each' && !ui.newSPicked.length){ ui.formErr='Choisissez au moins un enfant.'; render(); return; }
     var {data:task,error}=await client.from('tasks').insert({
@@ -596,6 +597,14 @@ document.addEventListener('click',function(e){
   if(!el)return;
   var fn=A[el.getAttribute('data-a')];
   if(fn)fn(el.dataset);
+});
+document.addEventListener('input',function(e){
+  var el=e.target, f=el.dataset && el.dataset.field;
+  if(!f) return;
+  if(f==='ntitle') ui.newTitle=el.value;
+  else if(f==='npoints') ui.newPoints=el.value;
+  else if(f==='stitle') ui.newSTitle=el.value;
+  else if(f==='spoints') ui.newSPoints=el.value;
 });
 document.addEventListener('keydown',function(e){
   if(e.key!=='Enter')return;
