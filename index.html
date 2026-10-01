@@ -111,6 +111,49 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 #toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translate(-50%,30px);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:99px;font-weight:800;font-size:15px;opacity:0;transition:.25s;z-index:90;max-width:92%;text-align:center;pointer-events:none}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* missions */
+.prog{background:var(--card);border-radius:20px;padding:14px 16px;box-shadow:var(--shadow);margin-bottom:14px}
+.prog-h{display:flex;justify-content:space-between;font-weight:800;margin-bottom:8px;gap:8px}
+.bar{height:14px;border-radius:99px;background:var(--pri-soft);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);border-radius:99px;transition:width .5s}
+.task,.reward{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:20px;padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow);border:2px solid transparent}
+.task.pending{border-color:var(--acc);background:var(--warn-soft)}
+.task.done{opacity:.8;background:var(--ok-soft)}
+.task.done .t-title{text-decoration:line-through;text-decoration-thickness:2px}
+.t-emoji{font-size:30px;flex:none;width:48px;height:48px;display:grid;place-items:center;background:var(--pri-soft);border-radius:16px}
+.t-main{flex:1;min-width:0;display:block}
+.t-title{font-size:18px;font-weight:700;line-height:1.15;display:block}
+.t-meta{font-size:13px;color:var(--muted);font-weight:700;display:block}
+.pill{font-size:12px;font-weight:800;padding:5px 10px;border-radius:99px;background:var(--pri-soft);color:var(--muted);white-space:nowrap;display:inline-block}
+.pill.wait{background:var(--acc);color:#3a2a00}
+.pill.ok{background:var(--ok);color:#fff}
+.acts{display:flex;gap:8px;flex:none}
+.side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+.sec{display:flex;justify-content:space-between;align-items:center;margin:20px 0 10px}
+.sec h3{font-size:19px}
+.slot-h{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:16px;color:var(--muted);margin:14px 0 8px}
+.ib{width:46px;height:46px;border-radius:14px;border:2px solid var(--line);background:var(--card);font-size:20px;cursor:pointer}
+.ib.ok{background:var(--ok-soft);border-color:var(--ok)}
+.ib:active{transform:scale(.94)}
+.special{background:linear-gradient(135deg,var(--pri-soft),var(--warn-soft));border:2px solid var(--acc);border-radius:24px;padding:14px 14px 4px;margin-bottom:18px}
+.sp-h{display:flex;align-items:center;justify-content:space-between;font-family:'Baloo 2','Nunito',sans-serif;font-weight:800;font-size:20px}
+.sp-sub{font-size:12px;color:var(--muted);font-weight:700;margin:0 0 10px}
+.t-comment{display:block;font-size:13px;font-weight:700;font-style:italic;margin-top:3px}
+.sharebtn{display:block;background:none;border:0;color:var(--pri);font-weight:800;font-size:13px;padding:8px 0 2px;cursor:pointer;text-align:left}
+.seg{display:flex;gap:4px;background:var(--pri-soft);border-radius:18px;padding:4px;margin:4px 0 20px}
+.seg button{flex:1;min-height:46px;border:0;border-radius:14px;background:transparent;color:var(--muted);font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.vhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.vhead h2{font-size:23px;line-height:1.15}
+.vhead .btn{flex:none}
+.vhint{font-size:14px;color:var(--muted);font-weight:700;margin:4px 0 18px}
+.chiprow{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:2px solid var(--line);background:var(--card);border-radius:14px;padding:8px 12px;font-weight:800;font-size:15px;cursor:pointer;min-height:42px}
+.chip.sel{border-color:var(--pri);background:var(--pri-soft)}
+.ntf{position:relative;background:none;border:0;cursor:pointer;font-size:20px;padding:4px;flex:none;line-height:1}
+.ntf .dot{position:absolute;top:-4px;right:-6px}
+.topacts{display:flex;gap:8px;flex:none}
 </style>
 </head>
 <body>
@@ -130,8 +173,35 @@ var client=supabase.createClient(SUPA_URL,SUPA_KEY);
 var AV=['🦊','🐼','🦁','🐸','🦄','🐯','🐵','🐙','🚀','🦖','🐱','🐶'];
 function avatarFor(id){ var h=0; for(var i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))>>>0; return AV[h%AV.length]; }
 
-var ui={view:'loading', ptab:'today', tab:'missions', loginErr:null, loginBusy:false};
-var S={me:null, profile:null, children:[], stars:0};
+var DAY_LABEL={0:'dim.',1:'lun.',2:'mar.',3:'mer.',4:'jeu.',5:'ven.',6:'sam.'};
+var DAY_FULL={0:'dimanche',1:'lundi',2:'mardi',3:'mercredi',4:'jeudi',5:'vendredi',6:'samedi'};
+var SLOT_LABEL={none:'🕒 Peu importe',morning:'☀️ Matin',day:'🌤️ Journée',evening:'🌙 Soir'};
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function todayDow(){ return new Date().getDay(); }
+function freqLabel(t){
+  if(t.freq!=='weekly') return 'chaque jour';
+  if(!t.days||!t.days.length) return 'chaque jour';
+  if(t.days.length===1) return 'le '+DAY_FULL[t.days[0]];
+  return t.days.slice().sort(function(a,b){return ((a+6)%7)-((b+6)%7)}).map(function(d){return DAY_LABEL[d]}).join(', ');
+}
+function isDueToday(t){
+  if(t.freq==='weekly') return (t.days||[]).indexOf(todayDow())>-1;
+  return true;
+}
+function appliesTo(t,cid){ return t.assign_all || (t.task_assignees||[]).some(function(a){return a.child_id===cid}); }
+function whoLabel(t){
+  if(t.assign_all) return '👨‍👩‍👧 Tous';
+  var ids=(t.task_assignees||[]).map(function(a){return a.child_id});
+  if(!ids.length) return '⚠️ Non assignée';
+  var names=ids.map(function(id){ var c=S.children.filter(function(x){return x.id===id})[0]; return c?c.display_name:'?'; });
+  return names.join(' + ');
+}
+
+var ui={view:'loading', ptab:'today', tab:'missions', loginErr:null, loginBusy:false,
+  mview:'daily', newOpen:false, newFreq:'daily', newSlot:'none', newAssignAll:false, newPicked:[], newDays:[],
+  newSMode:'race', newSPicked:[],
+  expandChild:null};
+var S={me:null, profile:null, children:[], stars:0, tasks:[], logs:[], mySpecials:[], myLogsToday:[]};
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function todayFr(){ return new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}); }
@@ -159,6 +229,36 @@ async function loadChildren(){
   S.children.forEach(function(c){ c.avatar=avatarFor(c.id); c.stars=c.star_balance||0; });
 }
 
+async function loadParentData(){
+  var {data:tasks}=await client.from('tasks').select('*, task_assignees(child_id)').eq('family_id',S.profile.family_id).order('created_at');
+  S.tasks=tasks||[];
+  var {data:logs}=await client.from('task_logs').select('*, profiles!task_logs_child_id_fkey(display_name)').eq('family_id',S.profile.family_id).eq('status','pending').order('created_at');
+  S.logs=logs||[];
+  var {data:todayLogs}=await client.from('task_logs').select('task_id,child_id,status').eq('family_id',S.profile.family_id).eq('date',todayStr());
+  S.todayLogs=todayLogs||[];
+}
+
+async function loadChildData(){
+  var {data:assigned}=await client.from('task_assignees').select('task_id').eq('child_id',S.me.id);
+  var assignedIds=(assigned||[]).map(function(a){return a.task_id});
+  var {data:allTasks}=await client.from('tasks').select('*').eq('family_id',S.profile.family_id).eq('recurring',true);
+  S.tasks=(allTasks||[]).filter(function(t){return t.assign_all||assignedIds.indexOf(t.id)>-1});
+  var {data:specials}=await client.from('tasks').select('*').eq('family_id',S.profile.family_id).eq('recurring',false);
+  S.mySpecials=(specials||[]).filter(function(t){return t.assign_all||assignedIds.indexOf(t.id)>-1});
+  var specialIds=S.mySpecials.map(function(t){return t.id});
+  var {data:specialLogs}=specialIds.length?await client.from('task_logs').select('*').in('task_id',specialIds):{data:[]};
+  S.specialLogs=specialLogs||[];
+  var {data:todayLogs}=await client.from('task_logs').select('*').eq('child_id',S.me.id).eq('date',todayStr());
+  S.myLogsToday=todayLogs||[];
+}
+
+async function refreshParentScreen(){ await loadChildren(); await loadParentData(); render(); }
+async function refreshChildScreen(){
+  var {data:profile}=await client.from('profiles').select('star_balance').eq('id',S.me.id).single();
+  S.stars=profile?profile.star_balance||0:S.stars;
+  await loadChildData(); render();
+}
+
 /* ---------- auth ---------- */
 async function boot(){
   var {data:{session}}=await client.auth.getSession();
@@ -173,9 +273,11 @@ async function afterLogin(){
   S.profile=profile;
   if(profile.role==='parent'){
     await loadChildren();
+    await loadParentData();
     ui.view='parent'; ui.ptab='today';
   }else{
     S.stars=profile.star_balance||0;
+    await loadChildData();
     ui.view='child'; ui.tab='missions';
   }
   render();
@@ -210,30 +312,142 @@ function navHtml(items,cur,act){
     return '<button class="nb '+(cur===t[0]?'on':'')+'" data-a="'+act+'" data-t="'+t[0]+'"><span class="te">'+t[1]+'</span>'+t[2]+'</button>';
   }).join('')+'</div></div>';
 }
-function parentNav(){ return navHtml([['today','🏠','Accueil'],['missions','📋','Missions'],['shop','🎁','Cadeaux'],['family','👪','Famille']],ui.ptab,'ptab'); }
+function parentNav(){ return navHtml([['today','🏠','Accueil',pendingCount()],['missions','📋','Missions'],['shop','🎁','Cadeaux'],['family','👪','Famille']],ui.ptab,'ptab'); }
 function childNav(){ return navHtml([['missions','🎯','Missions'],['shop','🛍️','Boutique'],['trophies','🏆','Trophées']],ui.tab,'tab'); }
 
+function pendingCount(){ return S.logs.length; }
 function comingSoon(txt){ return '<div class="empty"><div class="big">🚧</div><p>'+esc(txt)+'<br>Arrive à la prochaine étape.</p></div>'; }
 
-function pToday(){
-  if(!S.children.length) return '<h2 style="margin:18px 0 10px">Mes enfants</h2>'+'<div class="empty"><div class="big">👨‍👩‍👧</div><p>Aucun enfant pour l’instant.</p></div>';
-  var kids=S.children.map(function(c){
-    return '<div class="card kid"><div class="av sm">'+c.avatar+'</div><div style="flex:1;min-width:0"><b>'+esc(c.display_name)+'</b><div class="muted" style="font-size:13px">⭐ '+c.stars+'</div></div></div>';
+function childTodayStats(cid){
+  var due=S.tasks.filter(function(t){return t.recurring&&appliesTo(t,cid)&&isDueToday(t)});
+  var done=due.filter(function(t){
+    return S.todayLogs.some(function(l){return l.task_id===t.id&&l.child_id===cid&&l.status==='validated'});
+  });
+  return {total:due.length, done:done.length};
+}
+function pendingRows(cid){
+  var mine=S.logs.filter(function(l){return l.child_id===cid});
+  if(!mine.length) return '<p class="muted" style="margin:10px 0 0">Rien à valider pour le moment.</p>';
+  return mine.map(function(l){
+    return '<div class="task pending"><span class="t-emoji">'+(l.date!==todayStr()?'✨':'📌')+'</span><span class="t-main"><span class="t-title">'+esc(l.title)+'</span><span class="t-meta">+'+l.points+' ⭐'+(l.date!==todayStr()?' · '+l.date:'')+'</span>'+
+      (l.comment?'<span class="t-comment">💬 « '+esc(l.comment)+' »</span>':'')+'</span>'+
+      '<span class="acts"><button class="ib ok" data-a="validate" data-id="'+l.id+'" data-cid="'+cid+'" aria-label="Valider">✅</button></span></div>';
   }).join('');
-  return '<h2 style="margin:18px 0 10px">Mes enfants</h2>'+kids;
+}
+function pToday(){
+  if(!S.children.length) return '<div class="empty"><div class="big">👨‍👩‍👧</div><p>Aucun enfant pour l’instant.</p></div>';
+  var h='<div class="sec"><h3>Mes enfants</h3></div>';
+  h+=S.children.map(function(c){
+    var st=childTodayStats(c.id), pend=S.logs.filter(function(l){return l.child_id===c.id}).length;
+    var open=ui.expandChild===c.id;
+    var head='<div class="kid" data-a="toggleChild" data-id="'+c.id+'"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+(pend?' <span class="dot">'+pend+'</span>':'')+'</span>'+
+      '<span class="t-meta">⭐ '+c.stars+' · '+st.done+' / '+st.total+' missions faites</span></span><span class="chev">'+(open?'⌄':'›')+'</span></div>';
+    var bar='<div class="bar" style="margin-top:2px"><i style="width:'+(st.total?Math.round(st.done/st.total*100):0)+'%"></i></div>';
+    var body=open?'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">'+pendingRows(c.id)+'</div>':'';
+    return '<div class="card">'+head+bar+body+'</div>';
+  }).join('');
+  return h;
+}
+
+function mform(){
+  if(!ui.newOpen) return '';
+  if(ui.mview==='daily'){
+    return '<div class="sheet-inline" style="margin-bottom:16px">'+
+      '<label class="lbl">Titre</label><input class="inp" data-field="ntitle" placeholder="Ex : Faire son lit">'+
+      '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="npoints" value="5">'+
+      '<label class="lbl">Fréquence</label><div class="chiprow"><button class="chip '+(ui.newFreq==='daily'?'sel':'')+'" data-a="setFreq" data-v="daily">🔁 Chaque jour</button><button class="chip '+(ui.newFreq==='weekly'?'sel':'')+'" data-a="setFreq" data-v="weekly">📆 Certains jours</button></div>'+
+      (ui.newFreq==='weekly'?'<div class="chiprow" style="margin-top:8px">'+[1,2,3,4,5,6,0].map(function(d){return '<button class="chip '+(ui.newDays.indexOf(d)>-1?'sel':'')+'" data-a="toggleDay" data-v="'+d+'">'+DAY_LABEL[d]+'</button>'}).join('')+'</div>':'')+
+      '<label class="lbl">Moment de la journée</label><div class="chiprow">'+Object.keys(SLOT_LABEL).map(function(k){return '<button class="chip '+(ui.newSlot===k?'sel':'')+'" data-a="setSlot" data-v="'+k+'">'+SLOT_LABEL[k]+'</button>'}).join('')+'</div>'+
+      '<label class="lbl">Pour qui ?</label><div class="chiprow">'+
+      '<button class="chip '+(ui.newAssignAll?'sel':'')+'" data-a="toggleAssignAll">👨‍👩‍👧 Tous</button>'+
+      S.children.map(function(c){return '<button class="chip '+(ui.newPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="togglePick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+
+      '</div>'+
+      (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
+      '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createRecurring">Créer la mission</button><button class="btn ghost" data-a="closeForm">Annuler</button></div>'+
+      '</div>';
+  }
+  return '<div class="sheet-inline" style="margin-bottom:16px">'+
+    '<label class="lbl">Titre</label><input class="inp" data-field="stitle" placeholder="Ex : Trier ses jouets">'+
+    '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="spoints" value="10">'+
+    '<label class="lbl">Règle</label><div class="chiprow">'+
+    '<button class="chip '+(ui.newSMode==='race'?'sel':'')+'" data-a="setSMode" data-v="race">⚡ Le premier qui la fait</button>'+
+    '<button class="chip '+(ui.newSMode==='each'?'sel':'')+'" data-a="setSMode" data-v="each">✅ Chacun doit la faire</button></div>'+
+    (ui.newSMode==='each'?'<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.newSPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleSPick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+'</div>':'')+
+    (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
+    '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createSpecial">Créer la mission</button><button class="btn ghost" data-a="closeForm">Annuler</button></div>'+
+    '</div>';
+}
+function pMissions(){
+  var daily=ui.mview==='daily';
+  var h='<div class="seg" role="tablist">'+[['daily','📅','Récurrentes'],['special','✨','Spéciales']].map(function(t){
+    var on=(daily?'daily':'special')===t[0];
+    return '<button class="'+(on?'on':'')+'" data-a="mview" data-v="'+t[0]+'">'+t[1]+' '+t[2]+'</button>';
+  }).join('')+'</div>';
+  h+='<div class="vhead"><h2>'+(daily?'Missions récurrentes':'Missions spéciales')+'</h2><button class="btn small" data-a="openNew">＋ Nouvelle</button></div>';
+  h+=mform();
+  var list=S.tasks.filter(function(t){return t.recurring===daily});
+  if(!list.length) return h+'<div class="empty"><div class="big">'+(daily?'📅':'✨')+'</div><p>'+(daily?'Aucune mission récurrente.':'Aucune mission spéciale.')+'</p></div>';
+  return h+list.map(function(t){
+    var meta=(daily?[whoLabel(t),SLOT_LABEL[t.slot]||'',t.points+' ⭐',freqLabel(t)]:[whoLabel(t),t.points+' ⭐',t.assign_all?'premier arrivé':'chacun doit la faire']).filter(Boolean).join(' · ');
+    return '<div class="task"><span class="t-emoji">'+(daily?'🔁':'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">'+meta+'</span></span>'+
+      '<span class="acts"><button class="ib" data-a="delTask" data-id="'+t.id+'" aria-label="Supprimer">🗑️</button></span></div>';
+  }).join('');
 }
 
 function viewParent(){
   var body = ui.ptab==='today' ? pToday()
-    : ui.ptab==='missions' ? comingSoon('La gestion des missions et les validations')
+    : ui.ptab==='missions' ? pMissions()
     : ui.ptab==='shop' ? comingSoon('Les récompenses et les demandes')
     : comingSoon('Pauses, ajustements, badges et réglages de la famille');
+  if(ui.ptab!=='today'){
+    var title={missions:'Missions',shop:'Cadeaux',family:'Famille'}[ui.ptab];
+    return '<header class="top ptop"><div class="logo">'+title+'</div><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+body;
+  }
   return '<header class="top ptop"><div><div class="hello">Bienvenue 👋</div><p class="wel-sub">'+esc(todayFr())+'</p></div>'+
     '<button class="ghost-link" data-a="logout">Déconnexion</button></header>'+body;
 }
 
+function taskCardKid(t){
+  var log=S.myLogsToday.filter(function(l){return l.task_id===t.id})[0];
+  var st = log ? log.status : 'todo';
+  var right='',note='';
+  if(st==='todo') right='<button class="btn go" data-a="doTask" data-id="'+t.id+'" data-title="'+esc(t.title)+'" data-points="'+t.points+'">C’est fait !</button>';
+  else if(st==='pending') right='<span class="pill wait">⏳ À valider</span>';
+  else right='<span class="pill ok">✅ Validé</span>';
+  return '<div class="task '+st+'"><span class="t-emoji">🔁</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+freqLabel(t)+'</span>'+note+'</span>'+right+'</div>';
+}
+function specialCardKid(t){
+  var log=(S.specialLogs||[]).filter(function(l){return l.task_id===t.id&&l.child_id===S.me.id})[0];
+  var takenLog=!t.assign_all?null:(S.specialLogs||[]).filter(function(l){return l.task_id===t.id&&l.child_id!==S.me.id})[0];
+  var st = log ? log.status : (takenLog?'taken':'todo');
+  var right='',note='';
+  if(st==='todo') right='<button class="btn go" data-a="doSpecial" data-id="'+t.id+'" data-title="'+esc(t.title)+'" data-points="'+t.points+'">C’est fait !</button>';
+  else if(st==='taken') right='<span class="pill">🔒 Déjà prise</span>';
+  else if(st==='pending'){
+    right='<span class="pill wait">⏳ À valider</span>';
+    if(log.comment) note='<span class="t-comment">💬 « '+esc(log.comment)+' »</span>';
+  }
+  else right='<span class="pill ok">✅ Validé</span>';
+  return '<div class="task '+st+'"><span class="t-emoji">✨</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+note+'</span>'+right+'</div>';
+}
+function childMissions(){
+  var due=S.tasks.filter(function(t){return isDueToday(t)});
+  var total=due.length;
+  var done=due.filter(function(t){var l=S.myLogsToday.filter(function(x){return x.task_id===t.id})[0]; return l&&(l.status==='pending'||l.status==='validated');}).length;
+  var h='';
+  if(S.mySpecials.length){
+    h+='<section class="special"><div class="sp-h"><span>✨ Missions spéciales</span></div><div class="sp-sub">À faire une seule fois pour gagner des étoiles en plus.</div>'+S.mySpecials.map(specialCardKid).join('')+'</section>';
+  }
+  if(total){
+    h+='<div class="prog"><div class="prog-h"><span>'+(done>=total?'🎉 Missions du jour terminées !':'Il te reste '+(total-done)+' mission'+(total-done>1?'s':'')+' du jour')+'</span><span>'+done+' / '+total+'</span></div><div class="bar"><i style="width:'+Math.round(done/total*100)+'%"></i></div></div>';
+    h+=due.map(taskCardKid).join('');
+  } else if(!S.mySpecials.length){
+    h+='<div class="empty"><div class="big">🌈</div><p>Pas de mission pour l’instant.<br>Profite de ta journée !</p></div>';
+  }
+  return h;
+}
 function viewChild(){
-  var body = ui.tab==='missions' ? comingSoon('Tes missions du jour')
+  var body = ui.tab==='missions' ? childMissions()
     : ui.tab==='shop' ? comingSoon('La boutique de récompenses')
     : comingSoon('Tes trophées et badges');
   return '<header class="top"><span></span><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+
@@ -294,8 +508,87 @@ var A={
     }
   },
   logout:async function(){ await client.auth.signOut(); location.reload(); },
-  ptab:function(d){ ui.ptab=d.t; render(); },
-  tab:function(d){ ui.tab=d.t; render(); }
+  ptab:function(d){ ui.ptab=d.t; ui.expandChild=null; ui.newOpen=false; render(); },
+  tab:function(d){ ui.tab=d.t; render(); },
+
+  toggleChild:function(d){ ui.expandChild = ui.expandChild===d.id ? null : d.id; render(); },
+  validate:async function(d){
+    var {error}=await client.from('task_logs').update({status:'validated', validated_at:new Date().toISOString(), comment:null}).eq('id',d.id);
+    if(error){ alert('❌ '+error.message); return; }
+    await recalcBalance(d.cid);
+    toast('✅ Mission validée');
+    await refreshParentScreen();
+  },
+
+  mview:function(d){ ui.mview=d.v; ui.newOpen=false; ui.formErr=null; render(); },
+  openNew:function(){ ui.newOpen=true; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; render(); },
+  closeForm:function(){ ui.newOpen=false; render(); },
+  setFreq:function(d){ ui.newFreq=d.v; render(); },
+  toggleDay:function(d){ var v=+d.v,i=ui.newDays.indexOf(v); if(i>-1)ui.newDays.splice(i,1); else ui.newDays.push(v); render(); },
+  setSlot:function(d){ ui.newSlot=d.v; render(); },
+  toggleAssignAll:function(){ ui.newAssignAll=!ui.newAssignAll; if(ui.newAssignAll) ui.newPicked=[]; render(); },
+  togglePick:function(d){ var i=ui.newPicked.indexOf(d.v); if(i>-1)ui.newPicked.splice(i,1); else ui.newPicked.push(d.v); if(ui.newPicked.length) ui.newAssignAll=false; render(); },
+  setSMode:function(d){ ui.newSMode=d.v; render(); },
+  toggleSPick:function(d){ var i=ui.newSPicked.indexOf(d.v); if(i>-1)ui.newSPicked.splice(i,1); else ui.newSPicked.push(d.v); render(); },
+
+  createRecurring:async function(){
+    var title=((document.querySelector('[data-field="ntitle"]')||{}).value||'').trim();
+    var points=parseInt((document.querySelector('[data-field="npoints"]')||{}).value,10)||5;
+    if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
+    if(ui.newFreq==='weekly' && !ui.newDays.length){ ui.formErr='Choisissez au moins un jour de la semaine.'; render(); return; }
+    var {data:task,error}=await client.from('tasks').insert({
+      family_id:S.profile.family_id, title:title, points:points, recurring:true,
+      assign_all:ui.newAssignAll, freq:ui.newFreq, days:ui.newFreq==='weekly'?ui.newDays:null, slot:ui.newSlot, created_by:S.me.id
+    }).select().single();
+    if(error){ ui.formErr=error.message; render(); return; }
+    if(!ui.newAssignAll && ui.newPicked.length){
+      var {error:aerr}=await client.from('task_assignees').insert(ui.newPicked.map(function(cid){return {task_id:task.id, child_id:cid, family_id:S.profile.family_id}}));
+      if(aerr){ ui.formErr=aerr.message; render(); return; }
+    }
+    ui.newOpen=false; toast('✅ Mission créée');
+    await loadParentData(); render();
+  },
+  createSpecial:async function(){
+    var title=((document.querySelector('[data-field="stitle"]')||{}).value||'').trim();
+    var points=parseInt((document.querySelector('[data-field="spoints"]')||{}).value,10)||10;
+    if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
+    if(ui.newSMode==='each' && !ui.newSPicked.length){ ui.formErr='Choisissez au moins un enfant.'; render(); return; }
+    var {data:task,error}=await client.from('tasks').insert({
+      family_id:S.profile.family_id, title:title, points:points, recurring:false,
+      assign_all:ui.newSMode==='race', created_by:S.me.id
+    }).select().single();
+    if(error){ ui.formErr=error.message; render(); return; }
+    if(ui.newSMode==='each'){
+      var {error:aerr}=await client.from('task_assignees').insert(ui.newSPicked.map(function(cid){return {task_id:task.id, child_id:cid, family_id:S.profile.family_id}}));
+      if(aerr){ ui.formErr=aerr.message; render(); return; }
+    }
+    ui.newOpen=false; toast('✅ Mission spéciale créée');
+    await loadParentData(); render();
+  },
+  delTask:async function(d){
+    if(!confirm('Supprimer cette mission ?')) return;
+    var {error}=await client.from('tasks').delete().eq('id',d.id);
+    if(error){ alert('❌ '+error.message); return; }
+    await loadParentData(); render();
+  },
+
+  doTask:async function(d){
+    var {error}=await client.from('task_logs').insert({
+      family_id:S.profile.family_id, task_id:d.id, child_id:S.me.id, title:d.title, points:+d.points, status:'pending', date:todayStr()
+    });
+    if(error){ alert('❌ '+error.message); return; }
+    toast('⏳ Envoyé à tes parents pour validation');
+    await refreshChildScreen();
+  },
+  doSpecial:async function(d){
+    var comment=prompt('Un petit mot pour tes parents ? (facultatif)')||null;
+    var {error}=await client.from('task_logs').insert({
+      family_id:S.profile.family_id, task_id:d.id, child_id:S.me.id, title:d.title, points:+d.points, status:'pending', date:todayStr(), comment:comment
+    });
+    if(error){ alert('❌ '+error.message); return; }
+    toast('⏳ Envoyé à tes parents pour validation');
+    await refreshChildScreen();
+  }
 };
 
 document.addEventListener('click',function(e){
