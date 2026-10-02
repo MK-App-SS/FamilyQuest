@@ -516,15 +516,15 @@ function pFamily(){
   }).join('')+'</div>';
 
   if(ui.fview==='kids'){
+    h+='<button class="btn wide" style="margin-bottom:14px" data-a="addChild">＋ Ajouter un enfant</button>';
     if(!S.children.length) h+='<div class="empty"><div class="big">👨‍👩‍👧</div><p>Aucun enfant pour l’instant.</p></div>';
     else h+=S.children.map(function(c){
       var codeBox = (ui.lastCode&&ui.lastCode.childId===c.id) ?
         '<div class="codebox-wrap"><div class="codebox">'+esc(ui.lastCode.code)+'</div><span class="t-meta">À saisir sur l’appareil de '+esc(c.display_name)+' avant '+new Date(ui.lastCode.expiresAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' (valable 10 min).</span></div>' : '';
       return '<div class="card"><div class="kid"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+'</span><span class="t-meta">⭐ '+c.stars+'</span></span>'+
-        '<span class="acts"><button class="ib" data-a="renameChild" data-id="'+c.id+'" aria-label="Renommer">✏️</button></span></div>'+
+        '<span class="acts"><button class="ib" data-a="renameChild" data-id="'+c.id+'" aria-label="Renommer">✏️</button><button class="ib" data-a="deleteChild" data-id="'+c.id+'" data-name="'+esc(c.display_name)+'" aria-label="Supprimer">🗑️</button></span></div>'+
         '<button class="btn ghost wide" style="margin-top:10px" data-a="generateCode" data-id="'+c.id+'">🔑 Générer un code de jumelage</button>'+codeBox+'</div>';
     }).join('');
-    h+='<p class="vhint" style="margin-top:16px">La création d’un nouveau compte enfant (et sa suppression) se fait depuis le tableau de bord Supabase — cette appli ne gère que la génération de codes pour les enfants déjà créés.</p>';
     h+='<div class="sec"><h3>Réglages</h3></div><div style="display:flex;flex-direction:column;gap:10px">'+
       '<button class="btn ghost" data-a="changePassword">🔑 Changer mon mot de passe</button></div>';
   } else if(ui.fview==='pauses'){
@@ -840,6 +840,37 @@ var A={
     var {error}=await client.from('profiles').update({display_name:name.trim()}).eq('id',d.id);
     if(error){ alert('❌ '+error.message); return; }
     toast('✅ Prénom mis à jour');
+    await refreshParentScreen();
+  },
+  addChild:async function(){
+    var name=prompt('Prénom de l’enfant à ajouter :');
+    if(!name||!name.trim()) return;
+    var {data:{session}}=await client.auth.getSession();
+    if(!session){ alert('Session expirée, reconnecte-toi.'); return; }
+    var res,out;
+    try{
+      res=await fetch(FN_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({action:'createChild', display_name:name.trim()})});
+      out=await res.json();
+    }catch(e){ alert('Erreur technique : '+e.message); return; }
+    if(!res.ok){ alert('❌ '+(out.error||res.statusText)); return; }
+    toast('✅ '+name.trim()+' a été ajouté·e');
+    await loadChildren(); render();
+    if(confirm('Générer tout de suite un code de jumelage pour '+name.trim()+' ?')){
+      await A.generateCode({id:out.child_id});
+    }
+  },
+  deleteChild:async function(d){
+    if(!confirm('Supprimer définitivement le compte de '+d.name+' ? Cette action est irréversible.')) return;
+    if(!confirm('Vraiment sûr·e ? Toutes les données liées à '+d.name+' pourraient être perdues.')) return;
+    var {data:{session}}=await client.auth.getSession();
+    if(!session){ alert('Session expirée, reconnecte-toi.'); return; }
+    var res,out;
+    try{
+      res=await fetch(FN_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({action:'deleteChild', child_id:d.id})});
+      out=await res.json();
+    }catch(e){ alert('Erreur technique : '+e.message); return; }
+    if(!res.ok){ alert('❌ '+(out.error||res.statusText)); return; }
+    toast('🗑️ Compte supprimé');
     await refreshParentScreen();
   },
   generateCode:async function(d){
