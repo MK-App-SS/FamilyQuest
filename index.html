@@ -833,7 +833,7 @@ var A={
   },
   endPause:async function(d){
     if(!confirm('Terminer cette pause maintenant ?')) return;
-    var {data,error}=await client.from('pauses').update({to_date:todayStr()}).eq('id',d.id).select();
+    var {data,error}=await client.from('pauses').update({to_date:addDays(todayStr(),-1)}).eq('id',d.id).select();
     if(error){ alert('❌ '+error.message); return; }
     if(!data||!data.length){ alert('⚠️ La pause n’a pas été modifiée (probablement une policy RLS UPDATE manquante sur la table pauses).'); return; }
     await loadParentData(); render();
