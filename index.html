@@ -154,6 +154,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .ntf{position:relative;background:none;border:0;cursor:pointer;font-size:20px;padding:4px;flex:none;line-height:1}
 .ntf .dot{position:absolute;top:-4px;right:-6px}
 .topacts{display:flex;gap:8px;flex:none}
+.codebox-wrap{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);text-align:center}
+.codebox{font-family:'Baloo 2',sans-serif;font-size:28px;font-weight:800;letter-spacing:4px;background:var(--pri-soft);border-radius:14px;padding:10px;margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -516,10 +518,13 @@ function pFamily(){
   if(ui.fview==='kids'){
     if(!S.children.length) h+='<div class="empty"><div class="big">👨‍👩‍👧</div><p>Aucun enfant pour l’instant.</p></div>';
     else h+=S.children.map(function(c){
+      var codeBox = (ui.lastCode&&ui.lastCode.childId===c.id) ?
+        '<div class="codebox-wrap"><div class="codebox">'+esc(ui.lastCode.code)+'</div><span class="t-meta">À saisir sur l’appareil de '+esc(c.display_name)+' avant '+new Date(ui.lastCode.expiresAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' (valable 10 min).</span></div>' : '';
       return '<div class="card"><div class="kid"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+'</span><span class="t-meta">⭐ '+c.stars+'</span></span>'+
-        '<span class="acts"><button class="ib" data-a="renameChild" data-id="'+c.id+'" aria-label="Renommer">✏️</button></span></div></div>';
+        '<span class="acts"><button class="ib" data-a="renameChild" data-id="'+c.id+'" aria-label="Renommer">✏️</button></span></div>'+
+        '<button class="btn ghost wide" style="margin-top:10px" data-a="generateCode" data-id="'+c.id+'">🔑 Générer un code de jumelage</button>'+codeBox+'</div>';
     }).join('');
-    h+='<p class="vhint" style="margin-top:16px">Pour ajouter un enfant, génère-lui un code de jumelage depuis Supabase (fonctionnalité à venir ici). La suppression d’un compte enfant se fait depuis le tableau de bord Supabase, pour éviter toute suppression accidentelle.</p>';
+    h+='<p class="vhint" style="margin-top:16px">La création d’un nouveau compte enfant (et sa suppression) se fait depuis le tableau de bord Supabase — cette appli ne gère que la génération de codes pour les enfants déjà créés.</p>';
     h+='<div class="sec"><h3>Réglages</h3></div><div style="display:flex;flex-direction:column;gap:10px">'+
       '<button class="btn ghost" data-a="changePassword">🔑 Changer mon mot de passe</button></div>';
   } else if(ui.fview==='pauses'){
@@ -836,6 +841,18 @@ var A={
     if(error){ alert('❌ '+error.message); return; }
     toast('✅ Prénom mis à jour');
     await refreshParentScreen();
+  },
+  generateCode:async function(d){
+    var {data:{session}}=await client.auth.getSession();
+    if(!session){ alert('Session expirée, reconnecte-toi.'); return; }
+    var res,out;
+    try{
+      res=await fetch(FN_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({action:'create',child_id:d.id})});
+      out=await res.json();
+    }catch(e){ alert('Erreur technique : '+e.message); return; }
+    if(!res.ok){ alert('❌ '+(out.error||res.statusText)); return; }
+    ui.lastCode={childId:d.id, code:out.code, expiresAt:out.expires_at};
+    render();
   },
   changePassword:async function(){
     var pass=prompt('Nouveau mot de passe (minimum 6 caractères) :');
