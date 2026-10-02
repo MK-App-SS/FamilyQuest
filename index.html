@@ -156,6 +156,9 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .topacts{display:flex;gap:8px;flex:none}
 .codebox-wrap{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);text-align:center}
 .codebox{font-family:'Baloo 2',sans-serif;font-size:28px;font-weight:800;letter-spacing:4px;background:var(--pri-soft);border-radius:14px;padding:10px;margin-bottom:6px}
+.badge-row{display:flex;gap:8px;margin-top:10px}
+.badge-ico{width:34px;height:34px;border-radius:10px;background:var(--pri-soft);display:grid;place-items:center;font-size:17px;opacity:.3;filter:grayscale(1);transition:.2s}
+.badge-ico.on{opacity:1;filter:none;background:var(--acc);box-shadow:0 2px 6px rgba(0,0,0,.15)}
 </style>
 </head>
 <body>
@@ -249,10 +252,33 @@ async function recalcBalance(childId){
   return total;
 }
 
+// Série en cours = nombre de jours consécutifs avec le badge "journée parfaite", en remontant depuis
+// aujourd'hui (ou hier si la journée n'est pas encore terminée côté enfant).
+async function computeStreak(childId){
+  var {data}=await client.from('badges').select('period').eq('child_id',childId).eq('badge_id','perfectday');
+  var set={}; (data||[]).forEach(function(b){ set[b.period]=true; });
+  var d=todayStr();
+  if(!set[d]) d=addDays(d,-1);
+  var streak=0;
+  while(set[d]){ streak++; d=addDays(d,-1); }
+  return streak;
+}
+
+// Niveau provisoire (sera précisé plus tard avec une vraie échelle de titres).
+function levelFor(stars){ return Math.max(1, Math.floor(stars/50)+1); }
+
 async function loadChildren(){
   var {data}=await client.from('profiles').select('id, display_name, star_balance').eq('family_id',S.profile.family_id).eq('role','child');
   S.children=data||[];
-  S.children.forEach(function(c){ c.avatar=avatarFor(c.id); c.stars=c.star_balance||0; });
+  for(var i=0;i<S.children.length;i++){
+    var c=S.children[i];
+    c.avatar=avatarFor(c.id);
+    c.stars=c.star_balance||0;
+    c.level=levelFor(c.stars);
+    c.streak=await computeStreak(c.id);
+    var {data:todayB}=await client.from('badges').select('badge_id').eq('child_id',c.id).eq('period',todayStr());
+    c.todayBadgeIds=(todayB||[]).map(function(b){return b.badge_id});
+  }
 }
 
 async function loadParentData(){
@@ -457,10 +483,16 @@ function pToday(){
     var st=childTodayStats(c.id), pend=S.logs.filter(function(l){return l.child_id===c.id}).length;
     var open=ui.expandChild===c.id;
     var head='<div class="kid" data-a="toggleChild" data-id="'+c.id+'"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+(pend?' <span class="dot">'+pend+'</span>':'')+'</span>'+
-      '<span class="t-meta">⭐ '+c.stars+' · '+st.done+' / '+st.total+' missions faites</span></span><span class="chev">'+(open?'⌄':'›')+'</span></div>';
-    var bar='<div class="bar" style="margin-top:2px"><i style="width:'+(st.total?Math.round(st.done/st.total*100):0)+'%"></i></div>';
+      '<span class="t-meta">Niv. '+c.level+' · ⭐ '+c.stars+' · 🔥 '+c.streak+'</span></span>'+
+      '<span class="pill">'+st.done+' / '+st.total+' faites</span><span class="chev">'+(open?'⌄':'›')+'</span></div>';
+    var bar='<div class="bar" style="margin-top:10px"><i style="width:'+(st.total?Math.round(st.done/st.total*100):0)+'%"></i></div>';
+    var dayDefs=BADGE_DEFS.filter(function(b){return b.scope==='day'});
+    var badgeRow='<div class="badge-row">'+dayDefs.map(function(def){
+      var on=c.todayBadgeIds.indexOf(def.id)>-1;
+      return '<span class="badge-ico '+(on?'on':'')+'" title="'+esc(def.name)+(on?' · débloqué aujourd’hui':' · pas encore débloqué')+'">'+def.emoji+'</span>';
+    }).join('')+'</div>';
     var body=open?'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">'+pendingRows(c.id)+'</div>':'';
-    return '<div class="card">'+head+bar+body+'</div>';
+    return '<div class="card">'+head+bar+badgeRow+body+'</div>';
   }).join('');
   return h;
 }
