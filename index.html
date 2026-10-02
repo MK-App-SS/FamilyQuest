@@ -219,7 +219,7 @@ var ui={view:'loading', ptab:'today', tab:'missions', loginErr:null, loginBusy:f
   mview:'daily', newOpen:false, newFreq:'daily', newSlot:'none', newAssignAll:false, newPicked:[], newDays:[],
   newSMode:'race', newSPicked:[], newTitle:'', newPoints:'5', newSTitle:'', newSPoints:'10',
   expandChild:null,
-  fview:'pauses', sview:'rewards',
+  fview:'kids', sview:'rewards',
   pauseChild:'', pauseFrom:todayStr(), pauseTo:'',
   adjChild:'', adjPoints:'', adjReason:'',
   rTitle:'', rEmoji:'', rCost:'10'};
@@ -509,11 +509,20 @@ function pMissions(){
 }
 
 function pFamily(){
-  var h='<div class="seg" role="tablist">'+[['pauses','⏸️','Pauses'],['adjust','⭐','Ajustements'],['badges','🏅','Badges']].map(function(t){
+  var h='<div class="seg" role="tablist">'+[['kids','👨‍👩‍👧','Enfants'],['pauses','⏸️','Pauses'],['adjust','⭐','Ajustements'],['badges','🏅','Badges']].map(function(t){
     return '<button class="'+(ui.fview===t[0]?'on':'')+'" data-a="fview" data-v="'+t[0]+'">'+t[1]+' '+t[2]+'</button>';
   }).join('')+'</div>';
 
-  if(ui.fview==='pauses'){
+  if(ui.fview==='kids'){
+    if(!S.children.length) h+='<div class="empty"><div class="big">👨‍👩‍👧</div><p>Aucun enfant pour l’instant.</p></div>';
+    else h+=S.children.map(function(c){
+      return '<div class="card"><div class="kid"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+'</span><span class="t-meta">⭐ '+c.stars+'</span></span>'+
+        '<span class="acts"><button class="ib" data-a="renameChild" data-id="'+c.id+'" aria-label="Renommer">✏️</button></span></div></div>';
+    }).join('');
+    h+='<p class="vhint" style="margin-top:16px">Pour ajouter un enfant, génère-lui un code de jumelage depuis Supabase (fonctionnalité à venir ici). La suppression d’un compte enfant se fait depuis le tableau de bord Supabase, pour éviter toute suppression accidentelle.</p>';
+    h+='<div class="sec"><h3>Réglages</h3></div><div style="display:flex;flex-direction:column;gap:10px">'+
+      '<button class="btn ghost" data-a="changePassword">🔑 Changer mon mot de passe</button></div>';
+  } else if(ui.fview==='pauses'){
     h+='<div class="sheet-inline" style="margin-bottom:16px">'+
       '<label class="lbl">Qui est en pause ?</label><select class="inp" data-field="pauseChild">'+
       '<option value="">👨‍👩‍👧 Toute la famille</option>'+S.children.map(function(c){return '<option value="'+c.id+'" '+(ui.pauseChild===c.id?'selected':'')+'>'+c.avatar+' '+esc(c.display_name)+'</option>'}).join('')+'</select>'+
@@ -819,6 +828,23 @@ var A={
   },
 
   fview:function(d){ ui.fview=d.v; render(); },
+  renameChild:async function(d){
+    var cur=(S.children.filter(function(c){return c.id===d.id})[0]||{}).display_name||'';
+    var name=prompt('Nouveau prénom :', cur);
+    if(!name||!name.trim()||name.trim()===cur) return;
+    var {error}=await client.from('profiles').update({display_name:name.trim()}).eq('id',d.id);
+    if(error){ alert('❌ '+error.message); return; }
+    toast('✅ Prénom mis à jour');
+    await refreshParentScreen();
+  },
+  changePassword:async function(){
+    var pass=prompt('Nouveau mot de passe (minimum 6 caractères) :');
+    if(!pass) return;
+    if(pass.length<6){ alert('Le mot de passe doit faire au moins 6 caractères.'); return; }
+    var {error}=await client.auth.updateUser({password:pass});
+    if(error){ alert('❌ '+error.message); return; }
+    toast('✅ Mot de passe mis à jour');
+  },
   sview:function(d){ ui.sview=d.v; render(); },
 
   /* pauses */
