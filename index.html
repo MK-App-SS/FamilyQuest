@@ -227,7 +227,7 @@ var ui={view:'loading', ptab:'today', tab:'missions', loginErr:null, loginBusy:f
   fview:'kids', sview:'rewards',
   pauseChild:'', pauseFrom:todayStr(), pauseTo:'',
   adjChild:'', adjPoints:'', adjReason:'',
-  rTitle:'', rEmoji:'', rCost:'10'};
+  rTitle:'', rEmoji:'', rCost:'10', rFormOpen:false, editRewardId:null, editId:null};
 var S={me:null, profile:null, children:[], stars:0, tasks:[], logs:[], mySpecials:[], myLogsToday:[],
   pauses:[], adjustments:[], badges:[], rewards:[], redemptions:[], myPause:null, myBadges:[], myRedemptions:[]};
 
@@ -511,7 +511,7 @@ function mform(){
       S.children.map(function(c){return '<button class="chip '+(ui.newPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="togglePick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+
       '</div>'+
       (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
-      '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createRecurring">Créer la mission</button><button class="btn ghost" data-a="closeForm">Annuler</button></div>'+
+      '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createRecurring">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button><button class="btn ghost" data-a="closeForm">Annuler</button></div>'+
       '</div>';
   }
   return '<div class="sheet-inline" style="margin-bottom:16px">'+
@@ -522,7 +522,7 @@ function mform(){
     '<button class="chip '+(ui.newSMode==='each'?'sel':'')+'" data-a="setSMode" data-v="each">✅ Chacun doit la faire</button></div>'+
     (ui.newSMode==='each'?'<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.newSPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleSPick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+'</div>':'')+
     (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
-    '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createSpecial">Créer la mission</button><button class="btn ghost" data-a="closeForm">Annuler</button></div>'+
+    '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createSpecial">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button><button class="btn ghost" data-a="closeForm">Annuler</button></div>'+
     '</div>';
 }
 function pMissions(){
@@ -531,14 +531,14 @@ function pMissions(){
     var on=(daily?'daily':'special')===t[0];
     return '<button class="'+(on?'on':'')+'" data-a="mview" data-v="'+t[0]+'">'+t[1]+' '+t[2]+'</button>';
   }).join('')+'</div>';
-  h+='<div class="vhead"><h2>'+(daily?'Missions récurrentes':'Missions spéciales')+'</h2><button class="btn small" data-a="openNew">＋ Nouvelle</button></div>';
+  h+='<div class="vhead"><h2>'+(ui.editId?'Modifier la mission':(daily?'Missions récurrentes':'Missions spéciales'))+'</h2>'+(ui.newOpen?'':'<button class="btn small" data-a="openNew">＋ Nouvelle</button>')+'</div>';
   h+=mform();
   var list=S.tasks.filter(function(t){return t.recurring===daily});
   if(!list.length) return h+'<div class="empty"><div class="big">'+(daily?'📅':'✨')+'</div><p>'+(daily?'Aucune mission récurrente.':'Aucune mission spéciale.')+'</p></div>';
   return h+list.map(function(t){
     var meta=(daily?[whoLabel(t),SLOT_LABEL[t.slot]||'',t.points+' ⭐',freqLabel(t)]:[whoLabel(t),t.points+' ⭐',t.assign_all?'premier arrivé':'chacun doit la faire']).filter(Boolean).join(' · ');
     return '<div class="task"><span class="t-emoji">'+(daily?'🔁':'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">'+meta+'</span></span>'+
-      '<span class="acts"><button class="ib" data-a="delTask" data-id="'+t.id+'" aria-label="Supprimer">🗑️</button></span></div>';
+      '<span class="acts"><button class="ib" data-a="editTask" data-id="'+t.id+'" aria-label="Modifier">✏️</button><button class="ib" data-a="delTask" data-id="'+t.id+'" aria-label="Supprimer">🗑️</button></span></div>';
   }).join('');
 }
 
@@ -603,15 +603,16 @@ function pShop(){
     return '<button class="'+(ui.sview===t[0]?'on':'')+'" data-a="sview" data-v="'+t[0]+'">'+t[1]+' '+t[2]+'</button>';
   }).join('')+'</div>';
   if(ui.sview==='rewards'){
-    h+='<div class="sheet-inline" style="margin-bottom:16px">'+
+    if(!ui.rFormOpen) h+='<button class="btn small" style="margin-bottom:14px" data-a="openRewardForm">＋ Nouvelle récompense</button>';
+    else h+='<div class="sheet-inline" style="margin-bottom:16px">'+
       '<label class="lbl">Titre</label><input class="inp" data-field="rTitle" value="'+esc(ui.rTitle)+'" placeholder="Ex : Soirée pyjama">'+
       '<label class="lbl">Emoji <span class="muted" style="font-weight:600">(facultatif)</span></label><input class="inp" data-field="rEmoji" value="'+esc(ui.rEmoji)+'" placeholder="🎬" maxlength="4">'+
       '<label class="lbl">Coût en étoiles</label><input class="inp" type="number" data-field="rCost" value="'+esc(ui.rCost)+'">'+
-      '<button class="btn wide" style="margin-top:14px" data-a="createReward">Créer la récompense</button></div>';
+      '<div style="display:flex;gap:10px;margin-top:14px"><button class="btn wide" data-a="createReward">'+(ui.editRewardId?'Enregistrer':'Créer la récompense')+'</button><button class="btn ghost" data-a="closeRewardForm">Annuler</button></div></div>';
     if(!S.rewards.length) h+='<div class="empty"><div class="big">🎁</div><p>Aucune récompense créée.</p></div>';
     else h+=S.rewards.map(function(r){
       return '<div class="task"><span class="t-emoji">'+(r.emoji||'🎁')+'</span><span class="t-main"><span class="t-title">'+esc(r.title)+'</span><span class="t-meta">'+r.cost+' ⭐</span></span>'+
-        '<span class="acts"><button class="ib" data-a="deleteReward" data-id="'+r.id+'" aria-label="Supprimer">🗑️</button></span></div>';
+        '<span class="acts"><button class="ib" data-a="editReward" data-id="'+r.id+'" aria-label="Modifier">✏️</button><button class="ib" data-a="deleteReward" data-id="'+r.id+'" aria-label="Supprimer">🗑️</button></span></div>';
     }).join('');
   } else {
     if(!S.redemptions.length) h+='<div class="empty"><div class="big">📥</div><p>Aucune demande en attente.</p></div>';
@@ -794,9 +795,25 @@ var A={
     await refreshParentScreen();
   },
 
-  mview:function(d){ ui.mview=d.v; ui.newOpen=false; ui.formErr=null; render(); },
-  openNew:function(){ ui.newOpen=true; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='5'; ui.newSTitle=''; ui.newSPoints='10'; render(); },
-  closeForm:function(){ ui.newOpen=false; render(); },
+  mview:function(d){ ui.mview=d.v; ui.newOpen=false; ui.editId=null; ui.formErr=null; render(); },
+  openNew:function(){ ui.newOpen=true; ui.editId=null; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='5'; ui.newSTitle=''; ui.newSPoints='10'; render(); },
+  closeForm:function(){ ui.newOpen=false; ui.editId=null; render(); },
+  editTask:function(d){
+    var t=S.tasks.filter(function(x){return x.id===d.id})[0];
+    if(!t) return;
+    ui.editId=t.id; ui.newOpen=true; ui.formErr=null;
+    ui.mview = t.recurring ? 'daily' : 'special';
+    var pickedIds=(t.task_assignees||[]).map(function(a){return a.child_id});
+    if(t.recurring){
+      ui.newTitle=t.title; ui.newPoints=String(t.points); ui.newFreq=t.freq||'daily';
+      ui.newDays=(t.days||[]).slice(); ui.newSlot=t.slot||'none';
+      ui.newAssignAll=!!t.assign_all; ui.newPicked=t.assign_all?[]:pickedIds;
+    } else {
+      ui.newSTitle=t.title; ui.newSPoints=String(t.points);
+      ui.newSMode=t.assign_all?'race':'each'; ui.newSPicked=t.assign_all?[]:pickedIds;
+    }
+    render();
+  },
   setFreq:function(d){ ui.newFreq=d.v; render(); },
   toggleDay:function(d){ var v=+d.v,i=ui.newDays.indexOf(v); if(i>-1)ui.newDays.splice(i,1); else ui.newDays.push(v); render(); },
   setSlot:function(d){ ui.newSlot=d.v; render(); },
@@ -810,16 +827,24 @@ var A={
     var points=parseInt(ui.newPoints,10)||5;
     if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
     if(ui.newFreq==='weekly' && !ui.newDays.length){ ui.formErr='Choisissez au moins un jour de la semaine.'; render(); return; }
-    var {data:task,error}=await client.from('tasks').insert({
-      family_id:S.profile.family_id, title:title, points:points, recurring:true,
-      assign_all:ui.newAssignAll, freq:ui.newFreq, days:ui.newFreq==='weekly'?ui.newDays:null, slot:ui.newSlot, created_by:S.me.id
-    }).select().single();
-    if(error){ ui.formErr=error.message; render(); return; }
+    var fields={title:title, points:points, assign_all:ui.newAssignAll, freq:ui.newFreq, days:ui.newFreq==='weekly'?ui.newDays:null, slot:ui.newSlot};
+    var taskId=ui.editId;
+    if(taskId){
+      var {error}=await client.from('tasks').update(fields).eq('id',taskId);
+      if(error){ ui.formErr=error.message; render(); return; }
+    } else {
+      var {data:task,error:cErr}=await client.from('tasks').insert(Object.assign({family_id:S.profile.family_id, recurring:true, created_by:S.me.id}, fields)).select().single();
+      if(cErr){ ui.formErr=cErr.message; render(); return; }
+      taskId=task.id;
+    }
+    var {error:dErr}=await client.from('task_assignees').delete().eq('task_id',taskId);
+    if(dErr){ ui.formErr=dErr.message; render(); return; }
     if(!ui.newAssignAll && ui.newPicked.length){
-      var {error:aerr}=await client.from('task_assignees').insert(ui.newPicked.map(function(cid){return {task_id:task.id, child_id:cid, family_id:S.profile.family_id}}));
+      var {error:aerr}=await client.from('task_assignees').insert(ui.newPicked.map(function(cid){return {task_id:taskId, child_id:cid, family_id:S.profile.family_id}}));
       if(aerr){ ui.formErr=aerr.message; render(); return; }
     }
-    ui.newOpen=false; toast('✅ Mission créée');
+    var wasEditR=!!ui.editId;
+    ui.newOpen=false; ui.editId=null; toast(wasEditR?'✅ Mission modifiée':'✅ Mission créée');
     await loadParentData(); render();
   },
   createSpecial:async function(){
@@ -827,16 +852,24 @@ var A={
     var points=parseInt(ui.newSPoints,10)||10;
     if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
     if(ui.newSMode==='each' && !ui.newSPicked.length){ ui.formErr='Choisissez au moins un enfant.'; render(); return; }
-    var {data:task,error}=await client.from('tasks').insert({
-      family_id:S.profile.family_id, title:title, points:points, recurring:false,
-      assign_all:ui.newSMode==='race', created_by:S.me.id
-    }).select().single();
-    if(error){ ui.formErr=error.message; render(); return; }
+    var fields={title:title, points:points, assign_all:ui.newSMode==='race'};
+    var taskId=ui.editId;
+    if(taskId){
+      var {error}=await client.from('tasks').update(fields).eq('id',taskId);
+      if(error){ ui.formErr=error.message; render(); return; }
+    } else {
+      var {data:task,error:cErr}=await client.from('tasks').insert(Object.assign({family_id:S.profile.family_id, recurring:false, created_by:S.me.id}, fields)).select().single();
+      if(cErr){ ui.formErr=cErr.message; render(); return; }
+      taskId=task.id;
+    }
+    var {error:dErr}=await client.from('task_assignees').delete().eq('task_id',taskId);
+    if(dErr){ ui.formErr=dErr.message; render(); return; }
     if(ui.newSMode==='each'){
-      var {error:aerr}=await client.from('task_assignees').insert(ui.newSPicked.map(function(cid){return {task_id:task.id, child_id:cid, family_id:S.profile.family_id}}));
+      var {error:aerr}=await client.from('task_assignees').insert(ui.newSPicked.map(function(cid){return {task_id:taskId, child_id:cid, family_id:S.profile.family_id}}));
       if(aerr){ ui.formErr=aerr.message; render(); return; }
     }
-    ui.newOpen=false; toast('✅ Mission spéciale créée');
+    var wasEdit=!!ui.editId;
+    ui.newOpen=false; ui.editId=null; toast(wasEdit?'✅ Mission modifiée':'✅ Mission spéciale créée');
     await loadParentData(); render();
   },
   delTask:async function(d){
@@ -965,13 +998,29 @@ var A={
   },
 
   /* récompenses (parent) */
+  openRewardForm:function(){ ui.rFormOpen=true; ui.editRewardId=null; ui.rTitle=''; ui.rEmoji=''; ui.rCost='10'; render(); },
+  closeRewardForm:function(){ ui.rFormOpen=false; ui.editRewardId=null; render(); },
+  editReward:function(d){
+    var r=S.rewards.filter(function(x){return x.id===d.id})[0];
+    if(!r) return;
+    ui.rFormOpen=true; ui.editRewardId=r.id; ui.rTitle=r.title; ui.rEmoji=r.emoji||''; ui.rCost=String(r.cost);
+    render();
+  },
   createReward:async function(){
     var title=(ui.rTitle||'').trim(), cost=parseInt(ui.rCost,10);
     if(!title){ toast('❌ Un titre est nécessaire'); return; }
     if(!cost||cost<1){ toast('❌ Indique un coût en étoiles'); return; }
-    var {error}=await client.from('rewards').insert({family_id:S.profile.family_id, title:title, emoji:(ui.rEmoji||'').trim()||null, cost:cost});
-    if(error){ alert('❌ '+error.message); return; }
-    ui.rTitle=''; ui.rEmoji=''; ui.rCost='10'; toast('✅ Récompense créée');
+    var fields={title:title, emoji:(ui.rEmoji||'').trim()||null, cost:cost};
+    if(ui.editRewardId){
+      var {error}=await client.from('rewards').update(fields).eq('id',ui.editRewardId);
+      if(error){ alert('❌ '+error.message); return; }
+    } else {
+      var {error:cErr}=await client.from('rewards').insert(Object.assign({family_id:S.profile.family_id}, fields));
+      if(cErr){ alert('❌ '+cErr.message); return; }
+    }
+    var wasEdit=!!ui.editRewardId;
+    ui.rFormOpen=false; ui.editRewardId=null; ui.rTitle=''; ui.rEmoji=''; ui.rCost='10';
+    toast(wasEdit?'✅ Récompense modifiée':'✅ Récompense créée');
     await loadParentData(); render();
   },
   deleteReward:async function(d){
