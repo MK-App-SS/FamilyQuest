@@ -159,6 +159,14 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .badge-row{display:flex;gap:8px;margin-top:10px}
 .badge-ico{width:34px;height:34px;border-radius:10px;background:var(--pri-soft);display:grid;place-items:center;font-size:17px;opacity:.3;filter:grayscale(1);transition:.2s}
 .badge-ico.on{opacity:1;filter:none;background:var(--acc);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+
+.modal-backdrop{position:fixed;inset:0;background:rgba(20,14,36,.5);z-index:60;display:flex;align-items:flex-end;justify-content:center}
+@media(min-width:560px){.modal-backdrop{align-items:center}}
+.modal{background:var(--card);width:100%;max-width:540px;max-height:88vh;overflow-y:auto;border-radius:26px 26px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 30px rgba(0,0,0,.2)}
+@media(min-width:560px){.modal{border-radius:26px;max-height:85vh;margin:20px}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.modal-head h2{font-size:21px}
+.modal-x{background:var(--pri-soft);border:0;width:38px;height:38px;border-radius:12px;font-size:18px;cursor:pointer;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -498,10 +506,9 @@ function pToday(){
 }
 
 function mform(){
-  if(!ui.newOpen) return '';
+  var fields;
   if(ui.mview==='daily'){
-    return '<div class="sheet-inline" style="margin-bottom:16px">'+
-      '<label class="lbl">Titre</label><input class="inp" data-field="ntitle" placeholder="Ex : Faire son lit" value="'+esc(ui.newTitle||'')+'">'+
+    fields='<label class="lbl">Titre</label><input class="inp" data-field="ntitle" placeholder="Ex : Faire son lit" value="'+esc(ui.newTitle||'')+'">'+
       '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="npoints" value="'+esc(ui.newPoints!=null?ui.newPoints:5)+'">'+
       '<label class="lbl">Fréquence</label><div class="chiprow"><button class="chip '+(ui.newFreq==='daily'?'sel':'')+'" data-a="setFreq" data-v="daily">🔁 Chaque jour</button><button class="chip '+(ui.newFreq==='weekly'?'sel':'')+'" data-a="setFreq" data-v="weekly">📆 Certains jours</button></div>'+
       (ui.newFreq==='weekly'?'<div class="chiprow" style="margin-top:8px">'+[1,2,3,4,5,6,0].map(function(d){return '<button class="chip '+(ui.newDays.indexOf(d)>-1?'sel':'')+'" data-a="toggleDay" data-v="'+d+'">'+DAY_LABEL[d]+'</button>'}).join('')+'</div>':'')+
@@ -511,19 +518,19 @@ function mform(){
       S.children.map(function(c){return '<button class="chip '+(ui.newPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="togglePick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+
       '</div>'+
       (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
-      '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createRecurring">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button><button class="btn ghost" data-a="closeForm">Annuler</button></div>'+
-      '</div>';
+      '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createRecurring">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button></div>';
+  } else {
+    fields='<label class="lbl">Titre</label><input class="inp" data-field="stitle" placeholder="Ex : Trier ses jouets" value="'+esc(ui.newSTitle||'')+'">'+
+      '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="spoints" value="'+esc(ui.newSPoints!=null?ui.newSPoints:10)+'">'+
+      '<label class="lbl">Règle</label><div class="chiprow">'+
+      '<button class="chip '+(ui.newSMode==='race'?'sel':'')+'" data-a="setSMode" data-v="race">⚡ Le premier qui la fait</button>'+
+      '<button class="chip '+(ui.newSMode==='each'?'sel':'')+'" data-a="setSMode" data-v="each">✅ Chacun doit la faire</button></div>'+
+      (ui.newSMode==='each'?'<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.newSPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleSPick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+'</div>':'')+
+      (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
+      '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createSpecial">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button></div>';
   }
-  return '<div class="sheet-inline" style="margin-bottom:16px">'+
-    '<label class="lbl">Titre</label><input class="inp" data-field="stitle" placeholder="Ex : Trier ses jouets" value="'+esc(ui.newSTitle||'')+'">'+
-    '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="spoints" value="'+esc(ui.newSPoints!=null?ui.newSPoints:10)+'">'+
-    '<label class="lbl">Règle</label><div class="chiprow">'+
-    '<button class="chip '+(ui.newSMode==='race'?'sel':'')+'" data-a="setSMode" data-v="race">⚡ Le premier qui la fait</button>'+
-    '<button class="chip '+(ui.newSMode==='each'?'sel':'')+'" data-a="setSMode" data-v="each">✅ Chacun doit la faire</button></div>'+
-    (ui.newSMode==='each'?'<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.newSPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleSPick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+'</div>':'')+
-    (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
-    '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createSpecial">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button><button class="btn ghost" data-a="closeForm">Annuler</button></div>'+
-    '</div>';
+  var title=ui.editId?'Modifier la mission':(ui.mview==='daily'?'Nouvelle mission récurrente':'Nouvelle mission spéciale');
+  return '<div class="modal-head"><h2>'+title+'</h2><button class="modal-x" data-a="closeForm" aria-label="Fermer">✕</button></div>'+fields;
 }
 function pMissions(){
   var daily=ui.mview==='daily';
@@ -531,8 +538,7 @@ function pMissions(){
     var on=(daily?'daily':'special')===t[0];
     return '<button class="'+(on?'on':'')+'" data-a="mview" data-v="'+t[0]+'">'+t[1]+' '+t[2]+'</button>';
   }).join('')+'</div>';
-  h+='<div class="vhead"><h2>'+(ui.editId?'Modifier la mission':(daily?'Missions récurrentes':'Missions spéciales'))+'</h2>'+(ui.newOpen?'':'<button class="btn small" data-a="openNew">＋ Nouvelle</button>')+'</div>';
-  h+=mform();
+  h+='<div class="vhead"><h2>'+(daily?'Missions récurrentes':'Missions spéciales')+'</h2><button class="btn small" data-a="openNew">＋ Nouvelle</button></div>';
   var list=S.tasks.filter(function(t){return t.recurring===daily});
   if(!list.length) return h+'<div class="empty"><div class="big">'+(daily?'📅':'✨')+'</div><p>'+(daily?'Aucune mission récurrente.':'Aucune mission spéciale.')+'</p></div>';
   return h+list.map(function(t){
@@ -598,17 +604,21 @@ function pFamily(){
   return h;
 }
 
+function rform(){
+  var fields='<label class="lbl">Titre</label><input class="inp" data-field="rTitle" value="'+esc(ui.rTitle)+'" placeholder="Ex : Soirée pyjama">'+
+    '<label class="lbl">Emoji <span class="muted" style="font-weight:600">(facultatif)</span></label><input class="inp" data-field="rEmoji" value="'+esc(ui.rEmoji)+'" placeholder="🎬" maxlength="4">'+
+    '<label class="lbl">Coût en étoiles</label><input class="inp" type="number" data-field="rCost" value="'+esc(ui.rCost)+'">'+
+    (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
+    '<div style="margin-top:18px"><button class="btn wide" data-a="createReward">'+(ui.editRewardId?'Enregistrer':'Créer la récompense')+'</button></div>';
+  var title=ui.editRewardId?'Modifier la récompense':'Nouvelle récompense';
+  return '<div class="modal-head"><h2>'+title+'</h2><button class="modal-x" data-a="closeRewardForm" aria-label="Fermer">✕</button></div>'+fields;
+}
 function pShop(){
   var h='<div class="seg" role="tablist">'+[['rewards','🎁','Récompenses'],['requests','📥','Demandes'+(S.redemptions.length?' ('+S.redemptions.length+')':'')]].map(function(t){
     return '<button class="'+(ui.sview===t[0]?'on':'')+'" data-a="sview" data-v="'+t[0]+'">'+t[1]+' '+t[2]+'</button>';
   }).join('')+'</div>';
   if(ui.sview==='rewards'){
-    if(!ui.rFormOpen) h+='<button class="btn small" style="margin-bottom:14px" data-a="openRewardForm">＋ Nouvelle récompense</button>';
-    else h+='<div class="sheet-inline" style="margin-bottom:16px">'+
-      '<label class="lbl">Titre</label><input class="inp" data-field="rTitle" value="'+esc(ui.rTitle)+'" placeholder="Ex : Soirée pyjama">'+
-      '<label class="lbl">Emoji <span class="muted" style="font-weight:600">(facultatif)</span></label><input class="inp" data-field="rEmoji" value="'+esc(ui.rEmoji)+'" placeholder="🎬" maxlength="4">'+
-      '<label class="lbl">Coût en étoiles</label><input class="inp" type="number" data-field="rCost" value="'+esc(ui.rCost)+'">'+
-      '<div style="display:flex;gap:10px;margin-top:14px"><button class="btn wide" data-a="createReward">'+(ui.editRewardId?'Enregistrer':'Créer la récompense')+'</button><button class="btn ghost" data-a="closeRewardForm">Annuler</button></div></div>';
+    h+='<button class="btn small" style="margin-bottom:14px" data-a="openRewardForm">＋ Nouvelle récompense</button>';
     if(!S.rewards.length) h+='<div class="empty"><div class="big">🎁</div><p>Aucune récompense créée.</p></div>';
     else h+=S.rewards.map(function(r){
       return '<div class="task"><span class="t-emoji">'+(r.emoji||'🎁')+'</span><span class="t-main"><span class="t-title">'+esc(r.title)+'</span><span class="t-meta">'+r.cost+' ⭐</span></span>'+
@@ -739,9 +749,12 @@ function render(){
   else if(ui.view==='kidlogin') h=viewKidLogin();
   else if(ui.view==='parent'){ h=viewParent(); nav=parentNav(); }
   else if(ui.view==='child'){ h=viewChild(); nav=childNav(); }
+  var modal='';
+  if(ui.newOpen) modal='<div class="modal-backdrop" data-a="closeForm"><div class="modal" onclick="event.stopPropagation()">'+mform()+'</div></div>';
+  else if(ui.rFormOpen) modal='<div class="modal-backdrop" data-a="closeRewardForm"><div class="modal" onclick="event.stopPropagation()">'+rform()+'</div></div>';
   var app=document.getElementById('app');
   app.className = nav ? '' : 'nonav';
-  app.innerHTML = h+nav;
+  app.innerHTML = h+nav+modal;
 }
 
 function toast(msg){
