@@ -750,8 +750,8 @@ function render(){
   else if(ui.view==='parent'){ h=viewParent(); nav=parentNav(); }
   else if(ui.view==='child'){ h=viewChild(); nav=childNav(); }
   var modal='';
-  if(ui.newOpen) modal='<div class="modal-backdrop" data-a="closeForm"><div class="modal" onclick="event.stopPropagation()">'+mform()+'</div></div>';
-  else if(ui.rFormOpen) modal='<div class="modal-backdrop" data-a="closeRewardForm"><div class="modal" onclick="event.stopPropagation()">'+rform()+'</div></div>';
+  if(ui.newOpen) modal='<div class="modal-backdrop" data-a="closeForm"><div class="modal">'+mform()+'</div></div>';
+  else if(ui.rFormOpen) modal='<div class="modal-backdrop" data-a="closeRewardForm"><div class="modal">'+rform()+'</div></div>';
   var app=document.getElementById('app');
   app.className = nav ? '' : 'nonav';
   app.innerHTML = h+nav+modal;
@@ -1066,6 +1066,11 @@ var A={
 };
 
 document.addEventListener('click',function(e){
+  if(e.target.classList && e.target.classList.contains('modal-backdrop')){
+    var bfn=A[e.target.getAttribute('data-a')];
+    if(bfn) bfn(e.target.dataset, e.target);
+    return;
+  }
   var el=e.target.closest?e.target.closest('[data-a]'):null;
   if(!el)return;
   var fn=A[el.getAttribute('data-a')];
