@@ -345,14 +345,16 @@ async function loadChildDetail(childId){
   var days=[];
   for(var i=6;i>=0;i--){
     var day=addDays(d,-i);
-    var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,day)});
+    var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,day)&&(!t.created_at||t.created_at.slice(0,10)<=day)});
     var dayLogs=wl.filter(function(l){return l.date===day});
     var paused=S.pauses.some(function(p){return (p.child_id===childId||!p.child_id)&&p.from_date<=day&&(!p.to_date||p.to_date>=day)});
+    var complete=due.length>0 && due.every(function(t){return dayLogs.some(function(l){return l.task_id===t.id})});
     var status;
-    if(day===d) status='today';
-    else if(paused) status='paused';
+    if(paused) status='paused';
+    else if(complete) status='ok';
+    else if(day===d) status='today';
     else if(!due.length) status='none';
-    else status=due.every(function(t){return dayLogs.some(function(l){return l.task_id===t.id})})?'ok':'miss';
+    else status='miss';
     days.push({date:day, dow:dowOf(day), status:status});
   }
 
@@ -409,7 +411,7 @@ async function checkBadges(childId){
   function ownValidated(dateStr){ return logs.filter(function(l){return l.date===dateStr}); }
   function taskOf(l){ return S.tasks.filter(function(t){return t.id===l.task_id})[0]; }
   function strictRoutineDay(dateStr){
-    var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,dateStr)});
+    var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,dateStr)&&(!t.created_at||t.created_at.slice(0,10)<=dateStr)});
     if(!due.length) return 'none';
     var v=ownValidated(dateStr);
     return due.every(function(t){return v.some(function(l){return l.task_id===t.id})})?'ok':'miss';
@@ -435,7 +437,7 @@ async function checkBadges(childId){
     var pLogs=prevWeekLogs||[];
     function pOwnValidated(dateStr){ return pLogs.filter(function(l){return l.date===dateStr}); }
     function pStrictRoutineDay(dateStr){
-      var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,dateStr)});
+      var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,dateStr)&&(!t.created_at||t.created_at.slice(0,10)<=dateStr)});
       if(!due.length) return 'none';
       var v=pOwnValidated(dateStr);
       return due.every(function(t){return v.some(function(l){return l.task_id===t.id})})?'ok':'miss';
