@@ -167,6 +167,13 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
 .modal-head h2{font-size:21px}
 .modal-x{background:var(--pri-soft);border:0;width:38px;height:38px;border-radius:12px;font-size:18px;cursor:pointer;color:var(--ink)}
+.tilegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.tile{background:var(--card);border-radius:16px;padding:12px 8px;text-align:center;box-shadow:var(--shadow)}
+.tile-n{font-weight:800;font-size:17px}
+.tile-l{font-size:11px;color:var(--muted);font-weight:700;margin-top:2px}
+.weekstrip{display:flex;justify-content:space-between;background:var(--card);border-radius:16px;padding:12px 6px;box-shadow:var(--shadow);margin-bottom:6px}
+.wday{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-weight:700}
+.wd-i{font-size:16px}
 </style>
 </head>
 <body>
@@ -331,6 +338,46 @@ async function loadChildData(){
   S.myRedemptions=myRedemptions||[];
 }
 
+async function loadChildDetail(childId){
+  var d=todayStr(), weekStart=addDays(d,-6);
+  var {data:weekLogs}=await client.from('task_logs').select('*').eq('child_id',childId).eq('status','validated').gte('date',weekStart).lte('date',d);
+  var wl=weekLogs||[];
+  var days=[];
+  for(var i=6;i>=0;i--){
+    var day=addDays(d,-i);
+    var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,day)});
+    var dayLogs=wl.filter(function(l){return l.date===day});
+    var paused=S.pauses.some(function(p){return (p.child_id===childId||!p.child_id)&&p.from_date<=day&&(!p.to_date||p.to_date>=day)});
+    var status;
+    if(day===d) status='today';
+    else if(paused) status='paused';
+    else if(!due.length) status='none';
+    else status=due.every(function(t){return dayLogs.some(function(l){return l.task_id===t.id})})?'ok':'miss';
+    days.push({date:day, dow:dowOf(day), status:status});
+  }
+
+  var {data:allPerfect}=await client.from('badges').select('period').eq('child_id',childId).eq('badge_id','perfectday').order('period');
+  var periods=(allPerfect||[]).map(function(b){return b.period});
+  var longest=0,run=0,prev=null;
+  periods.forEach(function(p){ run=(prev&&addDays(prev,1)===p)?run+1:1; longest=Math.max(longest,run); prev=p; });
+
+  var {data:allValidated}=await client.from('task_logs').select('points').eq('child_id',childId).eq('status','validated');
+  var {data:allShares}=await client.from('task_shares').select('points').eq('child_id',childId);
+  var {data:allAdj}=await client.from('adjustments').select('points').eq('child_id',childId);
+  var earned=(allValidated||[]).reduce(function(s,l){return s+l.points},0)+(allShares||[]).reduce(function(s,l){return s+l.points},0)+(allAdj||[]).filter(function(a){return a.points>0}).reduce(function(s,a){return s+a.points},0);
+
+  var {data:givenRedemptions}=await client.from('redemptions').select('*').eq('child_id',childId).eq('status','given').order('decided_at',{ascending:false});
+  var {data:myBadges}=await client.from('badges').select('*').eq('child_id',childId);
+
+  var {data:recentLogs}=await client.from('task_logs').select('*').eq('child_id',childId).eq('status','validated').order('validated_at',{ascending:false}).limit(6);
+  var feed=[];
+  (recentLogs||[]).forEach(function(l){ feed.push({type:'task', label:l.title, points:l.points, at:l.validated_at||l.date}); });
+  (givenRedemptions||[]).slice(0,6).forEach(function(r){ feed.push({type:'reward', label:(r.emoji?r.emoji+' ':'')+r.title, points:-r.cost, at:r.decided_at}); });
+  feed.sort(function(a,b){ return new Date(b.at)-new Date(a.at); });
+
+  S.detail={childId:childId, days:days, longest:longest, earned:earned, missionsCount:(allValidated||[]).length, rewardsGiven:(givenRedemptions||[]).length, badges:myBadges||[], feed:feed.slice(0,8)};
+}
+
 async function refreshParentScreen(){ await loadChildren(); await loadParentData(); render(); }
 async function refreshChildScreen(){
   var {data:profile}=await client.from('profiles').select('star_balance').eq('id',S.me.id).single();
@@ -489,18 +536,16 @@ function pToday(){
   var h='<div class="sec"><h3>Mes enfants</h3></div>';
   h+=S.children.map(function(c){
     var st=childTodayStats(c.id), pend=S.logs.filter(function(l){return l.child_id===c.id}).length;
-    var open=ui.expandChild===c.id;
-    var head='<div class="kid" data-a="toggleChild" data-id="'+c.id+'"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+(pend?' <span class="dot">'+pend+'</span>':'')+'</span>'+
+    var head='<div class="kid" data-a="openChildDetail" data-id="'+c.id+'"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+(pend?' <span class="dot">'+pend+'</span>':'')+'</span>'+
       '<span class="t-meta">Niv. '+c.level+' · ⭐ '+c.stars+' · 🔥 '+c.streak+'</span></span>'+
-      '<span class="pill">'+st.done+' / '+st.total+' faites</span><span class="chev">'+(open?'⌄':'›')+'</span></div>';
+      '<span class="pill">'+st.done+' / '+st.total+' faites</span><span class="chev">›</span></div>';
     var bar='<div class="bar" style="margin-top:10px"><i style="width:'+(st.total?Math.round(st.done/st.total*100):0)+'%"></i></div>';
     var dayDefs=BADGE_DEFS.filter(function(b){return b.scope==='day'});
     var badgeRow='<div class="badge-row">'+dayDefs.map(function(def){
       var on=c.todayBadgeIds.indexOf(def.id)>-1;
       return '<span class="badge-ico '+(on?'on':'')+'" title="'+esc(def.name)+(on?' · débloqué aujourd’hui':' · pas encore débloqué')+'">'+def.emoji+'</span>';
     }).join('')+'</div>';
-    var body=open?'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">'+pendingRows(c.id)+'</div>':'';
-    return '<div class="card">'+head+bar+badgeRow+body+'</div>';
+    return '<div class="card">'+head+bar+badgeRow+'</div>';
   }).join('');
   return h;
 }
@@ -637,6 +682,60 @@ function pShop(){
   return h;
 }
 
+function viewChildDetail(){
+  var c=S.children.filter(function(x){return x.id===ui.detailChild})[0];
+  if(!c||!S.detail||S.detail.childId!==c.id) return '<header class="top"><button class="ghost-link" data-a="backToParent">← Retour</button></header><div class="empty" style="padding-top:60px"><div class="big">⏳</div><p>Chargement...</p></div>';
+  var d=S.detail;
+  var base=(c.level-1)*50, pct=Math.min(100,Math.round((c.stars-base)/50*100));
+
+  var h='<header class="top"><button class="ghost-link" data-a="backToParent">← Retour</button></header>';
+  h+='<section class="hero"><div class="hero-av">'+c.avatar+'</div><div class="hero-main"><div class="hero-name">'+esc(c.display_name)+'</div>'+
+    '<div class="hero-lvl">Niveau '+c.level+'</div>'+
+    '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
+    '<div class="muted" style="font-size:12px;margin-top:4px">'+Math.max(0,c.stars-base)+' / 50 ⭐ pour le niveau suivant</div>'+
+    '</div></section>';
+
+  var tiles=[['⭐',c.stars,'solde'],['🌟',d.earned,'gagnées'],['✅',d.missionsCount,'missions'],['🔥',c.streak,'série (j)'],['🥇',d.longest,'record (j)'],['📅',d.days.filter(function(x){return x.status==='ok'}).length+'/7','sur 7 jours']];
+  h+='<div class="tilegrid">'+tiles.map(function(t){return '<div class="tile"><div class="tile-n">'+t[0]+' '+t[1]+'</div><div class="tile-l">'+t[2]+'</div></div>';}).join('')+'</div>';
+
+  h+='<div class="sec"><h3>7 derniers jours</h3></div><div class="weekstrip">'+d.days.map(function(x){
+    var icon=x.status==='ok'?'✅':x.status==='miss'?'❌':x.status==='paused'?'⏸️':x.status==='today'?'⏳':'·';
+    return '<div class="wday"><span class="wd-l">'+DAY_LABEL[x.dow]+'</span><span class="wd-i">'+icon+'</span></div>';
+  }).join('')+'</div>';
+
+  var pend=S.logs.filter(function(l){return l.child_id===c.id});
+  if(pend.length){ h+='<div class="sec"><h3>⏳ À valider</h3></div>'+pendingRows(c.id); }
+
+  var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,c.id)&&isDueToday(t)});
+  h+='<div class="sec"><h3>Aujourd’hui · '+due.filter(function(t){return S.todayLogs.some(function(l){return l.task_id===t.id&&l.child_id===c.id&&l.status==='validated'})}).length+' / '+due.length+' faites</h3></div>';
+  if(!due.length) h+='<p class="muted">Pas de routine aujourd’hui.</p>';
+  else h+=due.map(function(t){
+    var l=S.todayLogs.filter(function(x){return x.task_id===t.id&&x.child_id===c.id})[0];
+    var st=l?l.status:'todo';
+    var pill=st==='validated'?'<span class="pill ok">✅ Fait</span>':st==='pending'?'<span class="pill wait">⏳ À valider</span>':'<span class="pill">À faire</span>';
+    return '<div class="task"><span class="t-emoji">🔁</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">'+t.points+' ⭐</span></span>'+pill+'</div>';
+  }).join('');
+
+  h+='<div class="sec"><h3>Trophées ('+d.badges.length+' / '+BADGE_DEFS.length+')</h3></div><div class="badge-row" style="flex-wrap:wrap">'+BADGE_DEFS.map(function(def){
+    var got=d.badges.some(function(b){return b.badge_id===def.id});
+    return '<span class="badge-ico '+(got?'on':'')+'" style="width:42px;height:42px;font-size:20px" title="'+esc(def.name)+'">'+(got?def.emoji:'🔒')+'</span>';
+  }).join('')+'</div>';
+
+  h+='<div class="sec"><h3>Récompenses</h3></div><div class="card">🎁 Obtenues : '+d.rewardsGiven+'</div>';
+
+  h+='<div class="sec"><h3>Historique récent</h3></div>';
+  h+=d.feed.length?d.feed.map(function(f){
+    return '<div class="task"><span class="t-emoji">'+(f.type==='reward'?'🎁':'✅')+'</span><span class="t-main"><span class="t-title">'+esc(f.label)+'</span><span class="t-meta">'+(f.points>0?'+':'')+f.points+' ⭐</span></span></div>';
+  }).join(''):'<p class="muted">Pas encore d’historique.</p>';
+
+  h+='<div style="display:flex;flex-direction:column;gap:10px;margin-top:20px">'+
+    '<button class="btn ghost" data-a="quickPause" data-id="'+c.id+'">⏸️ Mettre en pause</button>'+
+    '<button class="btn ghost" data-a="renameChild" data-id="'+c.id+'">✏️ Modifier le profil</button>'+
+    '<button class="btn ghost" data-a="quickAdjust" data-id="'+c.id+'">⭐ Ajuster les étoiles</button>'+
+    '</div>';
+  return h;
+}
+
 function viewParent(){
   var body = ui.ptab==='today' ? pToday()
     : ui.ptab==='missions' ? pMissions()
@@ -748,6 +847,7 @@ function render(){
   else if(ui.view==='parentlogin') h=viewParentLogin();
   else if(ui.view==='kidlogin') h=viewKidLogin();
   else if(ui.view==='parent'){ h=viewParent(); nav=parentNav(); }
+  else if(ui.view==='childDetail'){ h=viewChildDetail(); nav=''; }
   else if(ui.view==='child'){ h=viewChild(); nav=childNav(); }
   var modal='';
   if(ui.newOpen) modal='<div class="modal-backdrop" data-a="closeForm"><div class="modal" data-a="noop">'+mform()+'</div></div>';
@@ -800,6 +900,13 @@ var A={
   tab:function(d){ ui.tab=d.t; render(); },
 
   toggleChild:function(d){ ui.expandChild = ui.expandChild===d.id ? null : d.id; render(); },
+  openChildDetail:async function(d){
+    ui.detailChild=d.id; ui.prevPtab=ui.ptab; ui.view='childDetail'; S.detail=null; render();
+    await loadChildDetail(d.id); render();
+  },
+  backToParent:function(){ ui.view='parent'; render(); },
+  quickPause:function(d){ ui.ptab='family'; ui.fview='pauses'; ui.pauseChild=d.id; ui.view='parent'; render(); },
+  quickAdjust:function(d){ ui.ptab='family'; ui.fview='adjust'; ui.adjChild=d.id; ui.view='parent'; render(); },
   validate:async function(d){
     var {error}=await client.from('task_logs').update({status:'validated', validated_at:new Date().toISOString(), comment:null}).eq('id',d.id);
     if(error){ alert('❌ '+error.message); return; }
