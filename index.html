@@ -174,6 +174,16 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .weekstrip{display:flex;justify-content:space-between;background:var(--card);border-radius:16px;padding:12px 6px;box-shadow:var(--shadow);margin-bottom:6px}
 .wday{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-weight:700}
 .wd-i{font-size:16px}
+
+.mcard{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:16px;padding:9px 12px;margin-bottom:8px;box-shadow:var(--shadow);cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.mcard:active{transform:scale(.99)}
+.mcard-ico{position:relative;width:44px;height:44px;flex:none;border-radius:13px;background:var(--pri-soft);display:grid;place-items:center;font-size:21px}
+.mcard-star{position:absolute;bottom:-5px;right:-5px;background:var(--acc);color:#3a2a00;font-size:10px;font-weight:800;padding:1px 5px;border-radius:99px;line-height:1.3;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.mcard-main{flex:1;min-width:0}
+.mcard-title{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard-sub{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard-avatars{display:flex;flex:none;margin-left:4px}
+.mcard-avatars span{font-size:17px;margin-left:-7px;background:var(--card);border-radius:50%;box-shadow:0 0 0 2px var(--card)}
 </style>
 </head>
 <body>
@@ -243,7 +253,7 @@ var ui={view:'loading', ptab:'today', tab:'missions', loginErr:null, loginBusy:f
   pauseChild:'', pauseFrom:todayStr(), pauseTo:'',
   adjChild:'', adjPoints:'', adjReason:'',
   rTitle:'', rEmoji:'', rCost:'10', rFormOpen:false, editRewardId:null, editId:null, validateModal:null,
-  assignTarget:null, assignMode:'race', assignPicked:[], confirmAssignTask:null};
+  assignTarget:null, assignMode:'race', assignPicked:[], confirmAssignTask:null, taskMenu:null};
 var S={me:null, profile:null, children:[], stars:0, tasks:[], logs:[], mySpecials:[], myLogsToday:[],
   pauses:[], adjustments:[], badges:[], rewards:[], redemptions:[], myPause:null, myBadges:[], myRedemptions:[]};
 
@@ -658,6 +668,28 @@ function mform(){
   var title=ui.editId?'Modifier la mission':(ui.mview==='daily'?'Nouvelle mission de routine':'Nouvelle mission spéciale');
   return '<div class="modal-head"><h2>'+title+'</h2><button class="modal-x" data-a="closeForm" aria-label="Fermer">✕</button></div>'+fields;
 }
+function missionCard(t, daily){
+  var freqText = daily ? freqLabel(t) : 'Une seule fois';
+  var slotText = daily ? (SLOT_LABEL[t.slot]||'') : (t.assign_all ? '⚡ Premier arrivé' : ((t.task_assignees&&t.task_assignees.length) ? '✅ Chacun' : '⚠️ Non assignée'));
+  var kids = t.assign_all ? S.children : (t.task_assignees||[]).map(function(a){return S.children.filter(function(c){return c.id===a.child_id})[0]}).filter(Boolean);
+  var avatars = kids.map(function(c,i){return '<span title="'+esc(c.display_name)+'">'+c.avatar+'</span>';}).join('');
+  return '<div class="mcard" data-longpress="'+t.id+'">'+
+    '<div class="mcard-ico">'+(daily?'🔁':'✨')+'<span class="mcard-star">+'+t.points+'</span></div>'+
+    '<div class="mcard-main"><div class="mcard-title">'+esc(t.title)+'</div>'+
+    '<div class="mcard-sub"><span>'+esc(freqText)+'</span>'+(slotText?'<span>· '+esc(slotText)+'</span>':'')+'</div></div>'+
+    '<div class="mcard-avatars">'+avatars+'</div>'+
+    '</div>';
+}
+function taskMenuContent(){
+  var t=S.tasks.filter(function(x){return x.id===ui.taskMenu})[0];
+  var h='<div class="modal-head"><h2>'+(t?esc(t.title):'Mission')+'</h2><button class="modal-x" data-a="closeTaskMenu" aria-label="Fermer">✕</button></div>';
+  h+='<div style="display:flex;flex-direction:column;gap:10px;margin-top:6px">'+
+    '<button class="btn ghost wide" data-a="menuAssign" data-id="'+(t?t.id:'')+'">🎯 Assigner</button>'+
+    '<button class="btn ghost wide" data-a="menuEdit" data-id="'+(t?t.id:'')+'">✏️ Éditer</button>'+
+    '<button class="btn ghost wide" data-a="menuDelete" data-id="'+(t?t.id:'')+'">🗑️ Supprimer</button>'+
+    '</div>';
+  return h;
+}
 function pMissions(){
   var daily=ui.mview==='daily';
   var h='<div class="seg" role="tablist">'+[['daily','📅','Routines'],['special','✨','Spéciales']].map(function(t){
@@ -678,17 +710,7 @@ function pMissions(){
   if(daily && ui.mfilter!=='all') list=list.filter(function(t){return (t.freq||'daily')===ui.mfilter});
   if(ui.mFilterChild) list=list.filter(function(t){return appliesToList(t,ui.mFilterChild)});
   if(!list.length) return h+'<div class="empty"><div class="big">'+(daily?'📅':'✨')+'</div><p>'+(daily?'Aucune mission de routine.':'Aucune mission spéciale.')+'</p></div>';
-  return h+list.map(function(t){
-    var meta=(daily?[whoLabel(t),SLOT_LABEL[t.slot]||'',t.points+' ⭐',freqLabel(t)]:[whoLabel(t),t.points+' ⭐',t.assign_all?'premier arrivé':(t.task_assignees&&t.task_assignees.length?'chacun doit la faire':'⚠️ non assignée')]).filter(Boolean).join(' · ');
-    var avatars='';
-    if(!daily && !t.assign_all && t.task_assignees && t.task_assignees.length){
-      var kids=t.task_assignees.map(function(a){return S.children.filter(function(c){return c.id===a.child_id})[0]}).filter(Boolean);
-      avatars=kids.length?'<span style="display:flex;gap:2px;margin-top:4px">'+kids.map(function(c){return '<span style="font-size:17px" title="'+esc(c.display_name)+'">'+c.avatar+'</span>'}).join('')+'</span>':'';
-    }
-    return '<div class="task"><span class="t-emoji">'+(daily?'🔁':'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">'+meta+'</span>'+avatars+'</span>'+
-      '<span class="acts">'+(daily?'':'<button class="ib" data-a="openAssign" data-id="'+t.id+'" aria-label="Assigner">🎯</button>')+
-      '<button class="ib" data-a="editTask" data-id="'+t.id+'" aria-label="Modifier">✏️</button><button class="ib" data-a="delTask" data-id="'+t.id+'" aria-label="Supprimer">🗑️</button></span></div>';
-  }).join('');
+  return h+list.map(function(t){ return missionCard(t, daily); }).join('');
 }
 
 function pFamily(){
@@ -1007,6 +1029,7 @@ function render(){
   else if(ui.validateModal) modal='<div class="modal-backdrop" data-a="closeValidateModal"><div class="modal" data-a="noop">'+validateModalContent(ui.validateModal)+'</div></div>';
   else if(ui.assignTarget) modal='<div class="modal-backdrop" data-a="closeAssign"><div class="modal" data-a="noop">'+assignForm()+'</div></div>';
   else if(ui.confirmAssignTask) modal='<div class="modal-backdrop" data-a="closeAssign"><div class="modal" data-a="noop">'+confirmAssignContent()+'</div></div>';
+  else if(ui.taskMenu) modal='<div class="modal-backdrop" data-a="closeTaskMenu"><div class="modal" data-a="noop">'+taskMenuContent()+'</div></div>';
   var app=document.getElementById('app');
   app.className = nav ? '' : 'nonav';
   app.innerHTML = h+nav+modal;
@@ -1181,10 +1204,16 @@ var A={
   },
   delTask:async function(d){
     if(!confirm('Supprimer cette mission ?')) return;
+    if(!confirm('Vraiment sûr·e ? Cette action est irréversible.')) return;
     var {error}=await client.from('tasks').delete().eq('id',d.id);
     if(error){ alert('❌ '+error.message); return; }
     await loadParentData(); render();
   },
+  openTaskMenu:function(d){ ui.taskMenu=d.id; _taskMenuOpenedAt=Date.now(); render(); },
+  closeTaskMenu:function(){ if(Date.now()-_taskMenuOpenedAt<400) return; ui.taskMenu=null; render(); },
+  menuAssign:function(d){ ui.taskMenu=null; A.openAssign({id:d.id}); },
+  menuEdit:function(d){ ui.taskMenu=null; A.editTask({id:d.id}); },
+  menuDelete:async function(d){ ui.taskMenu=null; render(); await A.delTask({id:d.id}); },
 
   doTask:async function(d){
     var {error}=await client.from('task_logs').insert({
@@ -1358,6 +1387,18 @@ var A={
     await refreshChildScreen();
   }
 };
+
+/* appui long sur une carte de mission -> menu Assigner/Éditer/Supprimer */
+var _lpTimer=null, _taskMenuOpenedAt=0;
+document.addEventListener('pointerdown',function(e){
+  var el=e.target.closest?e.target.closest('[data-longpress]'):null;
+  if(!el) return;
+  var id=el.getAttribute('data-longpress');
+  _lpTimer=setTimeout(function(){ _lpTimer=null; A.openTaskMenu({id:id}); },500);
+});
+['pointerup','pointercancel','pointerleave'].forEach(function(evt){
+  document.addEventListener(evt,function(){ if(_lpTimer){ clearTimeout(_lpTimer); _lpTimer=null; } });
+});
 
 document.addEventListener('click',function(e){
   var el=e.target.closest?e.target.closest('[data-a]'):null;
