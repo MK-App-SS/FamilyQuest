@@ -313,6 +313,10 @@ async function loadParentData(){
   S.rewards=rewards||[];
   var {data:redemptions}=await client.from('redemptions').select('*, profiles!redemptions_child_id_fkey(display_name)').eq('family_id',S.profile.family_id).eq('status','pending').order('created_at');
   S.redemptions=redemptions||[];
+  var {data:todayActivity}=await client.from('task_logs').select('*, profiles!task_logs_child_id_fkey(display_name)').eq('family_id',S.profile.family_id).eq('date',todayStr()).eq('status','validated').order('validated_at',{ascending:false});
+  S.todayActivity=todayActivity||[];
+  var {data:todayGifts}=await client.from('redemptions').select('*, profiles!redemptions_child_id_fkey(display_name)').eq('family_id',S.profile.family_id).eq('status','given').gte('decided_at',todayStr()).order('decided_at',{ascending:false});
+  S.todayGifts=todayGifts||[];
 }
 
 async function loadChildData(){
@@ -363,6 +367,17 @@ async function loadChildDetail(childId){
   var longest=0,run=0,prev=null;
   periods.forEach(function(p){ run=(prev&&addDays(prev,1)===p)?run+1:1; longest=Math.max(longest,run); prev=p; });
 
+  // Taux de réussite global = proportion de journées parfaites depuis la toute première mission validée.
+  var {data:firstLog}=await client.from('task_logs').select('date').eq('child_id',childId).eq('status','validated').order('date',{ascending:true}).limit(1);
+  var successRate=null;
+  if(firstLog&&firstLog.length){
+    var totalDays=Math.floor((new Date(d+'T00:00:00')-new Date(firstLog[0].date+'T00:00:00'))/86400000)+1;
+    successRate=totalDays>0?Math.round(periods.length/totalDays*100):null;
+  }
+  // Taux de réussite de la semaine = proportion de jours parfaits parmi les 7 derniers jours évaluables.
+  var evalDays=days.filter(function(x){return x.status==='ok'||x.status==='miss'});
+  var weekRate=evalDays.length?Math.round(evalDays.filter(function(x){return x.status==='ok'}).length/evalDays.length*100):null;
+
   var {data:allValidated}=await client.from('task_logs').select('points').eq('child_id',childId).eq('status','validated');
   var {data:allShares}=await client.from('task_shares').select('points').eq('child_id',childId);
   var {data:allAdj}=await client.from('adjustments').select('points').eq('child_id',childId);
@@ -377,7 +392,7 @@ async function loadChildDetail(childId){
   (givenRedemptions||[]).slice(0,6).forEach(function(r){ feed.push({type:'reward', label:(r.emoji?r.emoji+' ':'')+r.title, points:-r.cost, at:r.decided_at}); });
   feed.sort(function(a,b){ return new Date(b.at)-new Date(a.at); });
 
-  S.detail={childId:childId, days:days, longest:longest, earned:earned, missionsCount:(allValidated||[]).length, rewardsGiven:(givenRedemptions||[]).length, badges:myBadges||[], feed:feed.slice(0,8)};
+  S.detail={childId:childId, days:days, longest:longest, earned:earned, missionsCount:(allValidated||[]).length, rewardsGiven:(givenRedemptions||[]).length, badges:myBadges||[], feed:feed.slice(0,8), successRate:successRate, weekRate:weekRate};
 }
 
 async function refreshParentScreen(){ await loadChildren(); await loadParentData(); render(); }
@@ -712,13 +727,13 @@ function viewChildDetail(){
   var c=S.children.filter(function(x){return x.id===ui.detailChild})[0];
   if(!c||!S.detail||S.detail.childId!==c.id) return '<header class="top"><button class="ghost-link" data-a="backToParent">← Retour</button></header><div class="empty" style="padding-top:60px"><div class="big">⏳</div><p>Chargement...</p></div>';
   var d=S.detail;
-  var base=(c.level-1)*50, pct=Math.min(100,Math.round((c.stars-base)/50*100));
+  var base=(c.level-1)*50, progress=Math.max(0,c.stars-base), pct=Math.min(100,Math.round(progress/50*100)), remaining=Math.max(0,50-progress);
 
   var h='<header class="top"><button class="ghost-link" data-a="backToParent">← Retour</button></header>';
   h+='<section class="hero"><div class="hero-av">'+c.avatar+'</div><div class="hero-main"><div class="hero-name">'+esc(c.display_name)+'</div>'+
     '<div class="hero-lvl">Niveau '+c.level+'</div>'+
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
-    '<div class="muted" style="font-size:12px;margin-top:4px">'+Math.max(0,c.stars-base)+' / 50 ⭐ pour le niveau suivant</div>'+
+    '<div class="muted" style="font-size:12px;margin-top:4px">'+remaining+' ⭐ pour le niveau suivant</div>'+
     '</div></section>';
 
   h+='<div class="badge-row" style="flex-wrap:wrap;justify-content:center;margin:12px 0 4px">'+BADGE_DEFS.map(function(def){
@@ -726,7 +741,14 @@ function viewChildDetail(){
     return '<span class="badge-ico '+(got?'on':'')+'" style="width:40px;height:40px;font-size:19px" title="'+esc(def.name)+(got?' · débloqué':' · pas encore débloqué')+'">'+(got?def.emoji:'🔒')+'</span>';
   }).join('')+'</div>';
 
-  var tiles=[['⭐',c.stars,'solde'],['🌟',d.earned,'gagnées'],['✅',d.missionsCount,'missions'],['🔥',c.streak,'série (j)'],['🥇',d.longest,'record (j)'],['📅',d.days.filter(function(x){return x.status==='ok'}).length+'/7','sur 7 jours']];
+  var tiles=[
+    ['⭐',c.stars,'solde actuel'],
+    ['🌟',d.earned,'étoiles gagnées'],
+    ['📊',(d.successRate!=null?d.successRate+'%':'–'),'taux de réussite'],
+    ['🔥',c.streak,'série en cours'],
+    ['🥇',d.longest,'meilleure série'],
+    ['📈',(d.weekRate!=null?d.weekRate+'%':'–'),'réussite semaine']
+  ];
   h+='<div class="tilegrid">'+tiles.map(function(t){return '<div class="tile"><div class="tile-n">'+t[0]+' '+t[1]+'</div><div class="tile-l">'+t[2]+'</div></div>';}).join('')+'</div>';
 
   h+='<div class="sec"><h3>7 derniers jours</h3></div><div class="weekstrip">'+d.days.map(function(x){
@@ -775,8 +797,24 @@ function pScheduledToday(){
   return h;
 }
 
+function pActivity(){
+  var feed=[];
+  (S.todayActivity||[]).forEach(function(l){
+    feed.push({icon:'✅', label:(l.profiles?l.profiles.display_name+' · ':'')+l.title, points:l.points, at:l.validated_at||l.date});
+  });
+  (S.todayGifts||[]).forEach(function(r){
+    feed.push({icon:'🎁', label:(r.profiles?r.profiles.display_name+' · ':'')+(r.emoji?r.emoji+' ':'')+r.title, points:-r.cost, at:r.decided_at});
+  });
+  feed.sort(function(a,b){ return new Date(b.at)-new Date(a.at); });
+  var h='<div class="sec"><h3>Activités récentes</h3></div>';
+  if(!feed.length) return h+'<div class="card" style="text-align:center;color:var(--muted)">Pas encore d’activité aujourd’hui.<br><span style="font-size:12px">La liste repart à zéro chaque jour à minuit.</span></div>';
+  return h+feed.map(function(f){
+    return '<div class="task"><span class="t-emoji">'+f.icon+'</span><span class="t-main"><span class="t-title">'+esc(f.label)+'</span></span><span class="pill '+(f.points>0?'ok':'')+'">'+(f.points>0?'+':'')+f.points+' ⭐</span></div>';
+  }).join('');
+}
+
 function viewParent(){
-  var body = ui.ptab==='today' ? (pToday()+pScheduledToday())
+  var body = ui.ptab==='today' ? (pToday()+pScheduledToday()+pActivity())
     : ui.ptab==='missions' ? pMissions()
     : ui.ptab==='shop' ? pShop()
     : pFamily();
