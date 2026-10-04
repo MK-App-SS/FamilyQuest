@@ -183,7 +183,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .mcard-title{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mcard-sub{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mcard-avatars{display:flex;flex:none;margin-left:4px}
-.mcard-avatars span{font-size:17px;margin-left:-7px;background:var(--card);border-radius:50%;box-shadow:0 0 0 2px var(--card)}
+.mcard-avatars span{font-size:24px;margin-left:-9px;background:var(--card);border-radius:50%;box-shadow:0 0 0 2px var(--card)}
 </style>
 </head>
 <body>
@@ -674,7 +674,7 @@ function missionCard(t, daily){
   var kids = t.assign_all ? S.children : (t.task_assignees||[]).map(function(a){return S.children.filter(function(c){return c.id===a.child_id})[0]}).filter(Boolean);
   var avatars = kids.map(function(c,i){return '<span title="'+esc(c.display_name)+'">'+c.avatar+'</span>';}).join('');
   return '<div class="mcard" data-longpress="'+t.id+'">'+
-    '<div class="mcard-ico">'+(daily?'🔁':'✨')+'<span class="mcard-star">+'+t.points+'</span></div>'+
+    '<div class="mcard-ico">'+(daily?'🔁':'✨')+'<span class="mcard-star">⭐'+t.points+'</span></div>'+
     '<div class="mcard-main"><div class="mcard-title">'+esc(t.title)+'</div>'+
     '<div class="mcard-sub"><span>'+esc(freqText)+'</span>'+(slotText?'<span>· '+esc(slotText)+'</span>':'')+'</div></div>'+
     '<div class="mcard-avatars">'+avatars+'</div>'+
@@ -771,12 +771,22 @@ function pFamily(){
 
 function assignForm(){
   var t=S.tasks.filter(function(x){return x.id===ui.assignTarget})[0];
-  var fields='<label class="lbl">Règle</label><div class="chiprow">'+
-    '<button class="chip '+(ui.assignMode==='race'?'sel':'')+'" data-a="setAssignMode" data-v="race">⚡ Le premier qui la fait</button>'+
-    '<button class="chip '+(ui.assignMode==='each'?'sel':'')+'" data-a="setAssignMode" data-v="each">✅ Chacun doit la faire</button></div>'+
-    (ui.assignMode==='each'?'<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.assignPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleAssignPick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+'</div>':'')+
-    (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
-    '<div style="margin-top:18px"><button class="btn wide" data-a="saveAssign">Enregistrer</button></div>';
+  var isRoutine = t && t.recurring;
+  var pickedNames = ui.assignPicked.map(function(id){ var c=S.children.filter(function(x){return x.id===id})[0]; return c?c.display_name:null; }).filter(Boolean);
+  var btnLabel = pickedNames.length ? ('Assigner à '+pickedNames.join(', ')) : 'Assigner';
+  var fields;
+  if(isRoutine){
+    fields='<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.assignPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleAssignPick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+'</div>'+
+      (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
+      '<div style="margin-top:18px"><button class="btn wide" data-a="saveAssign">'+esc(btnLabel)+'</button></div>';
+  } else {
+    fields='<label class="lbl">Règle</label><div class="chiprow">'+
+      '<button class="chip '+(ui.assignMode==='race'?'sel':'')+'" data-a="setAssignMode" data-v="race">⚡ Le premier qui la fait</button>'+
+      '<button class="chip '+(ui.assignMode==='each'?'sel':'')+'" data-a="setAssignMode" data-v="each">✅ Chacun doit la faire</button></div>'+
+      (ui.assignMode==='each'?'<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.assignPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleAssignPick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+'</div>':'')+
+      (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
+      '<div style="margin-top:18px"><button class="btn wide" data-a="saveAssign">'+(ui.assignMode==='each'?esc(btnLabel):'Enregistrer')+'</button></div>';
+  }
   return '<div class="modal-head"><h2>Assigner'+(t?' « '+esc(t.title)+' »':'')+'</h2><button class="modal-x" data-a="closeAssign" aria-label="Fermer">✕</button></div>'+fields;
 }
 function confirmAssignContent(){
@@ -1190,12 +1200,15 @@ var A={
   saveAssign:async function(){
     var taskId=ui.assignTarget;
     if(!taskId) return;
-    if(ui.assignMode==='each' && !ui.assignPicked.length){ ui.formErr='Choisissez au moins un enfant.'; render(); return; }
-    var {error}=await client.from('tasks').update({assign_all: ui.assignMode==='race'}).eq('id',taskId);
+    var t=S.tasks.filter(function(x){return x.id===taskId})[0];
+    var isRoutine = t && t.recurring;
+    var useEach = isRoutine ? true : ui.assignMode==='each';
+    if(useEach && !ui.assignPicked.length){ ui.formErr='Choisissez au moins un enfant.'; render(); return; }
+    var {error}=await client.from('tasks').update({assign_all: !useEach}).eq('id',taskId);
     if(error){ ui.formErr=error.message; render(); return; }
     var {error:dErr}=await client.from('task_assignees').delete().eq('task_id',taskId);
     if(dErr){ ui.formErr=dErr.message; render(); return; }
-    if(ui.assignMode==='each'){
+    if(useEach){
       var {error:aerr}=await client.from('task_assignees').insert(ui.assignPicked.map(function(cid){return {task_id:taskId, child_id:cid, family_id:S.profile.family_id}}));
       if(aerr){ ui.formErr=aerr.message; render(); return; }
     }
