@@ -242,7 +242,7 @@ var ui={view:'loading', ptab:'today', tab:'missions', loginErr:null, loginBusy:f
   fview:'kids', sview:'rewards',
   pauseChild:'', pauseFrom:todayStr(), pauseTo:'',
   adjChild:'', adjPoints:'', adjReason:'',
-  rTitle:'', rEmoji:'', rCost:'10', rFormOpen:false, editRewardId:null, editId:null};
+  rTitle:'', rEmoji:'', rCost:'10', rFormOpen:false, editRewardId:null, editId:null, validateModal:null};
 var S={me:null, profile:null, children:[], stars:0, tasks:[], logs:[], mySpecials:[], myLogsToday:[],
   pauses:[], adjustments:[], badges:[], rewards:[], redemptions:[], myPause:null, myBadges:[], myRedemptions:[]};
 
@@ -533,6 +533,23 @@ function pendingRows(cid){
       '<span class="acts"><button class="ib ok" data-a="validate" data-id="'+l.id+'" data-cid="'+cid+'" aria-label="Valider">✅</button></span></div>';
   }).join('');
 }
+function redemptionRowsFor(cid){
+  var list=S.redemptions.filter(function(r){return r.child_id===cid});
+  if(!list.length) return '<p class="muted" style="margin:10px 0 0">Aucune demande de récompense en attente.</p>';
+  return list.map(function(r){
+    var label=(r.emoji?r.emoji+' ':'')+r.title;
+    return '<div class="task"><span class="t-emoji">'+(r.emoji||'🎁')+'</span><span class="t-main"><span class="t-title">'+esc(r.title)+'</span><span class="t-meta">'+r.cost+' ⭐</span></span>'+
+      '<span class="acts"><button class="ib ok" data-a="decideRedemption" data-id="'+r.id+'" data-decision="given" data-cid="'+r.child_id+'" data-cost="'+r.cost+'" data-label="'+esc(label)+'" aria-label="Donner">✅</button>'+
+      '<button class="ib" data-a="decideRedemption" data-id="'+r.id+'" data-decision="refused" aria-label="Refuser">❌</button></span></div>';
+  }).join('');
+}
+function validateModalContent(childId){
+  var c=S.children.filter(function(x){return x.id===childId})[0];
+  var h='<div class="modal-head"><h2>À valider'+(c?' · '+esc(c.display_name):'')+'</h2><button class="modal-x" data-a="closeValidateModal" aria-label="Fermer">✕</button></div>';
+  h+='<div class="sec"><h3>⏳ Missions</h3></div>'+pendingRows(childId);
+  h+='<div class="sec"><h3>🎁 Récompenses</h3></div>'+redemptionRowsFor(childId);
+  return h;
+}
 function pToday(){
   if(!S.children.length) return '<div class="empty"><div class="big">👨‍👩‍👧</div><p>Aucun enfant pour l’instant.</p></div>';
   var h='<div class="sec"><h3>Mes enfants</h3></div>';
@@ -540,19 +557,21 @@ function pToday(){
     var st=childTodayStats(c.id);
     var pend=S.logs.filter(function(l){return l.child_id===c.id}).length;
     var pendGifts=S.redemptions.filter(function(r){return r.child_id===c.id}).length;
-    var notifs=(pend?'<span class="ntf" title="'+pend+' mission(s) à valider">🔔<span class="dot">'+pend+'</span></span>':'')+
-      (pendGifts?'<span class="ntf" title="'+pendGifts+' demande(s) de cadeau">🎁<span class="dot">'+pendGifts+'</span></span>':'');
+    var notifs=(pend?'<span class="ntf" data-a="openValidateModal" data-id="'+c.id+'" title="'+pend+' mission(s) à valider">🔔<span class="dot">'+pend+'</span></span>':'')+
+      (pendGifts?'<span class="ntf" data-a="openValidateModal" data-id="'+c.id+'" title="'+pendGifts+' demande(s) de cadeau">🎁<span class="dot">'+pendGifts+'</span></span>':'');
     var head='<div class="kid" data-a="openChildDetail" data-id="'+c.id+'"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+' '+notifs+'</span>'+
       '<span class="t-meta">Niv. '+c.level+' · ⭐ '+c.stars+' · 🔥 '+c.streak+'</span></span>'+
       '<span class="pill">'+st.done+' / '+st.total+' faites</span><span class="chev">›</span></div>';
     var bar='<div class="bar" style="margin-top:10px"><i style="width:'+(st.total?Math.round(st.done/st.total*100):0)+'%"></i></div>';
     var dayDefs=BADGE_DEFS.filter(function(b){return b.scope==='day'});
-    var badgeRow='<div class="badge-row">'+dayDefs.map(function(def){
-      var on=c.todayBadgeIds.indexOf(def.id)>-1;
-      return '<span class="badge-ico '+(on?'on':'')+'" title="'+esc(def.name)+(on?' · débloqué aujourd’hui':' · pas encore débloqué')+'">'+def.emoji+'</span>';
-    }).join('')+'</div>';
-    var footer='<div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn ghost small" data-a="quickPause" data-id="'+c.id+'">⏸️ Pause</button></div>';
-    return '<div class="card">'+head+bar+badgeRow+footer+'</div>';
+    var badgeRow='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">'+
+      '<div class="badge-row" style="margin-top:0">'+dayDefs.map(function(def){
+        var on=c.todayBadgeIds.indexOf(def.id)>-1;
+        return '<span class="badge-ico '+(on?'on':'')+'" title="'+esc(def.name)+(on?' · débloqué aujourd’hui':' · pas encore débloqué')+'">'+def.emoji+'</span>';
+      }).join('')+'</div>'+
+      '<button class="btn ghost small" style="flex:none" data-a="quickPause" data-id="'+c.id+'">⏸️ Pause</button>'+
+      '</div>';
+    return '<div class="card">'+head+bar+badgeRow+'</div>';
   }).join('');
   return h;
 }
@@ -743,8 +762,21 @@ function viewChildDetail(){
   return h;
 }
 
+function pScheduledToday(){
+  var list=S.tasks.filter(function(t){return t.recurring && t.freq==='weekly' && isDueToday(t)});
+  if(!list.length) return '';
+  var h='<div class="sec" id="scheduled-today"><h3>📌 Programmées aujourd’hui</h3></div>';
+  h+=list.map(function(t){
+    var assignedChildren = t.assign_all ? S.children : S.children.filter(function(c){return appliesToList(t,c.id)});
+    var done=assignedChildren.filter(function(c){return S.todayLogs.some(function(l){return l.task_id===t.id&&l.child_id===c.id&&l.status==='validated'})}).length;
+    var meta=[whoLabel(t), SLOT_LABEL[t.slot]||'', t.points+' ⭐', (assignedChildren.length?done+'/'+assignedChildren.length+' faites':'')].filter(Boolean).join(' · ');
+    return '<div class="task"><span class="t-emoji">🔁</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">'+meta+'</span></span></div>';
+  }).join('');
+  return h;
+}
+
 function viewParent(){
-  var body = ui.ptab==='today' ? pToday()
+  var body = ui.ptab==='today' ? (pToday()+pScheduledToday())
     : ui.ptab==='missions' ? pMissions()
     : ui.ptab==='shop' ? pShop()
     : pFamily();
@@ -752,8 +784,10 @@ function viewParent(){
     var title={missions:'Missions',shop:'Cadeaux',family:'Famille'}[ui.ptab];
     return '<header class="top ptop"><div class="logo">'+title+'</div><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+body;
   }
+  var scheduledCount=S.tasks.filter(function(t){return t.recurring && t.freq==='weekly' && isDueToday(t)}).length;
+  var banner=scheduledCount?'<button class="btn ghost small" style="margin-top:8px" data-a="scrollToScheduled">📌 '+scheduledCount+' mission(s) à penser aujourd’hui</button>':'';
   return '<header class="top ptop"><div><div class="hello">Bienvenue 👋</div><p class="wel-sub">'+esc(todayFr())+'</p></div>'+
-    '<button class="ghost-link" data-a="logout">Déconnexion</button></header>'+body;
+    '<button class="ghost-link" data-a="logout">Déconnexion</button></header>'+banner+body;
 }
 
 function taskCardKid(t){
@@ -859,6 +893,7 @@ function render(){
   var modal='';
   if(ui.newOpen) modal='<div class="modal-backdrop" data-a="closeForm"><div class="modal" data-a="noop">'+mform()+'</div></div>';
   else if(ui.rFormOpen) modal='<div class="modal-backdrop" data-a="closeRewardForm"><div class="modal" data-a="noop">'+rform()+'</div></div>';
+  else if(ui.validateModal) modal='<div class="modal-backdrop" data-a="closeValidateModal"><div class="modal" data-a="noop">'+validateModalContent(ui.validateModal)+'</div></div>';
   var app=document.getElementById('app');
   app.className = nav ? '' : 'nonav';
   app.innerHTML = h+nav+modal;
@@ -912,6 +947,12 @@ var A={
     await loadChildDetail(d.id); render();
   },
   backToParent:function(){ ui.view='parent'; render(); },
+  scrollToScheduled:function(){
+    var el=document.getElementById('scheduled-today');
+    if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  },
+  openValidateModal:function(d){ ui.validateModal=d.id; render(); },
+  closeValidateModal:function(){ ui.validateModal=null; render(); },
   quickPause:function(d){ ui.ptab='family'; ui.fview='pauses'; ui.pauseChild=d.id; ui.view='parent'; render(); },
   quickAdjust:function(d){ ui.ptab='family'; ui.fview='adjust'; ui.adjChild=d.id; ui.view='parent'; render(); },
   validate:async function(d){
