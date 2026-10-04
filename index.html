@@ -236,7 +236,7 @@ function whoLabel(t){
 }
 
 var ui={view:'loading', ptab:'today', tab:'missions', loginErr:null, loginBusy:false,
-  mview:'daily', newOpen:false, newFreq:'daily', newSlot:'none', newAssignAll:false, newPicked:[], newDays:[],
+  mview:'daily', mfilter:'all', newOpen:false, newFreq:'daily', newSlot:'none', newAssignAll:false, newPicked:[], newDays:[],
   newSMode:'race', newSPicked:[], newTitle:'', newPoints:'5', newSTitle:'', newSPoints:'10',
   expandChild:null,
   fview:'kids', sview:'rewards',
@@ -346,7 +346,7 @@ async function loadChildDetail(childId){
   var d=todayStr(), weekStart=addDays(d,-6);
   var {data:weekLogs}=await client.from('task_logs').select('*').eq('child_id',childId).eq('status','validated').gte('date',weekStart).lte('date',d);
   var wl=weekLogs||[];
-  var days=[];
+  var days=[], weekDue=0, weekDone=0;
   for(var i=6;i>=0;i--){
     var day=addDays(d,-i);
     var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,day)&&(!t.created_at||t.created_at.slice(0,10)<=day)});
@@ -360,23 +360,66 @@ async function loadChildDetail(childId){
     else if(!due.length) status='none';
     else status='miss';
     days.push({date:day, dow:dowOf(day), status:status});
+    if(!paused){
+      due.forEach(function(t){
+        weekDue++;
+        if(dayLogs.some(function(l){return l.task_id===t.id})) weekDone++;
+      });
+    }
   }
+  // Missions spéciales (ponctuelles) : comptées une seule fois chacune, pas par jour.
+  // Les missions "premier arrivé" (assign_all) sont exclues : personne n'en est individuellement
+  // responsable, donc ça ne doit ni aider ni pénaliser le taux de réussite d'un enfant en particulier.
+  var mySpecials=S.tasks.filter(function(t){return !t.recurring && !t.assign_all && appliesToList(t,childId)});
+  var specialValidated={};
+  if(mySpecials.length){
+    var {data:svLogs}=await client.from('task_logs').select('task_id,date').eq('child_id',childId).eq('status','validated').in('task_id',mySpecials.map(function(t){return t.id}));
+    (svLogs||[]).forEach(function(l){ specialValidated[l.task_id]=l.date; });
+  }
+  // Spéciales créées dans les 7 derniers jours → comptent dans le taux de la semaine.
+  mySpecials.forEach(function(t){
+    var createdDate=t.created_at?t.created_at.slice(0,10):null;
+    if(createdDate && createdDate>=weekStart && createdDate<=d){
+      weekDue++;
+      var vDate=specialValidated[t.id];
+      if(vDate && vDate>=weekStart && vDate<=d) weekDone++;
+    }
+  });
+  var weekRate=weekDue>0?Math.round(weekDone/weekDue*100):null;
 
   var {data:allPerfect}=await client.from('badges').select('period').eq('child_id',childId).eq('badge_id','perfectday').order('period');
   var periods=(allPerfect||[]).map(function(b){return b.period});
   var longest=0,run=0,prev=null;
   periods.forEach(function(p){ run=(prev&&addDays(prev,1)===p)?run+1:1; longest=Math.max(longest,run); prev=p; });
 
-  // Taux de réussite global = proportion de journées parfaites depuis la toute première mission validée.
+  // Taux de réussite global (sur les missions, pas les journées) : parmi toutes les missions récurrentes
+  // dues depuis la toute première mission validée de l'enfant, + toutes les missions spéciales qui lui
+  // ont été proposées, combien ont été effectivement validées.
   var {data:firstLog}=await client.from('task_logs').select('date').eq('child_id',childId).eq('status','validated').order('date',{ascending:true}).limit(1);
   var successRate=null;
   if(firstLog&&firstLog.length){
-    var totalDays=Math.floor((new Date(d+'T00:00:00')-new Date(firstLog[0].date+'T00:00:00'))/86400000)+1;
-    successRate=totalDays>0?Math.round(periods.length/totalDays*100):null;
+    var start=firstLog[0].date;
+    var {data:histLogs}=await client.from('task_logs').select('task_id,date').eq('child_id',childId).eq('status','validated').gte('date',start).lte('date',d);
+    var validatedSet={};
+    (histLogs||[]).forEach(function(l){ validatedSet[l.date+'|'+l.task_id]=true; });
+    var totalDue=0, totalDone=0, cursor=start;
+    while(cursor<=d){
+      var pausedThatDay=S.pauses.some(function(p){return (p.child_id===childId||!p.child_id)&&p.from_date<=cursor&&(!p.to_date||p.to_date>=cursor)});
+      if(!pausedThatDay){
+        var dueThatDay=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,cursor)&&(!t.created_at||t.created_at.slice(0,10)<=cursor)});
+        dueThatDay.forEach(function(t){
+          totalDue++;
+          if(validatedSet[cursor+'|'+t.id]) totalDone++;
+        });
+      }
+      cursor=addDays(cursor,1);
+    }
+    mySpecials.forEach(function(t){
+      totalDue++;
+      if(specialValidated[t.id]) totalDone++;
+    });
+    successRate=totalDue>0?Math.round(totalDone/totalDue*100):null;
   }
-  // Taux de réussite de la semaine = proportion de jours parfaits parmi les 7 derniers jours évaluables.
-  var evalDays=days.filter(function(x){return x.status==='ok'||x.status==='miss'});
-  var weekRate=evalDays.length?Math.round(evalDays.filter(function(x){return x.status==='ok'}).length/evalDays.length*100):null;
 
   var {data:allValidated}=await client.from('task_logs').select('points').eq('child_id',childId).eq('status','validated');
   var {data:allShares}=await client.from('task_shares').select('points').eq('child_id',childId);
@@ -615,18 +658,24 @@ function mform(){
       (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
       '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createSpecial">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button></div>';
   }
-  var title=ui.editId?'Modifier la mission':(ui.mview==='daily'?'Nouvelle mission récurrente':'Nouvelle mission spéciale');
+  var title=ui.editId?'Modifier la mission':(ui.mview==='daily'?'Nouvelle mission de routine':'Nouvelle mission spéciale');
   return '<div class="modal-head"><h2>'+title+'</h2><button class="modal-x" data-a="closeForm" aria-label="Fermer">✕</button></div>'+fields;
 }
 function pMissions(){
   var daily=ui.mview==='daily';
-  var h='<div class="seg" role="tablist">'+[['daily','📅','Récurrentes'],['special','✨','Spéciales']].map(function(t){
+  var h='<div class="seg" role="tablist">'+[['daily','📅','Routines'],['special','✨','Spéciales']].map(function(t){
     var on=(daily?'daily':'special')===t[0];
     return '<button class="'+(on?'on':'')+'" data-a="mview" data-v="'+t[0]+'">'+t[1]+' '+t[2]+'</button>';
   }).join('')+'</div>';
-  h+='<div class="vhead"><h2>'+(daily?'Missions récurrentes':'Missions spéciales')+'</h2><button class="btn small" data-a="openNew">＋ Nouvelle</button></div>';
+  h+='<div class="vhead"><h2>'+(daily?'Missions de Routines':'Missions spéciales')+'</h2><button class="btn small" data-a="openNew">＋ Nouvelle</button></div>';
+  if(daily){
+    h+='<div class="chiprow" style="margin-bottom:14px">'+[['all','Toutes'],['daily','Quotidiennes'],['weekly','Certains jours']].map(function(f){
+      return '<button class="chip '+(ui.mfilter===f[0]?'sel':'')+'" data-a="setMFilter" data-v="'+f[0]+'">'+f[1]+'</button>';
+    }).join('')+'</div>';
+  }
   var list=S.tasks.filter(function(t){return t.recurring===daily});
-  if(!list.length) return h+'<div class="empty"><div class="big">'+(daily?'📅':'✨')+'</div><p>'+(daily?'Aucune mission récurrente.':'Aucune mission spéciale.')+'</p></div>';
+  if(daily && ui.mfilter!=='all') list=list.filter(function(t){return (t.freq||'daily')===ui.mfilter});
+  if(!list.length) return h+'<div class="empty"><div class="big">'+(daily?'📅':'✨')+'</div><p>'+(daily?'Aucune mission de routine.':'Aucune mission spéciale.')+'</p></div>';
   return h+list.map(function(t){
     var meta=(daily?[whoLabel(t),SLOT_LABEL[t.slot]||'',t.points+' ⭐',freqLabel(t)]:[whoLabel(t),t.points+' ⭐',t.assign_all?'premier arrivé':'chacun doit la faire']).filter(Boolean).join(' · ');
     return '<div class="task"><span class="t-emoji">'+(daily?'🔁':'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">'+meta+'</span></span>'+
@@ -1003,6 +1052,7 @@ var A={
   },
 
   mview:function(d){ ui.mview=d.v; ui.newOpen=false; ui.editId=null; ui.formErr=null; render(); },
+  setMFilter:function(d){ ui.mfilter=d.v; render(); },
   openNew:function(){ ui.newOpen=true; ui.editId=null; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='5'; ui.newSTitle=''; ui.newSPoints='10'; render(); },
   closeForm:function(){ ui.newOpen=false; ui.editId=null; render(); },
   editTask:function(d){
