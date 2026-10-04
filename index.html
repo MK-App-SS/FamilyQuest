@@ -236,13 +236,14 @@ function whoLabel(t){
 }
 
 var ui={view:'loading', ptab:'today', tab:'missions', loginErr:null, loginBusy:false,
-  mview:'daily', mfilter:'all', newOpen:false, newFreq:'daily', newSlot:'none', newAssignAll:false, newPicked:[], newDays:[],
+  mview:'daily', mfilter:'all', mFilterChild:'', newOpen:false, newFreq:'daily', newSlot:'none', newAssignAll:false, newPicked:[], newDays:[],
   newSMode:'race', newSPicked:[], newTitle:'', newPoints:'5', newSTitle:'', newSPoints:'10',
   expandChild:null,
   fview:'kids', sview:'rewards',
   pauseChild:'', pauseFrom:todayStr(), pauseTo:'',
   adjChild:'', adjPoints:'', adjReason:'',
-  rTitle:'', rEmoji:'', rCost:'10', rFormOpen:false, editRewardId:null, editId:null, validateModal:null};
+  rTitle:'', rEmoji:'', rCost:'10', rFormOpen:false, editRewardId:null, editId:null, validateModal:null,
+  assignTarget:null, assignMode:'race', assignPicked:[], confirmAssignTask:null};
 var S={me:null, profile:null, children:[], stars:0, tasks:[], logs:[], mySpecials:[], myLogsToday:[],
   pauses:[], adjustments:[], badges:[], rewards:[], redemptions:[], myPause:null, myBadges:[], myRedemptions:[]};
 
@@ -651,10 +652,6 @@ function mform(){
   } else {
     fields='<label class="lbl">Titre</label><input class="inp" data-field="stitle" placeholder="Ex : Trier ses jouets" value="'+esc(ui.newSTitle||'')+'">'+
       '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="spoints" value="'+esc(ui.newSPoints!=null?ui.newSPoints:10)+'">'+
-      '<label class="lbl">Règle</label><div class="chiprow">'+
-      '<button class="chip '+(ui.newSMode==='race'?'sel':'')+'" data-a="setSMode" data-v="race">⚡ Le premier qui la fait</button>'+
-      '<button class="chip '+(ui.newSMode==='each'?'sel':'')+'" data-a="setSMode" data-v="each">✅ Chacun doit la faire</button></div>'+
-      (ui.newSMode==='each'?'<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.newSPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleSPick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+'</div>':'')+
       (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
       '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createSpecial">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button></div>';
   }
@@ -668,6 +665,10 @@ function pMissions(){
     return '<button class="'+(on?'on':'')+'" data-a="mview" data-v="'+t[0]+'">'+t[1]+' '+t[2]+'</button>';
   }).join('')+'</div>';
   h+='<div class="vhead"><h2>'+(daily?'Missions de Routines':'Missions spéciales')+'</h2><button class="btn small" data-a="openNew">＋ Nouvelle</button></div>';
+  h+='<div class="chiprow" style="margin-bottom:10px">'+
+    '<button class="chip '+(ui.mFilterChild===''?'sel':'')+'" data-a="setMFilterChild" data-v="">👨‍👩‍👧 Tous</button>'+
+    S.children.map(function(c){return '<button class="chip '+(ui.mFilterChild===c.id?'sel':'')+'" data-a="setMFilterChild" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+
+    '</div>';
   if(daily){
     h+='<div class="chiprow" style="margin-bottom:14px">'+[['all','Toutes'],['daily','Quotidiennes'],['weekly','Certains jours']].map(function(f){
       return '<button class="chip '+(ui.mfilter===f[0]?'sel':'')+'" data-a="setMFilter" data-v="'+f[0]+'">'+f[1]+'</button>';
@@ -675,11 +676,18 @@ function pMissions(){
   }
   var list=S.tasks.filter(function(t){return t.recurring===daily});
   if(daily && ui.mfilter!=='all') list=list.filter(function(t){return (t.freq||'daily')===ui.mfilter});
+  if(ui.mFilterChild) list=list.filter(function(t){return appliesToList(t,ui.mFilterChild)});
   if(!list.length) return h+'<div class="empty"><div class="big">'+(daily?'📅':'✨')+'</div><p>'+(daily?'Aucune mission de routine.':'Aucune mission spéciale.')+'</p></div>';
   return h+list.map(function(t){
-    var meta=(daily?[whoLabel(t),SLOT_LABEL[t.slot]||'',t.points+' ⭐',freqLabel(t)]:[whoLabel(t),t.points+' ⭐',t.assign_all?'premier arrivé':'chacun doit la faire']).filter(Boolean).join(' · ');
-    return '<div class="task"><span class="t-emoji">'+(daily?'🔁':'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">'+meta+'</span></span>'+
-      '<span class="acts"><button class="ib" data-a="editTask" data-id="'+t.id+'" aria-label="Modifier">✏️</button><button class="ib" data-a="delTask" data-id="'+t.id+'" aria-label="Supprimer">🗑️</button></span></div>';
+    var meta=(daily?[whoLabel(t),SLOT_LABEL[t.slot]||'',t.points+' ⭐',freqLabel(t)]:[whoLabel(t),t.points+' ⭐',t.assign_all?'premier arrivé':(t.task_assignees&&t.task_assignees.length?'chacun doit la faire':'⚠️ non assignée')]).filter(Boolean).join(' · ');
+    var avatars='';
+    if(!daily && !t.assign_all && t.task_assignees && t.task_assignees.length){
+      var kids=t.task_assignees.map(function(a){return S.children.filter(function(c){return c.id===a.child_id})[0]}).filter(Boolean);
+      avatars=kids.length?'<span style="display:flex;gap:2px;margin-top:4px">'+kids.map(function(c){return '<span style="font-size:17px" title="'+esc(c.display_name)+'">'+c.avatar+'</span>'}).join('')+'</span>':'';
+    }
+    return '<div class="task"><span class="t-emoji">'+(daily?'🔁':'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">'+meta+'</span>'+avatars+'</span>'+
+      '<span class="acts">'+(daily?'':'<button class="ib" data-a="openAssign" data-id="'+t.id+'" aria-label="Assigner">🎯</button>')+
+      '<button class="ib" data-a="editTask" data-id="'+t.id+'" aria-label="Modifier">✏️</button><button class="ib" data-a="delTask" data-id="'+t.id+'" aria-label="Supprimer">🗑️</button></span></div>';
   }).join('');
 }
 
@@ -739,6 +747,22 @@ function pFamily(){
   return h;
 }
 
+function assignForm(){
+  var t=S.tasks.filter(function(x){return x.id===ui.assignTarget})[0];
+  var fields='<label class="lbl">Règle</label><div class="chiprow">'+
+    '<button class="chip '+(ui.assignMode==='race'?'sel':'')+'" data-a="setAssignMode" data-v="race">⚡ Le premier qui la fait</button>'+
+    '<button class="chip '+(ui.assignMode==='each'?'sel':'')+'" data-a="setAssignMode" data-v="each">✅ Chacun doit la faire</button></div>'+
+    (ui.assignMode==='each'?'<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.assignPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleAssignPick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+'</div>':'')+
+    (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
+    '<div style="margin-top:18px"><button class="btn wide" data-a="saveAssign">Enregistrer</button></div>';
+  return '<div class="modal-head"><h2>Assigner'+(t?' « '+esc(t.title)+' »':'')+'</h2><button class="modal-x" data-a="closeAssign" aria-label="Fermer">✕</button></div>'+fields;
+}
+function confirmAssignContent(){
+  var t=S.tasks.filter(function(x){return x.id===ui.confirmAssignTask})[0];
+  return '<div class="modal-head"><h2>Mission créée !</h2></div>'+
+    '<p class="muted">Voulez-vous assigner « '+(t?esc(t.title):'')+' » maintenant ?</p>'+
+    '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="confirmAssignYes">Oui, assigner</button><button class="btn ghost wide" data-a="confirmAssignNo">Plus tard</button></div>';
+}
 function rform(){
   var fields='<label class="lbl">Titre</label><input class="inp" data-field="rTitle" value="'+esc(ui.rTitle)+'" placeholder="Ex : Soirée pyjama">'+
     '<label class="lbl">Emoji <span class="muted" style="font-weight:600">(facultatif)</span></label><input class="inp" data-field="rEmoji" value="'+esc(ui.rEmoji)+'" placeholder="🎬" maxlength="4">'+
@@ -981,6 +1005,8 @@ function render(){
   if(ui.newOpen) modal='<div class="modal-backdrop" data-a="closeForm"><div class="modal" data-a="noop">'+mform()+'</div></div>';
   else if(ui.rFormOpen) modal='<div class="modal-backdrop" data-a="closeRewardForm"><div class="modal" data-a="noop">'+rform()+'</div></div>';
   else if(ui.validateModal) modal='<div class="modal-backdrop" data-a="closeValidateModal"><div class="modal" data-a="noop">'+validateModalContent(ui.validateModal)+'</div></div>';
+  else if(ui.assignTarget) modal='<div class="modal-backdrop" data-a="closeAssign"><div class="modal" data-a="noop">'+assignForm()+'</div></div>';
+  else if(ui.confirmAssignTask) modal='<div class="modal-backdrop" data-a="closeAssign"><div class="modal" data-a="noop">'+confirmAssignContent()+'</div></div>';
   var app=document.getElementById('app');
   app.className = nav ? '' : 'nonav';
   app.innerHTML = h+nav+modal;
@@ -1053,6 +1079,7 @@ var A={
 
   mview:function(d){ ui.mview=d.v; ui.newOpen=false; ui.editId=null; ui.formErr=null; render(); },
   setMFilter:function(d){ ui.mfilter=d.v; render(); },
+  setMFilterChild:function(d){ ui.mFilterChild=d.v; render(); },
   openNew:function(){ ui.newOpen=true; ui.editId=null; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='5'; ui.newSTitle=''; ui.newSPoints='10'; render(); },
   closeForm:function(){ ui.newOpen=false; ui.editId=null; render(); },
   editTask:function(d){
@@ -1067,7 +1094,6 @@ var A={
       ui.newAssignAll=!!t.assign_all; ui.newPicked=t.assign_all?[]:pickedIds;
     } else {
       ui.newSTitle=t.title; ui.newSPoints=String(t.points);
-      ui.newSMode=t.assign_all?'race':'each'; ui.newSPicked=t.assign_all?[]:pickedIds;
     }
     render();
   },
@@ -1108,25 +1134,49 @@ var A={
     var title=(ui.newSTitle||'').trim();
     var points=parseInt(ui.newSPoints,10)||10;
     if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
-    if(ui.newSMode==='each' && !ui.newSPicked.length){ ui.formErr='Choisissez au moins un enfant.'; render(); return; }
-    var fields={title:title, points:points, assign_all:ui.newSMode==='race'};
-    var taskId=ui.editId;
-    if(taskId){
-      var {error}=await client.from('tasks').update(fields).eq('id',taskId);
+    var fields={title:title, points:points};
+    if(ui.editId){
+      var {error}=await client.from('tasks').update(fields).eq('id',ui.editId);
       if(error){ ui.formErr=error.message; render(); return; }
+      ui.newOpen=false; ui.editId=null; toast('✅ Mission modifiée');
+      await loadParentData(); render();
     } else {
-      var {data:task,error:cErr}=await client.from('tasks').insert(Object.assign({family_id:S.profile.family_id, recurring:false, created_by:S.me.id}, fields)).select().single();
+      var {data:task,error:cErr}=await client.from('tasks').insert(Object.assign({family_id:S.profile.family_id, recurring:false, assign_all:false, created_by:S.me.id}, fields)).select().single();
       if(cErr){ ui.formErr=cErr.message; render(); return; }
-      taskId=task.id;
+      ui.newOpen=false; ui.editId=null; toast('✅ Mission spéciale créée');
+      await loadParentData();
+      ui.confirmAssignTask=task.id;
+      render();
     }
+  },
+
+  /* assignation des missions spéciales */
+  confirmAssignYes:function(){ var id=ui.confirmAssignTask; ui.confirmAssignTask=null; A.openAssign({id:id}); },
+  confirmAssignNo:function(){ ui.confirmAssignTask=null; render(); },
+  openAssign:function(d){
+    var t=S.tasks.filter(function(x){return x.id===d.id})[0];
+    if(!t) return;
+    ui.assignTarget=t.id; ui.formErr=null;
+    ui.assignMode=t.assign_all?'race':'each';
+    ui.assignPicked=(t.task_assignees||[]).map(function(a){return a.child_id});
+    render();
+  },
+  closeAssign:function(){ ui.assignTarget=null; ui.confirmAssignTask=null; render(); },
+  setAssignMode:function(d){ ui.assignMode=d.v; render(); },
+  toggleAssignPick:function(d){ var i=ui.assignPicked.indexOf(d.v); if(i>-1)ui.assignPicked.splice(i,1); else ui.assignPicked.push(d.v); render(); },
+  saveAssign:async function(){
+    var taskId=ui.assignTarget;
+    if(!taskId) return;
+    if(ui.assignMode==='each' && !ui.assignPicked.length){ ui.formErr='Choisissez au moins un enfant.'; render(); return; }
+    var {error}=await client.from('tasks').update({assign_all: ui.assignMode==='race'}).eq('id',taskId);
+    if(error){ ui.formErr=error.message; render(); return; }
     var {error:dErr}=await client.from('task_assignees').delete().eq('task_id',taskId);
     if(dErr){ ui.formErr=dErr.message; render(); return; }
-    if(ui.newSMode==='each'){
-      var {error:aerr}=await client.from('task_assignees').insert(ui.newSPicked.map(function(cid){return {task_id:taskId, child_id:cid, family_id:S.profile.family_id}}));
+    if(ui.assignMode==='each'){
+      var {error:aerr}=await client.from('task_assignees').insert(ui.assignPicked.map(function(cid){return {task_id:taskId, child_id:cid, family_id:S.profile.family_id}}));
       if(aerr){ ui.formErr=aerr.message; render(); return; }
     }
-    var wasEdit=!!ui.editId;
-    ui.newOpen=false; ui.editId=null; toast(wasEdit?'✅ Mission modifiée':'✅ Mission spéciale créée');
+    ui.assignTarget=null; ui.formErr=null; toast('✅ Assignation enregistrée');
     await loadParentData(); render();
   },
   delTask:async function(d){
