@@ -183,7 +183,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .mcard-title{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mcard-sub{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mcard-avatars{display:flex;flex:none;margin-left:4px}
-.mcard-avatars span{font-size:24px;margin-left:-9px;background:var(--card);border-radius:50%;box-shadow:0 0 0 2px var(--card)}
+.mcard-avatars span{font-size:24px;margin-left:-9px;background:var(--card);border-radius:50%;box-shadow:0 0 0 2px #000}
 
 .fseg{display:flex;gap:2px;overflow-x:auto;margin-bottom:10px}
 .fseg::-webkit-scrollbar{display:none}
@@ -710,6 +710,7 @@ function pMissions(){
     return '<button class="'+(on?'on':'')+'" data-a="mview" data-v="'+t[0]+'">'+t[1]+' '+t[2]+'</button>';
   }).join('')+'</div>';
   h+='<div class="vhead"><h2>'+(daily?'Missions de Routines':'Missions spéciales')+'</h2><button class="btn small" data-a="openNew">＋ Nouvelle</button></div>';
+  h+='<p class="vhint">'+(daily?'Ces missions se renouvellent automatiquement':'Missions à assigner ponctuellement.')+'</p>';
   h+=fsegRow([['','👨‍👩‍👧 Tous']].concat(S.children.map(function(c){return [c.id, c.avatar+' '+esc(c.display_name)];})), ui.mFilterChild, 'setMFilterChild');
   if(daily){
     h+=fsegRow([['all','Toutes'],['daily','Quotidiennes'],['weekly','Certains jours']], ui.mfilter, 'setMFilter');
@@ -933,7 +934,8 @@ function viewParent(){
     : pFamily();
   if(ui.ptab!=='today'){
     var title={missions:'Missions',shop:'Cadeaux',family:'Famille'}[ui.ptab];
-    return '<header class="top ptop"><div class="logo">'+title+'</div><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+body;
+    var sub=ui.ptab==='missions'?'Créez, éditez et assignez vos missions':'';
+    return '<header class="top ptop"><div><div class="logo">'+title+'</div>'+(sub?'<p class="wel-sub">'+esc(sub)+'</p>':'')+'</div><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+body;
   }
   var scheduledCount=S.tasks.filter(function(t){return t.recurring && t.freq==='weekly' && isDueToday(t)}).length;
   var banner=scheduledCount?'<button class="btn ghost small" style="margin-top:8px" data-a="scrollToScheduled">📌 '+scheduledCount+' mission(s) à penser aujourd’hui</button>':'';
