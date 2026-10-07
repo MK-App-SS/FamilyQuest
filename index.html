@@ -753,7 +753,7 @@ function pMissions(){
   else h+=list.map(function(t){ return missionCard(t, daily); }).join('');
   if(!daily){
     var hist=(S.specialHistory||[]).filter(function(l){return !ui.mFilterChild||l.child_id===ui.mFilterChild});
-    h+='<div class="sec"><h3>Historique</h3></div><p class="vhint">Missions spéciales déjà validées. Pour qu’un enfant la refasse, réassignez-la (appui long).</p>';
+    h+='<div class="sec"><h3>Historique</h3></div><p class="vhint">Missions spéciales déjà validées (l’assignation est retirée à la validation). Pour la refaire, réassignez-la (appui long).</p>';
     if(!hist.length) h+='<p class="muted" style="text-align:center;font-size:14px">Aucune mission spéciale validée pour l’instant.</p>';
     else h+=hist.map(function(l){
       var c=S.children.filter(function(x){return x.id===l.child_id})[0];
@@ -761,7 +761,7 @@ function pMissions(){
       return '<div class="card" style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:8px">'+
         '<span style="font-size:26px">'+(c?c.avatar:'👤')+'</span>'+
         '<div style="flex:1;min-width:0"><div style="font-weight:800;overflow:hidden;text-overflow:ellipsis">'+esc(l.title||'Mission')+'</div>'+
-        '<div class="muted" style="font-size:12px">'+(c?esc(c.display_name):'')+' · '+(d.length===3?d[2]+'/'+d[1]:'')+(l.archived?' · terminée':' · en cours chez l’enfant')+'</div></div>'+
+        '<div class="muted" style="font-size:12px">'+(c?esc(c.display_name):'')+' · '+(d.length===3?d[2]+'/'+d[1]:'')+' · terminée'+'</div></div>'+
         '<span class="pill ok">+'+l.points+' ⭐</span></div>';
     }).join('');
   }
@@ -1229,8 +1229,19 @@ var A={
   quickPause:function(d){ ui.ptab='family'; ui.fview='pauses'; ui.pauseChild=d.id; ui.view='parent'; render(); },
   quickAdjust:function(d){ ui.ptab='family'; ui.fview='adjust'; ui.adjChild=d.id; ui.view='parent'; render(); },
   validate:async function(d){
-    var {error}=await client.from('task_logs').update({status:'validated', validated_at:new Date().toISOString(), comment:null}).eq('id',d.id);
+    var {data:vlog,error}=await client.from('task_logs').update({status:'validated', validated_at:new Date().toISOString(), comment:null}).eq('id',d.id).select('task_id');
     if(error){ alert('❌ '+error.message); return; }
+    var vt=vlog&&vlog[0]?S.tasks.filter(function(x){return x.id===vlog[0].task_id})[0]:null;
+    if(vt && !vt.recurring){
+      // mission spéciale validée : on retire l'assignation
+      var unErr;
+      if(vt.assign_all){
+        unErr=(await client.from('tasks').update({assign_all:false}).eq('id',vt.id)).error;
+      } else {
+        unErr=(await client.from('task_assignees').delete().eq('task_id',vt.id).eq('child_id',d.cid)).error;
+      }
+      if(unErr) alert('⚠️ Mission validée, mais l’assignation n’a pas pu être retirée : '+unErr.message);
+    }
     await recalcBalance(d.cid);
     await checkBadges(d.cid);
     toast('✅ Mission validée');
