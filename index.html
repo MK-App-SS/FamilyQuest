@@ -341,6 +341,9 @@ async function loadChildren(){
 async function loadParentData(){
   var {data:tasks}=await client.from('tasks').select('*, task_assignees(child_id)').eq('family_id',S.profile.family_id).order('created_at');
   S.tasks=tasks||[];
+  var spIds=S.tasks.filter(function(t){return !t.recurring}).map(function(t){return t.id});
+  var {data:spHist}=spIds.length?await client.from('task_logs').select('id,task_id,child_id,title,points,date,validated_at,archived').in('task_id',spIds).eq('status','validated').order('validated_at',{ascending:false}).limit(50):{data:[]};
+  S.specialHistory=spHist||[];
   var {data:logs}=await client.from('task_logs').select('*, profiles!task_logs_child_id_fkey(display_name)').eq('family_id',S.profile.family_id).eq('status','pending').order('created_at');
   S.logs=logs||[];
   var {data:todayLogs}=await client.from('task_logs').select('task_id,child_id,status').eq('family_id',S.profile.family_id).eq('date',todayStr());
@@ -372,7 +375,7 @@ async function loadChildData(){
   var {data:specials}=await client.from('tasks').select('*').eq('family_id',S.profile.family_id).eq('recurring',false);
   S.mySpecials=(specials||[]).filter(function(t){return t.assign_all||assignedIds.indexOf(t.id)>-1});
   var specialIds=S.mySpecials.map(function(t){return t.id});
-  var {data:specialLogs}=specialIds.length?await client.from('task_logs').select('*').in('task_id',specialIds):{data:[]};
+  var {data:specialLogs}=specialIds.length?await client.from('task_logs').select('*').in('task_id',specialIds).eq('archived',false):{data:[]};
   S.specialLogs=specialLogs||[];
   var {data:todayLogs}=await client.from('task_logs').select('*').eq('child_id',S.me.id).eq('date',todayStr());
   S.myLogsToday=todayLogs||[];
@@ -746,8 +749,23 @@ function pMissions(){
   var list=S.tasks.filter(function(t){return t.recurring===daily});
   if(daily && ui.mfilter!=='all') list=list.filter(function(t){return (t.freq||'daily')===ui.mfilter});
   if(ui.mFilterChild) list=list.filter(function(t){return appliesToList(t,ui.mFilterChild)});
-  if(!list.length) return h+'<div class="empty"><div class="big">'+(daily?'📅':'✨')+'</div><p>'+(daily?'Aucune mission de routine.':'Aucune mission spéciale.')+'</p></div>';
-  return h+list.map(function(t){ return missionCard(t, daily); }).join('');
+  if(!list.length) h+='<div class="empty"><div class="big">'+(daily?'📅':'✨')+'</div><p>'+(daily?'Aucune mission de routine.':'Aucune mission spéciale.')+'</p></div>';
+  else h+=list.map(function(t){ return missionCard(t, daily); }).join('');
+  if(!daily){
+    var hist=(S.specialHistory||[]).filter(function(l){return !ui.mFilterChild||l.child_id===ui.mFilterChild});
+    h+='<div class="sec"><h3>Historique</h3></div><p class="vhint">Missions spéciales déjà validées. Pour qu’un enfant la refasse, réassignez-la (appui long).</p>';
+    if(!hist.length) h+='<p class="muted" style="text-align:center;font-size:14px">Aucune mission spéciale validée pour l’instant.</p>';
+    else h+=hist.map(function(l){
+      var c=S.children.filter(function(x){return x.id===l.child_id})[0];
+      var d=(l.date||'').split('-');
+      return '<div class="card" style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:8px">'+
+        '<span style="font-size:26px">'+(c?c.avatar:'👤')+'</span>'+
+        '<div style="flex:1;min-width:0"><div style="font-weight:800;overflow:hidden;text-overflow:ellipsis">'+esc(l.title||'Mission')+'</div>'+
+        '<div class="muted" style="font-size:12px">'+(c?esc(c.display_name):'')+' · '+(d.length===3?d[2]+'/'+d[1]:'')+(l.archived?' · terminée':' · en cours chez l’enfant')+'</div></div>'+
+        '<span class="pill ok">+'+l.points+' ⭐</span></div>';
+    }).join('');
+  }
+  return h;
 }
 
 function pFamily(){
@@ -1043,18 +1061,26 @@ function specialCardKid(t){
   else right='<span class="pill ok">✅ Validé</span>';
   return '<div class="task ktask '+st+'"><span class="t-emoji">✨</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+note+'</span>'+right+'</div>';
 }
+function activeSpecials(){
+  return (S.mySpecials||[]).filter(function(t){
+    var logs=(S.specialLogs||[]).filter(function(l){return l.task_id===t.id&&l.status==='validated'});
+    if(t.assign_all) return !logs.length;
+    return !logs.some(function(l){return l.child_id===S.me.id});
+  });
+}
 function childMissions(){
+  var specials=activeSpecials();
   if(S.myPause){
     var h0='<div class="card" style="text-align:center;padding:26px 14px"><div style="font-size:44px">⏸️</div><p style="font-weight:800;margin:8px 0 0">Pause en cours'+(S.myPause.to_date?(' jusqu’au '+S.myPause.to_date):'')+'</p>'+(S.myPause.reason?'<p class="muted" style="margin:2px 0 0">💬 '+esc(S.myPause.reason)+'</p>':'')+'<p class="muted">Pas de mission pour le moment, profite !</p></div>';
-    if(S.mySpecials.length) h0+='<section class="special"><div class="sp-h"><span>✨ Missions spéciales</span></div><div class="sp-sub">Toujours disponibles, même en pause.</div>'+S.mySpecials.map(specialCardKid).join('')+'</section>';
+    if(specials.length) h0+='<section class="special"><div class="sp-h"><span>✨ Missions spéciales</span></div><div class="sp-sub">Toujours disponibles, même en pause.</div>'+specials.map(specialCardKid).join('')+'</section>';
     return h0;
   }
   var due=S.tasks.filter(function(t){return isDueToday(t)});
   var total=due.length;
   var done=due.filter(function(t){var l=S.myLogsToday.filter(function(x){return x.task_id===t.id})[0]; return l&&(l.status==='pending'||l.status==='validated');}).length;
   var h='';
-  if(S.mySpecials.length){
-    h+='<section class="special"><div class="sp-h"><span>✨ Missions spéciales</span></div><div class="sp-sub">À faire une seule fois pour gagner des étoiles en plus.</div>'+S.mySpecials.map(specialCardKid).join('')+'</section>';
+  if(specials.length){
+    h+='<section class="special"><div class="sp-h"><span>✨ Missions spéciales</span></div><div class="sp-sub">À faire une seule fois pour gagner des étoiles en plus.</div>'+specials.map(specialCardKid).join('')+'</section>';
   }
   if(total){
     h+='<div class="prog"><div class="prog-h"><span>'+(done>=total?'🎉 Missions du jour terminées !':'Il te reste '+(total-done)+' mission'+(total-done>1?'s':'')+' du jour')+'</span><span>'+done+' / '+total+'</span></div><div class="bar"><i style="width:'+Math.round(done/total*100)+'%"></i></div></div>';
@@ -1064,7 +1090,7 @@ function childMissions(){
       var g=due.filter(function(t){return (t.slot||'none')===sl});
       if(g.length) h+='<div class="slot-k">'+SLOT_LABEL[sl]+'</div>'+g.map(taskCardKid).join('');
     });
-  } else if(!S.mySpecials.length){
+  } else if(!specials.length){
     h+='<div class="empty"><div class="big">🌈</div><p>Pas de mission pour l’instant.<br>Profite de ta journée !</p></div>';
   }
   return h;
@@ -1312,6 +1338,10 @@ var A={
     if(useEach){
       var {error:aerr}=await client.from('task_assignees').insert(ui.assignPicked.map(function(cid){return {task_id:taskId, child_id:cid, family_id:S.profile.family_id}}));
       if(aerr){ ui.formErr=aerr.message; render(); return; }
+    }
+    if(t && !t.recurring){
+      var {error:arErr}=await client.from('task_logs').update({archived:true}).eq('task_id',taskId).eq('status','validated').eq('archived',false).select();
+      if(arErr){ ui.formErr='Assignation faite, mais impossible de relancer la mission : '+arErr.message; render(); return; }
     }
     ui.assignTarget=null; ui.formErr=null; toast('✅ Assignation enregistrée');
     await loadParentData(); render();
