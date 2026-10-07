@@ -85,6 +85,20 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .chips{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0 14px}
 .stat{background:var(--warn-soft);border-radius:99px;padding:6px 14px;font-weight:800;font-size:15px}
 
+/* accueil enfant */
+.hero .bar{height:16px}
+.hero .bar i{background:linear-gradient(90deg,var(--acc),var(--pri))}
+.hero-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 14px}
+.stat{display:inline-flex;align-items:center;gap:6px}
+.bico-row{display:flex;gap:6px;flex-wrap:wrap}
+.bico{width:30px;height:30px;border-radius:50%;background:var(--pri-soft);display:grid;place-items:center;font-size:15px;opacity:.45;filter:grayscale(1)}
+.bico.on{opacity:1;filter:none;background:var(--acc)}
+.hint{background:var(--warn-soft);border-radius:18px;padding:12px 16px;font-weight:800;font-size:14px;margin-bottom:14px}
+.slot-k{display:flex;align-items:center;gap:8px;font-family:'Baloo 2',sans-serif;font-weight:800;font-size:17px;color:var(--muted);margin:18px 0 8px}
+.ktask{padding:14px 16px;border-radius:24px}
+.ktask .t-emoji{width:56px;height:56px;font-size:30px;border-radius:18px}
+.ktask .t-title{font-family:'Baloo 2','Nunito',sans-serif;font-size:20px;font-weight:800}
+.ktask .btn.go{padding:14px 20px;font-size:17px;border-radius:16px;min-height:52px}
 /* nav bas */
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);padding:6px 10px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 20px rgba(0,0,0,.06);display:flex;justify-content:center}
 .nav-in{display:flex;width:100%;max-width:540px;gap:4px}
@@ -143,6 +157,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .sharebtn{display:block;background:none;border:0;color:var(--pri);font-weight:800;font-size:13px;padding:8px 0 2px;cursor:pointer;text-align:left}
 .seg{display:flex;gap:4px;background:var(--pri-soft);border-radius:18px;padding:4px;margin:4px 0 20px}
 .seg button{flex:1;min-height:46px;border:0;border-radius:14px;background:transparent;color:var(--muted);font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+.seg.sm button{flex:1 1 auto;min-width:0;font-size:12px;gap:3px;padding:0 6px;white-space:nowrap}
 .seg button.on{background:var(--card);color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .vhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
 .vhead h2{font-size:23px;line-height:1.15}
@@ -303,11 +318,15 @@ async function computeStreak(childId){
 }
 
 // Niveau provisoire (sera précisé plus tard avec une vraie échelle de titres).
+var LEVEL_TITLES=['Apprenti','Explorateur','Aventurier','Vaillant','Champion','Héros','Légende'];
+function levelTitle(l){ return LEVEL_TITLES[Math.min(l,LEVEL_TITLES.length)-1]; }
 function levelFor(stars){ return Math.max(1, Math.floor(stars/50)+1); }
 
 async function loadChildren(){
   var {data}=await client.from('profiles').select('id, display_name, star_balance').eq('family_id',S.profile.family_id).eq('role','child');
   S.children=data||[];
+  var {data:pars}=await client.from('profiles').select('id, display_name').eq('family_id',S.profile.family_id).eq('role','parent').order('display_name');
+  S.parents=pars||[];
   for(var i=0;i<S.children.length;i++){
     var c=S.children[i];
     c.avatar=avatarFor(c.id);
@@ -328,7 +347,7 @@ async function loadParentData(){
   S.todayLogs=todayLogs||[];
   var {data:pauses}=await client.from('pauses').select('*').eq('family_id',S.profile.family_id).order('from_date',{ascending:false});
   S.pauses=pauses||[];
-  var {data:adjustments}=await client.from('adjustments').select('*').eq('family_id',S.profile.family_id).order('created_at',{ascending:false}).limit(30);
+  var {data:adjustments}=await client.from('adjustments').select('*').eq('family_id',S.profile.family_id).order('created_at',{ascending:false}).limit(100);
   S.adjustments=adjustments||[];
   var {data:badges}=await client.from('badges').select('*').eq('family_id',S.profile.family_id).order('created_at',{ascending:false}).limit(30);
   S.badges=badges||[];
@@ -362,6 +381,7 @@ async function loadChildData(){
   S.myPause=(activePauses||[]).filter(function(p){return !p.to_date||p.to_date>=todayStr()})[0]||null;
   var {data:myBadges}=await client.from('badges').select('*').eq('child_id',S.me.id).order('created_at',{ascending:false});
   S.myBadges=myBadges||[];
+  S.myStreak=await computeStreak(S.me.id);
   var {data:rewards}=await client.from('rewards').select('*').eq('family_id',S.profile.family_id).order('cost');
   S.rewards=rewards||[];
   var {data:myRedemptions}=await client.from('redemptions').select('*').eq('child_id',S.me.id).order('created_at',{ascending:false}).limit(15);
@@ -595,7 +615,7 @@ function navHtml(items,cur,act){
     return '<button class="nb '+(cur===t[0]?'on':'')+'" data-a="'+act+'" data-t="'+t[0]+'"><span class="te">'+t[1]+(t[3]?'<span class="dot" style="position:absolute;margin-left:2px">'+t[3]+'</span>':'')+'</span>'+t[2]+'</button>';
   }).join('')+'</div></div>';
 }
-function parentNav(){ return navHtml([['today','🏠','Accueil',pendingCount()],['missions','📋','Missions'],['shop','🎁','Cadeaux',S.redemptions.length],['family','👪','Famille']],ui.ptab,'ptab'); }
+function parentNav(){ return navHtml([['today','🏠','Accueil',pendingCount()],['missions','📋','Missions'],['shop','🎁','Cadeaux',S.redemptions.length],['family','⚙️','Préférences']],ui.ptab,'ptab'); }
 function childNav(){ return navHtml([['missions','🎯','Missions'],['shop','🛍️','Boutique'],['trophies','🏆','Trophées']],ui.tab,'tab'); }
 
 function pendingCount(){ return S.logs.length; }
@@ -731,11 +751,14 @@ function pMissions(){
 }
 
 function pFamily(){
-  var h='<div class="seg" role="tablist">'+[['kids','👨‍👩‍👧','Enfants'],['pauses','⏸️','Pauses'],['adjust','⭐','Ajustements'],['badges','🏅','Badges']].map(function(t){
+  var h='<div class="seg sm" role="tablist">'+[['kids','👨‍👩‍👧','Famille'],['pauses','⏸️','Pauses'],['adjust','⭐','Ajustements'],['badges','🏅','Badges']].map(function(t){
     return '<button class="'+(ui.fview===t[0]?'on':'')+'" data-a="fview" data-v="'+t[0]+'">'+t[1]+' '+t[2]+'</button>';
   }).join('')+'</div>';
+  var intro={kids:'Gérer ici les membres de votre famille.',pauses:'Vous pouvez suspendre temporairement les missions d’un ou plusieurs enfants.',adjust:'Besoin d’ajouter ou de retirer manuellement des étoiles ?',badges:'L’obtention des Badges rend la progression de l’enfant gratifiante et visuelle.'}[ui.fview];
+  if(intro) h+='<p class="muted" style="margin:-8px 0 16px;font-size:14px">'+intro+'</p>';
 
   if(ui.fview==='kids'){
+    h+='<div class="sec" style="margin-top:4px"><h3>Enfants</h3></div>';
     if(!S.children.length){
       h+='<div class="empty"><div class="big">👨‍👩‍👧</div><p>Aucun enfant pour l’instant.</p></div>';
     } else if(S.children.length===1){
@@ -761,6 +784,14 @@ function pFamily(){
       }).join('')+'</div>';
     }
     h+='<button class="btn wide" style="margin-top:16px" data-a="addChild">＋ Ajouter un enfant</button>';
+    var plist=(S.parents&&S.parents.length)?S.parents:[S.profile];
+    h+='<div class="sec"><h3>Parents</h3></div>'+plist.map(function(pr){
+      var mine=pr.id===S.profile.id;
+      return '<div class="card" style="display:flex;align-items:center;gap:12px;padding:12px 14px">'+
+        '<div class="av sm" style="width:44px;height:44px;font-size:24px;flex:none">👤</div>'+
+        '<div style="min-width:0"><div style="font-weight:800;overflow:hidden;text-overflow:ellipsis">'+esc(pr.display_name||'Parent')+'</div>'+
+        '<div class="muted" style="font-size:12px">'+(mine?'Vous · ':'')+'Parent</div></div></div>';
+    }).join('');
     h+='<div class="sec"><h3>Réglages</h3></div><div style="display:flex;flex-direction:column;gap:10px">'+
       '<button class="btn ghost" data-a="changePassword">🔑 Changer mon mot de passe</button></div>';
   } else if(ui.fview==='pauses'){
@@ -789,8 +820,13 @@ function pFamily(){
       '<label class="lbl">Étoiles <span class="muted" style="font-weight:600">(négatif pour retirer)</span></label><input class="inp" type="number" data-field="adjPoints" value="'+esc(ui.adjPoints)+'" placeholder="Ex : 5 ou -3">'+
       '<label class="lbl">Raison <span class="muted" style="font-weight:600">(facultatif)</span></label><input class="inp" data-field="adjReason" value="'+esc(ui.adjReason)+'" placeholder="Ex : bonus effort">'+
       '<button class="btn wide" style="margin-top:14px" data-a="createAdjustment">Ajouter</button></div>';
-    if(!S.adjustments.length) h+='<div class="empty"><div class="big">⭐</div><p>Aucun ajustement pour l’instant.</p></div>';
-    else h+=S.adjustments.map(function(a){
+    var manualAdj=S.adjustments.filter(function(a){
+      var r=a.reason||'';
+      if(r.indexOf('🎁 ')===0) return false;
+      return !BADGE_DEFS.some(function(b){ return r===b.emoji+' '+b.name || r===b.id; });
+    });
+    if(!manualAdj.length) h+='<div class="empty"><div class="big">⭐</div><p>Aucun ajustement pour l’instant.</p></div>';
+    else h+=manualAdj.map(function(a){
       var who=(S.children.filter(function(c){return c.id===a.child_id})[0]||{}).display_name||'?';
       var sign=a.points>0?'+':'';
       return '<div class="task"><span class="t-main"><span class="t-title">'+esc(who)+'</span><span class="t-meta">'+sign+a.points+' ⭐'+(a.reason?(' · '+esc(a.reason)):'')+'</span></span>'+
@@ -869,7 +905,10 @@ function rewardMenuContent(){
   return h;
 }
 function pShop(){
-  var h='<div class="vhead"><h2>Récompenses</h2><button class="btn small" data-a="openRewardForm">＋ Nouvelle</button></div>';
+  var full=S.rewards.length>=6;
+  var h='<div class="vhead"><h2>Récompenses</h2><button class="btn small" data-a="openRewardForm"'+(full?' disabled':'')+'>＋ Ajouter une récompense</button></div>';
+  h+='<p class="muted" style="margin:-4px 0 '+(full?'6':'16')+'px;font-size:14px">Vos enfants peuvent échanger leurs étoiles contre des récompenses.<br>À vous de définir le gain et le coût.</p>';
+  if(full) h+='<p class="muted" style="margin:0 0 16px;font-size:13px;font-weight:700">Maximum de récompenses atteint (6).</p>';
   if(!S.rewards.length) return h+'<div class="empty"><div class="big">🎁</div><p>Aucune récompense créée.</p></div>';
   h+=S.rewards.map(rewardCard).join('');
   return h;
@@ -971,7 +1010,7 @@ function viewParent(){
     : ui.ptab==='shop' ? pShop()
     : pFamily();
   if(ui.ptab!=='today'){
-    var title={missions:'Missions',shop:'Cadeaux',family:'Famille'}[ui.ptab];
+    var title={missions:'Missions',shop:'Cadeaux',family:'Préférences'}[ui.ptab];
     var sub=ui.ptab==='missions'?'Créez, éditez et assignez vos missions':'';
     return '<header class="top ptop"><div><div class="logo">'+title+'</div>'+(sub?'<p class="wel-sub">'+esc(sub)+'</p>':'')+'</div><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+body;
   }
@@ -988,7 +1027,7 @@ function taskCardKid(t){
   if(st==='todo') right='<button class="btn go" data-a="doTask" data-id="'+t.id+'" data-title="'+esc(t.title)+'" data-points="'+t.points+'">C’est fait !</button>';
   else if(st==='pending') right='<span class="pill wait">⏳ À valider</span>';
   else right='<span class="pill ok">✅ Validé</span>';
-  return '<div class="task '+st+'"><span class="t-emoji">🔁</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+freqLabel(t)+'</span>'+note+'</span>'+right+'</div>';
+  return '<div class="task ktask '+st+'"><span class="t-emoji">🔁</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+freqLabel(t)+'</span>'+note+'</span>'+right+'</div>';
 }
 function specialCardKid(t){
   var log=(S.specialLogs||[]).filter(function(l){return l.task_id===t.id&&l.child_id===S.me.id})[0];
@@ -1002,7 +1041,7 @@ function specialCardKid(t){
     if(log.comment) note='<span class="t-comment">💬 « '+esc(log.comment)+' »</span>';
   }
   else right='<span class="pill ok">✅ Validé</span>';
-  return '<div class="task '+st+'"><span class="t-emoji">✨</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+note+'</span>'+right+'</div>';
+  return '<div class="task ktask '+st+'"><span class="t-emoji">✨</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+note+'</span>'+right+'</div>';
 }
 function childMissions(){
   if(S.myPause){
@@ -1019,7 +1058,12 @@ function childMissions(){
   }
   if(total){
     h+='<div class="prog"><div class="prog-h"><span>'+(done>=total?'🎉 Missions du jour terminées !':'Il te reste '+(total-done)+' mission'+(total-done>1?'s':'')+' du jour')+'</span><span>'+done+' / '+total+'</span></div><div class="bar"><i style="width:'+Math.round(done/total*100)+'%"></i></div></div>';
-    h+=due.map(taskCardKid).join('');
+    var streak=S.myStreak||0;
+    if(done<total) h+='<div class="hint">'+(streak>0?'Ne casse pas ta série de '+streak+' jour'+(streak>1?'s':'')+' ! 🔥':'Fais toutes tes routines du jour pour lancer une série 🔥')+'</div>';
+    ['morning','day','evening','none'].forEach(function(sl){
+      var g=due.filter(function(t){return (t.slot||'none')===sl});
+      if(g.length) h+='<div class="slot-k">'+SLOT_LABEL[sl]+'</div>'+g.map(taskCardKid).join('');
+    });
   } else if(!S.mySpecials.length){
     h+='<div class="empty"><div class="big">🌈</div><p>Pas de mission pour l’instant.<br>Profite de ta journée !</p></div>';
   }
@@ -1065,10 +1109,17 @@ function viewChild(){
   var body = ui.tab==='missions' ? childMissions()
     : ui.tab==='shop' ? childShop()
     : childTrophies();
+  var lvl=levelFor(S.stars), base=(lvl-1)*50, prog=Math.max(0,S.stars-base), pct=Math.min(100,Math.round(prog/50*100));
+  var streak=S.myStreak||0;
+  var got={}; (S.myBadges||[]).forEach(function(b){got[b.badge_id]=true;});
   return '<header class="top"><span></span><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+
     '<section class="hero"><div class="hero-av">'+avatarFor(S.me.id)+'</div><div class="hero-main">'+
     '<div class="hero-name">Salut '+esc(S.profile.display_name)+' !</div>'+
-    '<div class="chips"><span class="stat">⭐ '+S.stars+'</span></div></div></section>'+body;
+    '<div class="hero-lvl">Niveau '+lvl+' · '+levelTitle(lvl)+'</div>'+
+    '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
+    '<div class="muted" style="font-size:13px;margin-top:4px;font-weight:700">'+prog+' / 50 ⭐ pour le niveau suivant</div></div></section>'+
+    '<div class="hero-top"><span class="stat">⭐ '+S.stars+'</span><span class="stat">🔥 '+streak+' jour'+(streak>1?'s':'')+'</span>'+
+    '<div class="bico-row">'+BADGE_DEFS.map(function(def){return '<span class="bico '+(got[def.id]?'on':'')+'" title="'+esc(def.name)+'">'+def.emoji+'</span>';}).join('')+'</div></div>'+body;
 }
 
 /* ---------- rendu ---------- */
@@ -1397,7 +1448,7 @@ var A={
   },
 
   /* récompenses (parent) */
-  openRewardForm:function(){ ui.rFormOpen=true; ui.editRewardId=null; ui.rTitle=''; ui.rEmoji=''; ui.rCost='10'; render(); },
+  openRewardForm:function(){ if(S.rewards.length>=6) return; ui.rFormOpen=true; ui.editRewardId=null; ui.rTitle=''; ui.rEmoji=''; ui.rCost='10'; render(); },
   closeRewardForm:function(){ ui.rFormOpen=false; ui.editRewardId=null; render(); },
   editReward:function(d){
     var r=S.rewards.filter(function(x){return x.id===d.id})[0];
