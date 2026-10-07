@@ -85,6 +85,30 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .chips{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0 14px}
 .stat{background:var(--warn-soft);border-radius:99px;padding:6px 14px;font-weight:800;font-size:15px}
 
+/* célébration */
+.cel-back{position:fixed;inset:0;z-index:90;background:rgba(23,35,60,.62);display:flex;align-items:center;justify-content:center;padding:18px;overflow:hidden;animation:celFade .25s ease-out}
+.cel{position:relative;background:var(--card,#fff);border-radius:30px;padding:26px 20px 20px;width:100%;max-width:400px;max-height:88vh;overflow-y:auto;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);animation:celPop .55s cubic-bezier(.2,1.4,.4,1) both}
+.cel-big{font-size:64px;line-height:1;display:inline-block;animation:celBounce 1.1s ease-in-out infinite}
+.cel h2{font-family:'Baloo 2','Nunito',sans-serif;font-size:28px;margin:6px 0 2px}
+.cel-sub{color:var(--muted);font-weight:700;font-size:14px;margin-bottom:12px}
+.cel-lvl{background:linear-gradient(135deg,var(--acc),var(--pri));border-radius:22px;padding:14px;margin:10px 0;font-family:'Baloo 2','Nunito',sans-serif;font-weight:800;font-size:20px;color:#17233C;animation:celPulse 1.3s ease-in-out infinite}
+.cel-sec{font-weight:800;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 6px;text-align:left}
+.cel-row{display:flex;align-items:center;gap:10px;background:var(--pri-soft,#FFF0EE);border-radius:16px;padding:10px 12px;margin-bottom:6px;text-align:left;font-weight:800;opacity:0;animation:celSlide .45s ease-out forwards}
+.cel-row .e{font-size:24px;flex:none}
+.cel-row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cel-row .p{flex:none;color:#1F9D63;white-space:nowrap}
+.cel-row.soft{background:#F3F1EC;font-weight:700}
+.cel-total{margin:14px 0 4px;font-family:'Baloo 2','Nunito',sans-serif;font-weight:800;font-size:34px;animation:celPulse 1.3s ease-in-out infinite}
+.cel .btn{margin-top:12px}
+.cel-conf{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.cel-conf i{position:absolute;top:-24px;width:10px;height:16px;border-radius:3px;opacity:.95;animation:celFall linear infinite}
+@keyframes celFade{from{opacity:0}to{opacity:1}}
+@keyframes celPop{0%{transform:scale(.6) translateY(40px);opacity:0}100%{transform:none;opacity:1}}
+@keyframes celBounce{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-12px) rotate(6deg)}}
+@keyframes celPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes celSlide{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+@keyframes celFall{0%{transform:translateY(0) rotate(0)}100%{transform:translateY(110vh) rotate(720deg)}}
+@media(prefers-reduced-motion:reduce){.cel,.cel-big,.cel-lvl,.cel-total,.cel-conf i{animation:none}.cel-row{animation:none;opacity:1}.cel-conf{display:none}}
 /* accueil enfant */
 .hero .bar{height:16px}
 .hero .bar i{background:linear-gradient(90deg,var(--acc),var(--pri))}
@@ -288,18 +312,22 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 function todayFr(){ return new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}); }
 
 /* ---------- données ---------- */
-async function computeStars(childId){
+// Renvoie le solde dépensable (balance) et le total d'étoiles gagnées (earned, sert au niveau : ne baisse jamais).
+async function computeTotals(childId){
   var v=(await client.from('task_logs').select('points').eq('child_id',childId).eq('status','validated')).data||[];
   var s=(await client.from('task_shares').select('points').eq('child_id',childId)).data||[];
   var a=(await client.from('adjustments').select('points').eq('child_id',childId)).data||[];
-  return v.reduce(function(t,l){return t+l.points},0)+s.reduce(function(t,l){return t+l.points},0)+a.reduce(function(t,l){return t+l.points},0);
+  var sum=function(arr,f){ return arr.reduce(function(t,l){return t+(f?f(l):l.points)},0); };
+  var pos=function(l){return l.points>0?l.points:0};
+  return {balance:sum(v)+sum(s)+sum(a), earned:sum(v,pos)+sum(s,pos)+sum(a,pos)};
 }
+async function computeStars(childId){ return (await computeTotals(childId)).balance; }
 
 // Recalcule le solde réel d'un enfant depuis les tables sources et le réécrit dans profiles.star_balance.
 // À appeler après toute action qui change ses étoiles (validation, partage, ajustement, récompense donnée...).
 async function recalcBalance(childId){
-  var total=await computeStars(childId);
-  var {data,error}=await client.from('profiles').update({star_balance:total}).eq('id',childId).select();
+  var tt=await computeTotals(childId), total=tt.balance;
+  var {data,error}=await client.from('profiles').update({star_balance:total, total_earned:tt.earned}).eq('id',childId).select();
   if(error){ console.error('recalcBalance error:',error); alert('⚠️ Le solde n’a pas pu être mis à jour : '+error.message); return total; }
   if(!data||!data.length){ console.warn('recalcBalance: 0 ligne mise à jour (RLS ?) pour', childId); alert('⚠️ Mission validée, mais le solde n’a pas été mis à jour (probablement une policy RLS sur profiles qui bloque l’update).'); }
   return total;
@@ -323,7 +351,7 @@ function levelTitle(l){ return LEVEL_TITLES[Math.min(l,LEVEL_TITLES.length)-1]; 
 function levelFor(stars){ return Math.max(1, Math.floor(stars/50)+1); }
 
 async function loadChildren(){
-  var {data}=await client.from('profiles').select('id, display_name, star_balance').eq('family_id',S.profile.family_id).eq('role','child');
+  var {data}=await client.from('profiles').select('id, display_name, star_balance, total_earned').eq('family_id',S.profile.family_id).eq('role','child');
   S.children=data||[];
   var {data:pars}=await client.from('profiles').select('id, display_name').eq('family_id',S.profile.family_id).eq('role','parent').order('display_name');
   S.parents=pars||[];
@@ -331,7 +359,8 @@ async function loadChildren(){
     var c=S.children[i];
     c.avatar=avatarFor(c.id);
     c.stars=c.star_balance||0;
-    c.level=levelFor(c.stars);
+    c.earned=Math.max(c.total_earned||0,c.stars);
+    c.level=levelFor(c.earned);
     c.streak=await computeStreak(c.id);
     var {data:todayB}=await client.from('badges').select('badge_id').eq('child_id',c.id).eq('period',todayStr());
     c.todayBadgeIds=(todayB||[]).map(function(b){return b.badge_id});
@@ -489,8 +518,9 @@ async function loadChildDetail(childId){
 
 async function refreshParentScreen(){ await loadChildren(); await loadParentData(); render(); }
 async function refreshChildScreen(){
-  var {data:profile}=await client.from('profiles').select('star_balance').eq('id',S.me.id).single();
+  var {data:profile}=await client.from('profiles').select('star_balance, total_earned').eq('id',S.me.id).single();
   S.stars=profile?profile.star_balance||0:S.stars;
+  if(profile) S.earned=Math.max(profile.total_earned||0,S.stars);
   await loadChildData(); render();
 }
 
@@ -583,7 +613,9 @@ async function afterLogin(){
     ui.view='parent'; ui.ptab='today';
   }else{
     S.stars=profile.star_balance||0;
+    S.earned=Math.max(profile.total_earned||0,S.stars);
     await loadChildData();
+    await checkCelebration();
     ui.view='child'; ui.tab='missions';
   }
   render();
@@ -936,7 +968,7 @@ function viewChildDetail(){
   var c=S.children.filter(function(x){return x.id===ui.detailChild})[0];
   if(!c||!S.detail||S.detail.childId!==c.id) return '<header class="top"><button class="ghost-link" data-a="backToParent">← Retour</button></header><div class="empty" style="padding-top:60px"><div class="big">⏳</div><p>Chargement...</p></div>';
   var d=S.detail;
-  var base=(c.level-1)*50, progress=Math.max(0,c.stars-base), pct=Math.min(100,Math.round(progress/50*100)), remaining=Math.max(0,50-progress);
+  var base=(c.level-1)*50, progress=Math.max(0,c.earned-base), pct=Math.min(100,Math.round(progress/50*100)), remaining=Math.max(0,50-progress);
 
   var h='<header class="top"><button class="ghost-link" data-a="backToParent">← Retour</button></header>';
   h+='<section class="hero"><div class="hero-av">'+c.avatar+'</div><div class="hero-main"><div class="hero-name">'+esc(c.display_name)+'</div>'+
@@ -1115,17 +1147,25 @@ function childShop(){
   return h;
 }
 
+function currentBadgeIds(){
+  var t=todayStr(), w=mondayOf(t), cur={};
+  (S.myBadges||[]).forEach(function(b){
+    var def=badgeDef(b.badge_id); if(!def) return;
+    if((def.scope==='day'&&b.period===t)||(def.scope==='week'&&b.period===w)) cur[b.badge_id]=true;
+  });
+  return cur;
+}
 function childTrophies(){
-  var mine=S.myBadges||[];
+  var mine=S.myBadges||[], cur=currentBadgeIds();
   var dayCount=mine.filter(function(b){return (badgeDef(b.badge_id)||{}).scope==='day'}).length;
   var weekCount=mine.filter(function(b){return (badgeDef(b.badge_id)||{}).scope==='week'}).length;
-  var h='<div class="prog"><div class="prog-h"><span>🏅 '+mine.length+' / '+BADGE_DEFS.length+' badges débloqués</span></div>'+
+  var h='<div class="prog"><div class="prog-h"><span>🏅 '+Object.keys(cur).length+' / '+BADGE_DEFS.length+' badges en cours</span></div>'+
     '<div class="chips" style="margin:0"><span class="stat">📅 '+dayCount+'</span><span class="stat">🗓️ '+weekCount+'</span></div></div>';
   h+=BADGE_DEFS.map(function(def){
     var got=mine.filter(function(b){return b.badge_id===def.id});
-    var unlocked=got.length>0;
-    return '<div class="task '+(unlocked?'done':'')+'" style="opacity:'+(unlocked?1:.55)+'"><span class="t-emoji">'+(unlocked?def.emoji:'🔒')+'</span>'+
-      '<span class="t-main"><span class="t-title">'+esc(def.name)+(got.length>1?' ×'+got.length:'')+'</span><span class="t-meta">'+esc(def.desc)+'</span></span>'+
+    var unlocked=!!cur[def.id];
+    return '<div class="task '+(unlocked?'done':'')+'" style="opacity:'+(unlocked?1:.6)+'"><span class="t-emoji" style="'+(unlocked?'':'filter:grayscale(1)')+'">'+def.emoji+'</span>'+
+      '<span class="t-main"><span class="t-title">'+esc(def.name)+(got.length>1?' ×'+got.length:'')+'</span><span class="t-meta">'+esc(def.desc)+' ('+(def.scope==='day'?'à regagner chaque jour':'à regagner chaque semaine')+')</span></span>'+
       '<span class="pill '+(unlocked?'ok':'')+'">+'+def.reward+' ⭐</span></div>';
   }).join('');
   return h;
@@ -1135,20 +1175,92 @@ function viewChild(){
   var body = ui.tab==='missions' ? childMissions()
     : ui.tab==='shop' ? childShop()
     : childTrophies();
-  var lvl=levelFor(S.stars), base=(lvl-1)*50, prog=Math.max(0,S.stars-base), pct=Math.min(100,Math.round(prog/50*100));
+  var lvl=levelFor(S.earned||S.stars), base=(lvl-1)*50, prog=Math.max(0,(S.earned||S.stars)-base), pct=Math.min(100,Math.round(prog/50*100));
   var streak=S.myStreak||0;
-  var got={}; (S.myBadges||[]).forEach(function(b){got[b.badge_id]=true;});
+  var got=currentBadgeIds();
   return '<header class="top"><span></span><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+
     '<section class="hero"><div class="hero-av">'+avatarFor(S.me.id)+'</div><div class="hero-main">'+
     '<div class="hero-name">Salut '+esc(S.profile.display_name)+' !</div>'+
     '<div class="hero-lvl">Niveau '+lvl+' · '+levelTitle(lvl)+'</div>'+
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
-    '<div class="muted" style="font-size:13px;margin-top:4px;font-weight:700">'+prog+' / 50 ⭐ pour le niveau suivant</div></div></section>'+
+    '<div class="muted" style="font-size:13px;margin-top:4px;font-weight:700">'+Math.max(0,50-prog)+' ⭐ pour le niveau suivant</div></div></section>'+
     '<div class="hero-top"><span class="stat">⭐ '+S.stars+'</span><span class="stat">🔥 '+streak+' jour'+(streak>1?'s':'')+'</span>'+
     '<div class="bico-row">'+BADGE_DEFS.map(function(def){return '<span class="bico '+(got[def.id]?'on':'')+'" title="'+esc(def.name)+'">'+def.emoji+'</span>';}).join('')+'</div></div>'+body;
 }
 
 /* ---------- rendu ---------- */
+/* ---------- célébration enfant ---------- */
+function lsGet(k){ try{return localStorage.getItem(k);}catch(e){return null;} }
+function lsSet(k,v){ try{localStorage.setItem(k,String(v));}catch(e){} }
+async function checkCelebration(){
+  try{
+    var me=S.me.id, kLast='mf_seen_'+me, kLvl='mf_lvl_'+me;
+    var last=lsGet(kLast), lastLvl=parseInt(lsGet(kLvl)||'0',10);
+    var lvl=levelFor(S.earned||S.stars);
+    if(!last){ lsSet(kLast,new Date().toISOString()); lsSet(kLvl,lvl); return; }
+    var [rl,rr,rb,ra]=await Promise.all([
+      client.from('task_logs').select('title,points,validated_at').eq('child_id',me).eq('status','validated').gt('validated_at',last).order('validated_at'),
+      client.from('redemptions').select('title,emoji,cost,status,decided_at').eq('child_id',me).in('status',['given','refused']).gt('decided_at',last).order('decided_at'),
+      client.from('badges').select('id,badge_id,reward,created_at').eq('child_id',me).gt('created_at',last).order('created_at'),
+      client.from('adjustments').select('points,reason,created_at').eq('child_id',me).gt('created_at',last).order('created_at')
+    ]);
+    var missions=rl.data||[], gifts=(rr.data||[]).filter(function(r){return r.status==='given'}), refused=(rr.data||[]).filter(function(r){return r.status==='refused'});
+    var badges=(rb.data||[]).filter(function(b){return badgeDef(b.badge_id)});
+    var bonus=(ra.data||[]).filter(function(a){
+      var r=a.reason||''; if(r.indexOf('🎁 ')===0) return false;
+      return !BADGE_DEFS.some(function(b){return r===b.emoji+' '+b.name||r===b.id});
+    });
+    var levelUp=lvl>lastLvl&&lastLvl>0;
+    if(!missions.length&&!gifts.length&&!refused.length&&!badges.length&&!bonus.length&&!levelUp){
+      if(lvl>lastLvl) lsSet(kLvl,lvl);
+      return;
+    }
+    var stars=0;
+    missions.forEach(function(m){stars+=m.points||0});
+    badges.forEach(function(b){stars+=b.reward||0});
+    bonus.forEach(function(a){stars+=a.points||0});
+    var stamps=[].concat(missions.map(function(x){return x.validated_at}),(rr.data||[]).map(function(x){return x.decided_at}),badges.map(function(x){return x.created_at}),bonus.map(function(x){return x.created_at})).filter(Boolean).sort();
+    var colors=['#FF6B5E','#FFD166','#22B26B','#6C5CE7','#4FC3F7'], conf='';
+    for(var i=0;i<28;i++) conf+='<i style="left:'+Math.round(Math.random()*100)+'%;background:'+colors[i%colors.length]+';animation-duration:'+(2.4+Math.random()*2.4).toFixed(1)+'s;animation-delay:-'+(Math.random()*4).toFixed(1)+'s"></i>';
+    ui.celebrate={missions:missions,gifts:gifts,refused:refused,badges:badges,bonus:bonus,stars:stars,levelUp:levelUp?{lvl:lvl,title:levelTitle(lvl)}:null,lvl:lvl,stamp:stamps.length?stamps[stamps.length-1]:last,conf:conf};
+  }catch(e){ console.error('celebration error',e); }
+}
+function celebrateHtml(c){
+  var d=0;
+  function row(e,t,p,soft){ d+=0.18; return '<div class="cel-row'+(soft?' soft':'')+'" style="animation-delay:'+(0.5+d).toFixed(2)+'s"><span class="e">'+e+'</span><span class="t">'+t+'</span>'+(p?'<span class="p">'+p+'</span>':'')+'</div>'; }
+  var h='<div class="cel-back"><div class="cel-conf">'+c.conf+'</div><div class="cel" data-a="noop">';
+  h+='<div class="cel-big">'+(c.levelUp?'🚀':(c.badges.length?'🏅':'🎉'))+'</div><h2>Bravo '+esc(S.profile.display_name)+' !</h2><div class="cel-sub">Voilà ce qui s’est passé pendant ton absence</div>';
+  if(c.levelUp) h+='<div class="cel-lvl">⬆️ Niveau '+c.levelUp.lvl+' · '+esc(c.levelUp.title)+' !</div>';
+  if(c.missions.length){ h+='<div class="cel-sec">Missions validées</div>'+c.missions.map(function(m){return row('✅',esc(m.title||'Mission'),'+'+(m.points||0)+' ⭐');}).join(''); }
+  if(c.badges.length){ h+='<div class="cel-sec">Nouveaux badges</div>'+c.badges.map(function(b){var def=badgeDef(b.badge_id);return row(def.emoji,esc(def.name),b.reward?'+'+b.reward+' ⭐':'');}).join(''); }
+  if(c.bonus.length){ h+='<div class="cel-sec">Bonus</div>'+c.bonus.map(function(a){return row(a.points>=0?'✨':'⭐',esc(a.reason||'Ajustement'),(a.points>=0?'+':'')+a.points+' ⭐');}).join(''); }
+  if(c.gifts.length){ h+='<div class="cel-sec">Cadeaux accordés</div>'+c.gifts.map(function(g){return row(g.emoji||'🎁',esc(g.title)+' est à toi !','');}).join(''); }
+  if(c.refused.length){ h+='<div class="cel-sec">Demandes</div>'+c.refused.map(function(g){return row('💬','Pas cette fois pour « '+esc(g.title)+' »','',true);}).join(''); }
+  if(c.stars>0) h+='<div class="cel-total">+<span data-count="'+c.stars+'">0</span> ⭐</div>';
+  h+='<button class="btn go wide" data-a="closeCelebrate">Super !</button></div></div>';
+  return h;
+}
+function runCountUps(){
+  document.querySelectorAll('[data-count]').forEach(function(el){
+    var to=parseInt(el.getAttribute('data-count'),10)||0, t0=null, dur=1200;
+    function step(ts){ if(t0===null) t0=ts; var k=Math.min(1,(ts-t0)/dur); el.textContent=Math.round(to*(0.5-Math.cos(Math.PI*k)/2)); if(k<1&&document.body.contains(el)) requestAnimationFrame(step); else el.textContent=to; }
+    requestAnimationFrame(step);
+  });
+}
+var _lastChildRefresh=0;
+async function refreshChild(){
+  if(ui.view!=='child'||ui.celebrate||Date.now()-_lastChildRefresh<15000) return;
+  _lastChildRefresh=Date.now();
+  try{
+    var {data:pr}=await client.from('profiles').select('star_balance, total_earned').eq('id',S.me.id).single();
+    if(pr){ S.profile.star_balance=pr.star_balance||0; S.stars=pr.star_balance||0; S.earned=Math.max(pr.total_earned||0,S.stars); }
+    await loadChildData();
+    await checkCelebration();
+    render();
+  }catch(e){ console.error(e); }
+}
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') refreshChild(); });
+
 function render(){
   var h='',nav='';
   if(ui.view==='loading') h='<div class="empty" style="padding-top:80px"><div class="big">🏡</div><p>Chargement...</p></div>';
@@ -1167,9 +1279,11 @@ function render(){
   else if(ui.taskMenu) modal='<div class="modal-backdrop" data-a="closeTaskMenu"><div class="modal" data-a="noop">'+taskMenuContent()+'</div></div>';
   else if(ui.rewardMenu) modal='<div class="modal-backdrop" data-a="closeRewardMenu"><div class="modal" data-a="noop">'+rewardMenuContent()+'</div></div>';
   else if(ui.childMenu) modal='<div class="modal-backdrop" data-a="closeChildMenu"><div class="modal" data-a="noop">'+childMenuContent()+'</div></div>';
+  if(ui.celebrate && ui.view==='child') modal=celebrateHtml(ui.celebrate);
   var app=document.getElementById('app');
   app.className = nav ? '' : 'nonav';
   app.innerHTML = h+nav+modal;
+  if(ui.celebrate && ui.view==='child') runCountUps();
 }
 
 function toast(msg){
@@ -1223,6 +1337,17 @@ var A={
   scrollToScheduled:function(){
     var el=document.getElementById('scheduled-today');
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  },
+  closeCelebrate:async function(){
+    var c=ui.celebrate; ui.celebrate=null;
+    if(c){
+      lsSet('mf_seen_'+S.me.id,c.stamp);
+      var prev=parseInt(lsGet('mf_lvl_'+S.me.id)||'0',10);
+      if(c.lvl>prev) lsSet('mf_lvl_'+S.me.id,c.lvl);
+      var ids=c.badges.map(function(b){return b.id});
+      if(ids.length) client.from('badges').update({seen:true}).in('id',ids).then(function(){});
+    }
+    render();
   },
   openValidateModal:function(d){ ui.validateModal=d.id; render(); },
   closeValidateModal:function(){ ui.validateModal=null; render(); },
