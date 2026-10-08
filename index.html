@@ -106,6 +106,22 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .kid:active,.mcard:active{transform:scale(.985)}
 .chip:active,.ntf:active{transform:scale(.94)}
 @media(prefers-reduced-motion:reduce){.task.row-out,.task.row-out-no,.modal-backdrop.enter,.modal-backdrop.enter .modal,.anim-in>*{animation:none}.float-star,.spark{display:none}}
+/* boîtes de dialogue de l'appli */
+.dlg-back{position:fixed;inset:0;z-index:120;background:rgba(23,35,60,.55);display:flex;align-items:center;justify-content:center;padding:20px;animation:celFade .18s ease-out;transition:opacity .15s}
+.dlg-back.out{opacity:0}
+.dlg{background:var(--card);color:var(--ink);border-radius:26px;padding:22px 20px 18px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,.35);animation:celPop .35s cubic-bezier(.2,1.3,.4,1) both;text-align:center}
+.dlg-ico{font-size:44px;line-height:1;margin-bottom:6px}
+.dlg-title{font-family:'Baloo 2','Nunito',sans-serif;font-size:21px;margin:4px 0}
+.dlg-msg{color:var(--muted);font-weight:700;font-size:15px;margin:6px 0 4px;line-height:1.4;word-break:break-word}
+.dlg-lbl{display:block;text-align:left;font-weight:800;font-size:13px;color:var(--muted);margin-top:12px}
+.dlg .inp{width:100%;margin:6px 0 2px;text-align:left}
+.dlg textarea.inp{min-height:84px;resize:vertical;font-family:inherit}
+.dlg-err{color:var(--bad);font-weight:800;font-size:13px;margin:6px 0 0;text-align:left}
+.dlg-btns{display:flex;gap:10px;margin-top:16px}
+.dlg-btns .btn{flex:1}
+.btn.danger{background:var(--bad);color:#fff;box-shadow:0 4px 0 #b3363a}
+.btn.danger:active{box-shadow:0 1px 0 #b3363a}
+@media(prefers-reduced-motion:reduce){.dlg,.dlg-back{animation:none}}
 /* valider à la place */
 .task.row-flash{animation:rowFlash .8s ease-out}
 @keyframes rowFlash{0%{background:var(--card)}30%{background:var(--ok-soft);border-color:var(--ok);transform:scale(1.03)}100%{background:var(--card)}}
@@ -478,8 +494,8 @@ async function computeStars(childId){ return (await computeTotals(childId)).bala
 async function recalcBalance(childId){
   var tt=await computeTotals(childId), total=tt.balance;
   var {data,error}=await client.from('profiles').update({star_balance:total, total_earned:tt.earned}).eq('id',childId).select();
-  if(error){ console.error('recalcBalance error:',error); alert('⚠️ Le solde n’a pas pu être mis à jour : '+error.message); return total; }
-  if(!data||!data.length){ console.warn('recalcBalance: 0 ligne mise à jour (RLS ?) pour', childId); alert('⚠️ Mission validée, mais le solde n’a pas été mis à jour (probablement une policy RLS sur profiles qui bloque l’update).'); }
+  if(error){ console.error('recalcBalance error:',error); showAlert('⚠️ Le solde n’a pas pu être mis à jour : '+error.message); return total; }
+  if(!data||!data.length){ console.warn('recalcBalance: 0 ligne mise à jour (RLS ?) pour', childId); showAlert('⚠️ Mission validée, mais le solde n’a pas été mis à jour (probablement une policy RLS sur profiles qui bloque l’update).'); }
   return total;
 }
 
@@ -1081,11 +1097,12 @@ function pFamily(){
         '<span class="acts"><button class="ib" data-a="deleteAdjustment" data-id="'+a.id+'" data-cid="'+a.child_id+'" aria-label="Supprimer">🗑️</button></span></div>';
     }).join('');
   } else {
-    if(!S.badges.length) h+='<div class="empty"><div class="big">🏅</div><p>Aucun badge décroché pour l’instant.</p></div>';
-    else h+=S.badges.map(function(b){
-      var def=badgeDef(b.badge_id), who=(S.children.filter(function(c){return c.id===b.child_id})[0]||{}).display_name||'?';
-      return '<div class="task"><span class="t-emoji">'+(def?def.emoji:'🏅')+'</span><span class="t-main"><span class="t-title">'+(def?def.name:b.badge_id)+'</span><span class="t-meta">'+esc(who)+' · '+b.period+' · +'+b.reward+' ⭐</span></span></div>';
-    }).join('');
+    [['day','☀️ Badges du jour','À regagner chaque jour : ils se grisent le lendemain.'],['week','📅 Badges de la semaine','À regagner chaque semaine (du lundi au dimanche).']].forEach(function(g){
+      h+='<div class="sec"><h3>'+g[1]+'</h3></div><p class="help-hint">'+g[2]+'</p>';
+      h+=BADGE_DEFS.filter(function(d){return d.scope===g[0]}).map(function(def){
+        return '<div class="task"><span class="t-emoji" style="background:var(--acc)">'+def.emoji+'</span><span class="t-main"><span class="t-title">'+esc(def.name)+'</span><span class="t-meta" style="white-space:normal">'+esc(def.desc)+'</span></span><span class="pill ok">+'+def.reward+' ⭐</span></div>';
+      }).join('');
+    });
   }
   return h;
 }
@@ -1503,6 +1520,63 @@ function render(){
   if(ui.celebrate && ui.view==='child') runCountUps();
 }
 
+/* ---------- boîtes de dialogue (remplacent prompt / confirm / alert) ---------- */
+var _openAlerts={};
+function askDialog(o){
+  return new Promise(function(resolve){
+    var back=document.createElement('div'); back.className='dlg-back';
+    var box=document.createElement('div'); box.className='dlg'; box.setAttribute('role','dialog'); box.setAttribute('aria-modal','true');
+    var multi=!!o.multiline, h='';
+    if(o.icon) h+='<div class="dlg-ico">'+o.icon+'</div>';
+    if(o.title) h+='<h3 class="dlg-title">'+esc(o.title)+'</h3>';
+    if(o.message) h+='<p class="dlg-msg">'+esc(o.message).replace(/\n/g,'<br>')+'</p>';
+    if(o.input){
+      if(o.label) h+='<label class="dlg-lbl">'+esc(o.label)+'</label>';
+      h+=(multi?'<textarea class="inp" rows="3"':'<input class="inp" type="'+(o.type||'text')+'"')+' placeholder="'+esc(o.placeholder||'')+'" autocomplete="off"'+(multi?'>'+esc(o.value||'')+'</textarea>':' value="'+esc(o.value||'')+'">');
+      h+='<p class="dlg-err" hidden></p>';
+    }
+    h+='<div class="dlg-btns">'+(o.cancelLabel===null?'':'<button type="button" class="btn ghost" data-k="cancel">'+esc(o.cancelLabel||'Annuler')+'</button>')+
+       '<button type="button" class="btn'+(o.danger?' danger':'')+'" data-k="ok">'+esc(o.okLabel||'OK')+'</button></div>';
+    box.innerHTML=h; back.appendChild(box); document.body.appendChild(back);
+    var inp=box.querySelector('.inp'), errEl=box.querySelector('.dlg-err');
+    var prev=document.activeElement, done=false;
+    function close(val){
+      if(done) return; done=true;
+      document.removeEventListener('keydown',onKey,true);
+      back.classList.add('out'); setTimeout(function(){back.remove()},170);
+      if(prev&&prev.focus){ try{prev.focus()}catch(e){} }
+      resolve(val);
+    }
+    function cancel(){ close(o.input?null:false); }
+    function submit(){
+      if(o.input){
+        var v=inp.value;
+        if(o.validate){ var er=o.validate(v); if(er){ errEl.textContent=er; errEl.hidden=false; inp.focus(); return; } }
+        close(v);
+      } else close(true);
+    }
+    function onKey(e){
+      if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); if(o.cancelLabel===null) submit(); else cancel(); }
+      else if(e.key==='Enter' && !(multi&&!e.ctrlKey&&!e.metaKey) && !(e.target&&e.target.tagName==='BUTTON')){ e.preventDefault(); e.stopPropagation(); submit(); }
+    }
+    document.addEventListener('keydown',onKey,true);
+    back.addEventListener('click',function(e){ if(e.target===back){ if(o.cancelLabel===null) submit(); else cancel(); } });
+    box.querySelector('[data-k="ok"]').addEventListener('click',submit);
+    var cb=box.querySelector('[data-k="cancel"]'); if(cb) cb.addEventListener('click',cancel);
+    setTimeout(function(){ var f=inp||box.querySelector('[data-k="ok"]'); if(f){ f.focus(); if(inp&&inp.select&&o.type!=='password') inp.select(); } },60);
+  });
+}
+function askConfirm(o){ return askDialog(Object.assign({icon:'❓',okLabel:'Confirmer'},o)); }
+function askPrompt(o){ return askDialog(Object.assign({input:true,okLabel:'Valider'},o)); }
+function showAlert(msg,o){
+  msg=String(msg==null?'':msg);
+  var m=msg.match(/^(❌|⚠️|✅)\s*/), icon=m?m[1]:'ℹ️', text=m?msg.slice(m[0].length):msg;
+  if(_openAlerts[text]) return _openAlerts[text];
+  var title=(o&&o.title)||(icon==='❌'?'Une erreur est survenue':icon==='⚠️'?'Attention':'Information');
+  var pr=askDialog({icon:icon,title:title,message:text,okLabel:'OK',cancelLabel:null}).then(function(){ delete _openAlerts[text]; });
+  _openAlerts[text]=pr; return pr;
+}
+
 function toast(msg){
   var t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
@@ -1575,7 +1649,7 @@ var A={
     var pts=row?parseInt(row.getAttribute('data-pts')||'0',10):0;
     var anim=animateRow(row,pts,0,'ok');
     var err=await validateCore(d.id,d.cid);
-    if(err){ unanimateRow(row); alert('❌ '+err); return; }
+    if(err){ unanimateRow(row); showAlert('❌ '+err); return; }
     await recalcBalance(d.cid);
     await checkBadges(d.cid);
     toast('✅ Mission validée');
@@ -1586,16 +1660,16 @@ var A={
   doForChild:async function(d,el){
     var c=S.children.filter(function(x){return x.id===d.cid})[0];
     var name=c?c.display_name:'l’enfant';
-    if(!confirm('Valider « '+d.title+' » à la place de '+name+' ?\n(+'+d.points+' ⭐ pour '+name+')')) return;
+    if(!(await askConfirm({icon:'✅',title:'Valider à la place de '+name+' ?',message:'« '+d.title+' »\n+'+d.points+' ⭐ pour '+name,okLabel:'Oui, valider'}))) return;
     if(el) el.disabled=true;
     var row=el&&el.closest?el.closest('.task'):null;
     var anim=animateRow(row,parseInt(d.points,10)||0,0,'flash');
     var {data:log,error}=await client.from('task_logs').insert({
       family_id:S.profile.family_id, task_id:d.task, child_id:d.cid, title:d.title, points:+d.points, status:'pending', date:todayStr()
     }).select('id').single();
-    if(error||!log){ unanimateRow(row); if(el) el.disabled=false; alert('❌ '+(error?error.message:'Impossible d’enregistrer')+'\n\nSi le message parle de « row-level security », la policy d’insertion des parents sur task_logs est manquante.'); return; }
+    if(error||!log){ unanimateRow(row); if(el) el.disabled=false; showAlert('❌ '+(error?error.message:'Impossible d’enregistrer')+'\n\nSi le message parle de « row-level security », la policy d’insertion des parents sur task_logs est manquante.'); return; }
     var err=await validateCore(log.id,d.cid);
-    if(err){ alert('❌ '+err); }
+    if(err){ showAlert('❌ '+err); }
     await recalcBalance(d.cid);
     await checkBadges(d.cid);
     toast('✅ Validé à la place de '+name);
@@ -1617,7 +1691,7 @@ var A={
     await checkBadges(cid);
     toast(okc>1?'✅ '+okc+' missions validées':(okc?'✅ Mission validée':'❌ Aucune mission validée'));
     await Promise.all(anims);
-    if(errs.length) alert('⚠️ '+errs[0]);
+    if(errs.length) showAlert('⚠️ '+errs[0]);
     await refreshParentScreen();
     closeValidateIfDone();
   },
@@ -1759,10 +1833,9 @@ var A={
     await loadParentData(); render();
   },
   delTask:async function(d){
-    if(!confirm('Supprimer cette mission ?')) return;
-    if(!confirm('Vraiment sûr·e ? Cette action est irréversible.')) return;
+    if(!(await askConfirm({icon:'🗑️',title:'Supprimer cette mission ?',message:'Cette action est irréversible.',okLabel:'Supprimer',danger:true}))) return;
     var {error}=await client.from('tasks').delete().eq('id',d.id);
-    if(error){ alert('❌ '+error.message); return; }
+    if(error){ showAlert('❌ '+error.message); return; }
     await loadParentData(); render();
   },
   openTaskMenu:function(d){ ui.taskMenu=d.id; _taskMenuOpenedAt=Date.now(); render(); },
@@ -1775,16 +1848,18 @@ var A={
     var {error}=await client.from('task_logs').insert({
       family_id:S.profile.family_id, task_id:d.id, child_id:S.me.id, title:d.title, points:+d.points, status:'pending', date:todayStr()
     });
-    if(error){ alert('❌ '+error.message); return; }
+    if(error){ showAlert('❌ '+error.message); return; }
     toast('⏳ Envoyé à tes parents pour validation');
     await refreshChildScreen();
   },
   doSpecial:async function(d){
-    var comment=prompt('Un petit mot pour tes parents ? (facultatif)')||null;
+    var cm=await askPrompt({icon:'✨',title:'Mission terminée ?',label:'Un petit mot pour tes parents ? (facultatif)',placeholder:'Écris ici…',multiline:true,okLabel:'Envoyer'});
+    if(cm===null) return;
+    var comment=cm.trim()||null;
     var {error}=await client.from('task_logs').insert({
       family_id:S.profile.family_id, task_id:d.id, child_id:S.me.id, title:d.title, points:+d.points, status:'pending', date:todayStr(), comment:comment
     });
-    if(error){ alert('❌ '+error.message); return; }
+    if(error){ showAlert('❌ '+error.message); return; }
     toast('⏳ Envoyé à tes parents pour validation');
     await refreshChildScreen();
   },
@@ -1792,62 +1867,61 @@ var A={
   fview:function(d){ ui.fview=d.v; render(); },
   renameChild:async function(d){
     var cur=(S.children.filter(function(c){return c.id===d.id})[0]||{}).display_name||'';
-    var name=prompt('Nouveau prénom :', cur);
+    var name=await askPrompt({icon:'✏️',title:'Renommer',label:'Nouveau prénom',value:cur,okLabel:'Enregistrer',validate:function(v){return v.trim()?null:'Le prénom est nécessaire.'}});
     if(!name||!name.trim()||name.trim()===cur) return;
     var {error}=await client.from('profiles').update({display_name:name.trim()}).eq('id',d.id);
-    if(error){ alert('❌ '+error.message); return; }
+    if(error){ showAlert('❌ '+error.message); return; }
     toast('✅ Prénom mis à jour');
     await refreshParentScreen();
   },
   addChild:async function(){
-    var name=prompt('Prénom de l’enfant à ajouter :');
+    var name=await askPrompt({icon:'🧒',title:'Ajouter un enfant',label:'Prénom de l’enfant',placeholder:'Ex : Léa',okLabel:'Ajouter',validate:function(v){return v.trim()?null:'Le prénom est nécessaire.'}});
     if(!name||!name.trim()) return;
     var {data:{session}}=await client.auth.getSession();
-    if(!session){ alert('Session expirée, reconnecte-toi.'); return; }
+    if(!session){ showAlert('Session expirée, reconnecte-toi.'); return; }
     var res,out;
     try{
       res=await fetch(FN_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({action:'createChild', display_name:name.trim()})});
       out=await res.json();
-    }catch(e){ alert('Erreur technique : '+e.message); return; }
-    if(!res.ok){ alert('❌ '+(out.error||res.statusText)); return; }
+    }catch(e){ showAlert('Erreur technique : '+e.message); return; }
+    if(!res.ok){ showAlert('❌ '+(out.error||res.statusText)); return; }
     toast('✅ '+name.trim()+' a été ajouté·e');
     await loadChildren(); render();
-    if(confirm('Générer tout de suite un code de jumelage pour '+name.trim()+' ?')){
+    if(await askConfirm({icon:'🔑',title:'Code de jumelage',message:'Générer tout de suite un code pour '+name.trim()+' ?',okLabel:'Générer',cancelLabel:'Plus tard'})){
       await A.generateCode({id:out.child_id});
     }
   },
   deleteChild:async function(d){
-    if(!confirm('Supprimer définitivement le compte de '+d.name+' ? Cette action est irréversible.')) return;
-    if(!confirm('Vraiment sûr·e ? Toutes les données liées à '+d.name+' pourraient être perdues.')) return;
+    if(!(await askConfirm({icon:'🗑️',title:'Supprimer le compte de '+d.name+' ?',message:'Cette action est irréversible.',okLabel:'Continuer',danger:true}))) return;
+    if(!(await askConfirm({icon:'⚠️',title:'Vraiment sûr·e ?',message:'Toutes les données liées à '+d.name+' pourraient être perdues.',okLabel:'Oui, supprimer définitivement',danger:true}))) return;
     var {data:{session}}=await client.auth.getSession();
-    if(!session){ alert('Session expirée, reconnecte-toi.'); return; }
+    if(!session){ showAlert('Session expirée, reconnecte-toi.'); return; }
     var res,out;
     try{
       res=await fetch(FN_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({action:'deleteChild', child_id:d.id})});
       out=await res.json();
-    }catch(e){ alert('Erreur technique : '+e.message); return; }
-    if(!res.ok){ alert('❌ '+(out.error||res.statusText)); return; }
+    }catch(e){ showAlert('Erreur technique : '+e.message); return; }
+    if(!res.ok){ showAlert('❌ '+(out.error||res.statusText)); return; }
     toast('🗑️ Compte supprimé');
     await refreshParentScreen();
   },
   generateCode:async function(d){
     var {data:{session}}=await client.auth.getSession();
-    if(!session){ alert('Session expirée, reconnecte-toi.'); return; }
+    if(!session){ showAlert('Session expirée, reconnecte-toi.'); return; }
     var res,out;
     try{
       res=await fetch(FN_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({action:'create',child_id:d.id})});
       out=await res.json();
-    }catch(e){ alert('Erreur technique : '+e.message); return; }
-    if(!res.ok){ alert('❌ '+(out.error||res.statusText)); return; }
+    }catch(e){ showAlert('Erreur technique : '+e.message); return; }
+    if(!res.ok){ showAlert('❌ '+(out.error||res.statusText)); return; }
     ui.lastCode={childId:d.id, code:out.code, expiresAt:out.expires_at};
     render();
   },
   changePassword:async function(){
-    var pass=prompt('Nouveau mot de passe (minimum 6 caractères) :');
+    var pass=await askPrompt({icon:'🔒',title:'Nouveau mot de passe',label:'Minimum 6 caractères',type:'password',okLabel:'Enregistrer',validate:function(v){return v.length>=6?null:'Le mot de passe doit faire au moins 6 caractères.'}});
     if(!pass) return;
-    if(pass.length<6){ alert('Le mot de passe doit faire au moins 6 caractères.'); return; }
     var {error}=await client.auth.updateUser({password:pass});
-    if(error){ alert('❌ '+error.message); return; }
+    if(error){ showAlert('❌ '+error.message); return; }
     toast('✅ Mot de passe mis à jour');
   },
 
@@ -1857,16 +1931,16 @@ var A={
     if(!ui.pauseFrom){ toast('❌ Date de début nécessaire'); return; }
     if(ui.pauseTo && ui.pauseTo<ui.pauseFrom){ toast('❌ La date de fin doit être après le début'); return; }
     var {error}=await client.from('pauses').insert({family_id:S.profile.family_id, child_id:ui.pauseChild||null, from_date:ui.pauseFrom, to_date:ui.pauseTo||null, reason:(ui.pauseReason||'').trim()||null});
-    if(error){ alert('❌ '+error.message); return; }
+    if(error){ showAlert('❌ '+error.message); return; }
     ui.pauseTo=''; ui.pauseReason=''; toast('✅ Pause enregistrée');
     await loadParentData(); render();
   },
   pickPauseReason:function(d){ ui.pauseReason=d.v; render(); },
   endPause:async function(d){
-    if(!confirm('Terminer cette pause maintenant ?')) return;
+    if(!(await askConfirm({icon:'⏸️',title:'Terminer cette pause ?',message:'Les missions reprendront dès maintenant.',okLabel:'Terminer la pause'}))) return;
     var {data,error}=await client.from('pauses').update({to_date:addDays(todayStr(),-1)}).eq('id',d.id).select();
-    if(error){ alert('❌ '+error.message); return; }
-    if(!data||!data.length){ alert('⚠️ La pause n’a pas été modifiée (probablement une policy RLS UPDATE manquante sur la table pauses).'); return; }
+    if(error){ showAlert('❌ '+error.message); return; }
+    if(!data||!data.length){ showAlert('⚠️ La pause n’a pas été modifiée (probablement une policy RLS UPDATE manquante sur la table pauses).'); return; }
     await loadParentData(); render();
   },
 
@@ -1877,13 +1951,13 @@ var A={
     if(!ui.adjChild){ toast('❌ Choisis un enfant'); return; }
     if(!points){ toast('❌ Indique un nombre d’étoiles (positif ou négatif)'); return; }
     var {error}=await client.from('adjustments').insert({family_id:S.profile.family_id, child_id:ui.adjChild, points:points, reason:(ui.adjReason||'').trim()||null});
-    if(error){ alert('❌ '+error.message); return; }
+    if(error){ showAlert('❌ '+error.message); return; }
     await recalcBalance(ui.adjChild);
     ui.adjPoints=''; ui.adjReason=''; toast('✅ Ajustement enregistré');
     await refreshParentScreen();
   },
   deleteAdjustment:async function(d){
-    if(!confirm('Supprimer cet ajustement ?')) return;
+    if(!(await askConfirm({icon:'🗑️',title:'Supprimer cet ajustement ?',message:'Le solde de l’enfant sera recalculé.',okLabel:'Supprimer',danger:true}))) return;
     await client.from('adjustments').delete().eq('id',d.id);
     await recalcBalance(d.cid);
     await refreshParentScreen();
@@ -1905,10 +1979,10 @@ var A={
     var fields={title:title, emoji:(ui.rEmoji||'').trim()||null, cost:cost};
     if(ui.editRewardId){
       var {error}=await client.from('rewards').update(fields).eq('id',ui.editRewardId);
-      if(error){ alert('❌ '+error.message); return; }
+      if(error){ showAlert('❌ '+error.message); return; }
     } else {
       var {error:cErr}=await client.from('rewards').insert(Object.assign({family_id:S.profile.family_id}, fields));
-      if(cErr){ alert('❌ '+cErr.message); return; }
+      if(cErr){ showAlert('❌ '+cErr.message); return; }
     }
     var wasEdit=!!ui.editRewardId;
     ui.rFormOpen=false; ui.editRewardId=null; ui.rTitle=''; ui.rEmoji=''; ui.rCost='10';
@@ -1916,8 +1990,7 @@ var A={
     await loadParentData(); render();
   },
   deleteReward:async function(d){
-    if(!confirm('Supprimer cette récompense ?')) return;
-    if(!confirm('Vraiment sûr·e ? Cette action est irréversible.')) return;
+    if(!(await askConfirm({icon:'🗑️',title:'Supprimer cette récompense ?',message:'Cette action est irréversible.',okLabel:'Supprimer',danger:true}))) return;
     await client.from('rewards').delete().eq('id',d.id);
     await loadParentData(); render();
   },
@@ -1933,7 +2006,7 @@ var A={
     var row=el&&el.closest?el.closest('.task'):null;
     var anim=animateRow(row,0,0,d.decision==='given'?'ok':'no','🎁');
     var {error}=await client.from('redemptions').update({status:d.decision, decided_at:new Date().toISOString()}).eq('id',d.id);
-    if(error){ unanimateRow(row); alert('❌ '+error.message); return; }
+    if(error){ unanimateRow(row); showAlert('❌ '+error.message); return; }
     if(d.decision==='given'){
       await client.from('adjustments').insert({family_id:S.profile.family_id, child_id:d.cid, points:-parseInt(d.cost,10), reason:'🎁 '+d.label});
       await recalcBalance(d.cid);
@@ -1946,10 +2019,10 @@ var A={
 
   /* récompenses (enfant) */
   cancelRedemption:async function(d,btn){
-    if(!confirm('Annuler ta demande de récompense ?')) return;
+    if(!(await askConfirm({icon:'↩️',title:'Annuler ta demande ?',message:'Ta demande de récompense sera retirée.',okLabel:'Oui, annuler',cancelLabel:'Non, la garder'}))) return;
     if(btn) btn.disabled=true;
     var {data,error}=await client.from('redemptions').delete().eq('id',d.id).eq('child_id',S.me.id).eq('status','pending').select();
-    if(error){ if(btn) btn.disabled=false; alert('❌ '+error.message); return; }
+    if(error){ if(btn) btn.disabled=false; showAlert('❌ '+error.message); return; }
     if(!data||!data.length){
       toast('Cette demande a déjà été traitée par tes parents');
     } else toast('↩️ Demande annulée');
@@ -1957,11 +2030,11 @@ var A={
   },
   requestReward:async function(d, btn){
     if(btn){ btn.disabled=true; btn.textContent='...'; }
-    if(S.stars<+d.cost){ alert('Pas assez d’étoiles pour cette récompense.'); if(btn){btn.disabled=false; btn.textContent='Demander';} return; }
+    if(S.stars<+d.cost){ showAlert('Pas assez d’étoiles pour cette récompense.'); if(btn){btn.disabled=false; btn.textContent='Demander';} return; }
     var already=(S.myRedemptions||[]).some(function(r){return r.reward_id===d.id&&r.status==='pending'});
     if(already){ await refreshChildScreen(); return; }
     var {error}=await client.from('redemptions').insert({family_id:S.profile.family_id, child_id:S.me.id, reward_id:d.id, title:d.title, emoji:d.emoji||null, cost:+d.cost, status:'pending'});
-    if(error){ alert('❌ '+error.message); return; }
+    if(error){ showAlert('❌ '+error.message); return; }
     toast('🎁 Demande envoyée !');
     await refreshChildScreen();
   }
