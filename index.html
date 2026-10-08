@@ -85,6 +85,31 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .chips{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0 14px}
 .stat{background:var(--warn-soft);border-radius:99px;padding:6px 14px;font-weight:800;font-size:15px}
 
+/* animations parent */
+.task.row-out,.task.row-out-no{overflow:hidden;pointer-events:none}
+.task.row-out{animation:rowOk .7s ease-in forwards}
+.task.row-out-no{animation:rowNo .6s ease-in forwards}
+.task.row-out .ib.ok{animation:celBounce .5s ease-out}
+@keyframes rowOk{0%{max-height:var(--h);background:var(--ok-soft)}25%{max-height:var(--h);background:var(--ok-soft);border-color:var(--ok);transform:scale(1.03)}60%{max-height:var(--h);opacity:1;transform:translateX(0)}100%{max-height:0;opacity:0;transform:translateX(70px);margin:0;padding-top:0;padding-bottom:0;border-width:0}}
+@keyframes rowNo{0%{max-height:var(--h);background:#eee9e2}40%{max-height:var(--h);opacity:.8}100%{max-height:0;opacity:0;transform:translateX(-60px);margin:0;padding-top:0;padding-bottom:0;border-width:0}}
+.float-star{position:fixed;z-index:95;font-weight:900;font-size:20px;color:#1F9D63;pointer-events:none;text-shadow:0 1px 0 #fff;animation:floatUp 1.1s ease-out forwards}
+@keyframes floatUp{0%{opacity:0;transform:translateY(0) scale(.6)}20%{opacity:1;transform:translateY(-10px) scale(1.2)}100%{opacity:0;transform:translateY(-64px) scale(1)}}
+.spark{position:fixed;z-index:95;font-size:16px;pointer-events:none;animation:sparkOut .8s ease-out forwards}
+@keyframes sparkOut{0%{opacity:1;transform:translate(0,0) scale(.6)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1.1)}}
+.btn-all{margin:2px 0 10px}
+.modal-backdrop.enter{animation:celFade .2s ease-out}
+.modal-backdrop.enter .modal{animation:modalUp .32s cubic-bezier(.2,1,.3,1)}
+@keyframes modalUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.anim-in>*:not(.modal-backdrop){animation:fadeUp .28s ease-out both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.kid,.mcard,.task,.chip,.fitem,.ntf{transition:transform .12s ease}
+.kid:active,.mcard:active{transform:scale(.985)}
+.chip:active,.ntf:active{transform:scale(.94)}
+@media(prefers-reduced-motion:reduce){.task.row-out,.task.row-out-no,.modal-backdrop.enter,.modal-backdrop.enter .modal,.anim-in>*{animation:none}.float-star,.spark{display:none}}
+/* valider à la place */
+.task.row-flash{animation:rowFlash .8s ease-out}
+@keyframes rowFlash{0%{background:var(--card)}30%{background:var(--ok-soft);border-color:var(--ok);transform:scale(1.03)}100%{background:var(--card)}}
+.help-hint{font-size:13px;color:var(--muted);margin:-4px 0 10px}
 /* images de missions */
 .ico-img{width:84%;height:84%;object-fit:contain;display:block}
 .ico-img.ico-photo{width:100%;height:100%;object-fit:cover;border-radius:inherit}
@@ -108,6 +133,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .cel-row{display:flex;align-items:center;gap:10px;background:var(--pri-soft,#FFF0EE);border-radius:16px;padding:10px 12px;margin-bottom:6px;text-align:left;font-weight:800;opacity:0;animation:celSlide .45s ease-out forwards}
 .cel-row .e{font-size:24px;flex:none}
 .cel-row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cel-row .sub{display:block;font-weight:700;font-size:12px;color:var(--muted);margin-top:2px;white-space:normal}
 .cel-row .p{flex:none;color:#1F9D63;white-space:nowrap}
 .cel-row.soft{background:#F3F1EC;font-weight:700}
 .cel-total{margin:14px 0 4px;font-family:'Baloo 2','Nunito',sans-serif;font-weight:800;font-size:34px;animation:celPulse 1.3s ease-in-out infinite}
@@ -640,7 +666,7 @@ async function loadChildDetail(childId){
   S.detail={childId:childId, days:days, longest:longest, earned:earned, missionsCount:(allValidated||[]).length, rewardsGiven:(givenRedemptions||[]).length, badges:myBadges||[], feed:feed.slice(0,8), successRate:successRate, weekRate:weekRate};
 }
 
-async function refreshParentScreen(){ await loadChildren(); await loadParentData(); render(); }
+async function refreshParentScreen(){ await loadChildren(); await loadParentData(); if(ui.view==='childDetail'&&ui.detailChild) await loadChildDetail(ui.detailChild); render(); }
 async function refreshChildScreen(){
   var {data:profile}=await client.from('profiles').select('star_balance, total_earned').eq('id',S.me.id).single();
   S.stars=profile?profile.star_balance||0:S.stars;
@@ -777,6 +803,50 @@ function navHtml(items,cur,act){
 function parentNav(){ return navHtml([['today','🏠','Accueil',pendingCount()],['missions','📋','Missions'],['shop','🎁','Cadeaux',S.redemptions.length],['family','⚙️','Préférences']],ui.ptab,'ptab'); }
 function childNav(){ return navHtml([['missions','🎯','Missions'],['shop','🛍️','Boutique'],['trophies','🏆','Trophées']],ui.tab,'tab'); }
 
+function animateRow(row,pts,delay,kind,label){
+  return new Promise(function(res){
+    if(!row||(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)){ setTimeout(res,0); return; }
+    setTimeout(function(){
+      var r=row.getBoundingClientRect();
+      row.style.setProperty('--h',r.height+'px');
+      row.classList.add(kind==='no'?'row-out-no':(kind==='flash'?'row-flash':'row-out'));
+      if(kind!=='no'){
+        var t=document.createElement('div'); t.className='float-star'; t.textContent=label||('+'+pts+' ⭐');
+        t.style.left=Math.max(8,r.right-90)+'px'; t.style.top=(r.top+r.height/2-14)+'px';
+        document.body.appendChild(t); setTimeout(function(){t.remove()},1200);
+        for(var i=0;i<8;i++){
+          var sp=document.createElement('span'); sp.className='spark'; sp.textContent=i%2?'✨':'⭐';
+          var a=Math.PI*2*i/8;
+          sp.style.left=(r.right-60)+'px'; sp.style.top=(r.top+r.height/2)+'px';
+          sp.style.setProperty('--dx',Math.round(Math.cos(a)*46)+'px'); sp.style.setProperty('--dy',Math.round(Math.sin(a)*46)+'px');
+          document.body.appendChild(sp); (function(n){setTimeout(function(){n.remove()},900)})(sp);
+        }
+      }
+      setTimeout(res,kind==='no'?600:700);
+    },delay||0);
+  });
+}
+function unanimateRow(row){ if(row){ row.classList.remove('row-out','row-out-no'); } }
+async function validateCore(logId,cid){
+  var {data:vlog,error}=await client.from('task_logs').update({status:'validated', validated_at:new Date().toISOString(), comment:null}).eq('id',logId).select('task_id');
+  if(error) return error.message;
+  var vt=vlog&&vlog[0]?S.tasks.filter(function(x){return x.id===vlog[0].task_id})[0]:null;
+  if(vt && !vt.recurring){
+    var unErr;
+    if(vt.assign_all) unErr=(await client.from('tasks').update({assign_all:false}).eq('id',vt.id)).error;
+    else unErr=(await client.from('task_assignees').delete().eq('task_id',vt.id).eq('child_id',cid)).error;
+    if(unErr) return 'Mission validée, mais l’assignation n’a pas pu être retirée : '+unErr.message;
+  }
+  return null;
+}
+function closeValidateIfDone(){
+  var id=ui.validateModal; if(!id) return;
+  var left=S.logs.filter(function(l){return l.child_id===id}).length+S.redemptions.filter(function(r){return r.child_id===id}).length;
+  if(!left){ ui.validateModal=null; render(); }
+}
+function forChildBtn(t,c,special){
+  return '<span class="acts"><button class="ib ok" data-a="doForChild" data-task="'+t.id+'" data-cid="'+c.id+'" data-special="'+special+'" data-title="'+esc(t.title)+'" data-points="'+t.points+'" aria-label="Valider à la place de '+esc(c.display_name)+'" title="Valider à sa place">✅</button></span>';
+}
 function pendingCount(){ return S.logs.length; }
 function comingSoon(txt){ return '<div class="empty"><div class="big">🚧</div><p>'+esc(txt)+'<br>Arrive à la prochaine étape.</p></div>'; }
 
@@ -790,9 +860,10 @@ function childTodayStats(cid){
 function pendingRows(cid){
   var mine=S.logs.filter(function(l){return l.child_id===cid});
   if(!mine.length) return '<p class="muted" style="margin:10px 0 0">Rien à valider pour le moment.</p>';
-  return mine.map(function(l){
+  var allBtn=mine.length>1?'<button class="btn go wide btn-all" data-a="validateAll" data-cid="'+cid+'">✅ Tout valider ('+mine.length+')</button>':'';
+  return allBtn+mine.map(function(l){
     var lt=S.tasks.filter(function(x){return x.id===l.task_id})[0];
-    return '<div class="task pending"><span class="t-emoji">'+(lt?taskIco(lt,l.date!==todayStr()?'✨':'📌'):(l.date!==todayStr()?'✨':'📌'))+'</span><span class="t-main"><span class="t-title">'+esc(l.title)+'</span><span class="t-meta">+'+l.points+' ⭐'+(l.date!==todayStr()?' · '+l.date:'')+'</span>'+
+    return '<div class="task pending" data-cid="'+cid+'" data-pts="'+l.points+'"><span class="t-emoji">'+(lt?taskIco(lt,l.date!==todayStr()?'✨':'📌'):(l.date!==todayStr()?'✨':'📌'))+'</span><span class="t-main"><span class="t-title">'+esc(l.title)+'</span><span class="t-meta">+'+l.points+' ⭐'+(l.date!==todayStr()?' · '+l.date:'')+'</span>'+
       (l.comment?'<span class="t-comment">💬 « '+esc(l.comment)+' »</span>':'')+'</span>'+
       '<span class="acts"><button class="ib ok" data-a="validate" data-id="'+l.id+'" data-cid="'+cid+'" aria-label="Valider">✅</button></span></div>';
   }).join('');
@@ -802,7 +873,7 @@ function redemptionRowsFor(cid){
   if(!list.length) return '<p class="muted" style="margin:10px 0 0">Aucune demande de récompense en attente.</p>';
   return list.map(function(r){
     var label=(r.emoji?r.emoji+' ':'')+r.title;
-    return '<div class="task"><span class="t-emoji">'+(r.emoji||'🎁')+'</span><span class="t-main"><span class="t-title">'+esc(r.title)+'</span><span class="t-meta">'+r.cost+' ⭐</span></span>'+
+    return '<div class="task" data-cid="'+r.child_id+'"><span class="t-emoji">'+(r.emoji||'🎁')+'</span><span class="t-main"><span class="t-title">'+esc(r.title)+'</span><span class="t-meta">'+r.cost+' ⭐</span></span>'+
       '<span class="acts"><button class="ib ok" data-a="decideRedemption" data-id="'+r.id+'" data-decision="given" data-cid="'+r.child_id+'" data-cost="'+r.cost+'" data-label="'+esc(label)+'" aria-label="Donner">✅</button>'+
       '<button class="ib" data-a="decideRedemption" data-id="'+r.id+'" data-decision="refused" aria-label="Refuser">❌</button></span></div>';
   }).join('');
@@ -1134,8 +1205,18 @@ function viewChildDetail(){
     var l=S.todayLogs.filter(function(x){return x.task_id===t.id&&x.child_id===c.id})[0];
     var st=l?l.status:'todo';
     var pill=st==='validated'?'<span class="pill ok">✅ Fait</span>':st==='pending'?'<span class="pill wait">⏳ À valider</span>':'<span class="pill">À faire</span>';
-    return '<div class="task"><span class="t-emoji">'+taskIco(t,'🔁')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">'+t.points+' ⭐</span></span>'+pill+'</div>';
+    var help=st==='todo'?forChildBtn(t,c,0):'';
+    return '<div class="task" data-pts="'+t.points+'"><span class="t-emoji">'+taskIco(t,'🔁')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">'+t.points+' ⭐</span></span>'+pill+help+'</div>';
   }).join('');
+  if(due.some(function(t){return !S.todayLogs.some(function(x){return x.task_id===t.id&&x.child_id===c.id})})) h+='<p class="help-hint" style="margin-top:8px">💡 Un imprévu ? Touche ✅ pour valider une mission à la place de '+esc(c.display_name)+'.</p>';
+  var specs=S.tasks.filter(function(t){
+    return !t.recurring && (t.assign_all||appliesToList(t,c.id)) && !S.logs.some(function(l){return l.task_id===t.id&&(t.assign_all||l.child_id===c.id)});
+  });
+  if(specs.length){
+    h+='<div class="sec"><h3>✨ Missions spéciales en cours</h3></div>'+specs.map(function(t){
+      return '<div class="task" data-pts="'+t.points+'"><span class="t-emoji">'+taskIco(t,'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">'+t.points+' ⭐ · '+(t.assign_all?'⚡ premier arrivé':'à faire par chacun')+'</span></span>'+forChildBtn(t,c,1)+'</div>';
+    }).join('');
+  }
 
   h+='<div class="sec"><h3>Récompenses</h3></div><div class="card">🎁 Obtenues : '+d.rewardsGiven+'</div>';
 
@@ -1255,20 +1336,24 @@ function childMissions(){
   return h;
 }
 
+function cancelReqBtn(id){
+  return '<button class="btn ghost small" data-a="cancelRedemption" data-id="'+id+'">Annuler la demande</button>';
+}
 function childShop(){
   var pendingIds=(S.myRedemptions||[]).filter(function(r){return r.status==='pending'}).map(function(r){return r.reward_id});
   var h='';
   if(!S.rewards.length) h+='<div class="empty"><div class="big">🎁</div><p>Aucune récompense disponible pour l’instant.</p></div>';
   else h+=S.rewards.map(function(r){
     var isPending=pendingIds.indexOf(r.id)>-1, can=S.stars>=r.cost;
-    var right=isPending?'<span class="pill wait">⏳ En attente</span>'
+    var pend=isPending?(S.myRedemptions||[]).filter(function(x){return x.reward_id===r.id&&x.status==='pending'})[0]:null;
+    var right=isPending?'<span style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><span class="pill wait">⏳ En attente</span>'+(pend?cancelReqBtn(pend.id):'')+'</span>'
       :'<button class="btn go" '+(can?'':'disabled')+' data-a="requestReward" data-id="'+r.id+'" data-title="'+esc(r.title)+'" data-cost="'+r.cost+'" data-emoji="'+(r.emoji||'')+'">Demander</button>';
     return '<div class="reward"><span class="t-emoji">'+(r.emoji||'🎁')+'</span><span class="t-main"><span class="t-title">'+esc(r.title)+'</span><span class="t-meta">'+r.cost+' ⭐</span></span>'+right+'</div>';
   }).join('');
   if((S.myRedemptions||[]).length){
     h+='<div class="sec"><h3>Mes demandes</h3></div>'+S.myRedemptions.map(function(r){
       var st=r.status==='pending'?'⏳ en attente':(r.status==='given'?'✅ reçue':'❌ refusée');
-      return '<div class="task"><span class="t-emoji">'+(r.emoji||'🎁')+'</span><span class="t-main"><span class="t-title">'+esc(r.title)+'</span><span class="t-meta">'+r.cost+' ⭐ · '+st+'</span></span></div>';
+      return '<div class="task"><span class="t-emoji">'+(r.emoji||'🎁')+'</span><span class="t-main"><span class="t-title">'+esc(r.title)+'</span><span class="t-meta">'+r.cost+' ⭐ · '+st+'</span></span>'+(r.status==='pending'?cancelReqBtn(r.id):'')+'</div>';
     }).join('');
   }
   return h;
@@ -1359,7 +1444,7 @@ function celebrateHtml(c){
   h+='<div class="cel-big">'+(c.levelUp?'🚀':(c.badges.length?'🏅':'🎉'))+'</div><h2>Bravo '+esc(S.profile.display_name)+' !</h2><div class="cel-sub">Voilà ce qui s’est passé pendant ton absence</div>';
   if(c.levelUp) h+='<div class="cel-lvl">⬆️ Niveau '+c.levelUp.lvl+' · '+esc(c.levelUp.title)+' !</div>';
   if(c.missions.length){ h+='<div class="cel-sec">Missions validées</div>'+c.missions.map(function(m){return row('✅',esc(m.title||'Mission'),'+'+(m.points||0)+' ⭐');}).join(''); }
-  if(c.badges.length){ h+='<div class="cel-sec">Nouveaux badges</div>'+c.badges.map(function(b){var def=badgeDef(b.badge_id);return row(def.emoji,esc(def.name),b.reward?'+'+b.reward+' ⭐':'');}).join(''); }
+  if(c.badges.length){ h+='<div class="cel-sec">Nouveaux badges</div>'+c.badges.map(function(b){var def=badgeDef(b.badge_id);return row(def.emoji,esc(def.name)+'<span class="sub">Objectif : '+esc(def.desc)+'</span>',b.reward?'+'+b.reward+' ⭐':'');}).join(''); }
   if(c.bonus.length){ h+='<div class="cel-sec">Bonus</div>'+c.bonus.map(function(a){return row(a.points>=0?'✨':'⭐',esc(a.reason||'Ajustement'),(a.points>=0?'+':'')+a.points+' ⭐');}).join(''); }
   if(c.gifts.length){ h+='<div class="cel-sec">Cadeaux accordés</div>'+c.gifts.map(function(g){return row(g.emoji||'🎁',esc(g.title)+' est à toi !','');}).join(''); }
   if(c.refused.length){ h+='<div class="cel-sec">Demandes</div>'+c.refused.map(function(g){return row('💬','Pas cette fois pour « '+esc(g.title)+' »','',true);}).join(''); }
@@ -1408,8 +1493,13 @@ function render(){
   else if(ui.childMenu) modal='<div class="modal-backdrop" data-a="closeChildMenu"><div class="modal" data-a="noop">'+childMenuContent()+'</div></div>';
   if(ui.celebrate && ui.view==='child') modal=celebrateHtml(ui.celebrate);
   var app=document.getElementById('app');
+  var hadModal=!!app.querySelector('.modal-backdrop');
+  if(modal && !hadModal) modal=modal.replace('class="modal-backdrop','class="modal-backdrop enter');
+  var viewKey=[ui.view,ui.ptab,ui.tab,ui.fview,ui.mview,ui.detailChild].join('|');
+  var changed=viewKey!==render._k; render._k=viewKey;
   app.className = nav ? '' : 'nonav';
   app.innerHTML = h+nav+modal;
+  if(changed && !ui.celebrate){ app.classList.add('anim-in'); clearTimeout(render._t); render._t=setTimeout(function(){app.classList.remove('anim-in')},400); }
   if(ui.celebrate && ui.view==='child') runCountUps();
 }
 
@@ -1480,24 +1570,56 @@ var A={
   closeValidateModal:function(){ ui.validateModal=null; render(); },
   quickPause:function(d){ ui.ptab='family'; ui.fview='pauses'; ui.pauseChild=d.id; ui.view='parent'; render(); },
   quickAdjust:function(d){ ui.ptab='family'; ui.fview='adjust'; ui.adjChild=d.id; ui.view='parent'; render(); },
-  validate:async function(d){
-    var {data:vlog,error}=await client.from('task_logs').update({status:'validated', validated_at:new Date().toISOString(), comment:null}).eq('id',d.id).select('task_id');
-    if(error){ alert('❌ '+error.message); return; }
-    var vt=vlog&&vlog[0]?S.tasks.filter(function(x){return x.id===vlog[0].task_id})[0]:null;
-    if(vt && !vt.recurring){
-      // mission spéciale validée : on retire l'assignation
-      var unErr;
-      if(vt.assign_all){
-        unErr=(await client.from('tasks').update({assign_all:false}).eq('id',vt.id)).error;
-      } else {
-        unErr=(await client.from('task_assignees').delete().eq('task_id',vt.id).eq('child_id',d.cid)).error;
-      }
-      if(unErr) alert('⚠️ Mission validée, mais l’assignation n’a pas pu être retirée : '+unErr.message);
-    }
+  validate:async function(d,el){
+    var row=el&&el.closest?el.closest('.task'):null;
+    var pts=row?parseInt(row.getAttribute('data-pts')||'0',10):0;
+    var anim=animateRow(row,pts,0,'ok');
+    var err=await validateCore(d.id,d.cid);
+    if(err){ unanimateRow(row); alert('❌ '+err); return; }
     await recalcBalance(d.cid);
     await checkBadges(d.cid);
     toast('✅ Mission validée');
+    await anim;
     await refreshParentScreen();
+    closeValidateIfDone();
+  },
+  doForChild:async function(d,el){
+    var c=S.children.filter(function(x){return x.id===d.cid})[0];
+    var name=c?c.display_name:'l’enfant';
+    if(!confirm('Valider « '+d.title+' » à la place de '+name+' ?\n(+'+d.points+' ⭐ pour '+name+')')) return;
+    if(el) el.disabled=true;
+    var row=el&&el.closest?el.closest('.task'):null;
+    var anim=animateRow(row,parseInt(d.points,10)||0,0,'flash');
+    var {data:log,error}=await client.from('task_logs').insert({
+      family_id:S.profile.family_id, task_id:d.task, child_id:d.cid, title:d.title, points:+d.points, status:'pending', date:todayStr()
+    }).select('id').single();
+    if(error||!log){ unanimateRow(row); if(el) el.disabled=false; alert('❌ '+(error?error.message:'Impossible d’enregistrer')+'\n\nSi le message parle de « row-level security », la policy d’insertion des parents sur task_logs est manquante.'); return; }
+    var err=await validateCore(log.id,d.cid);
+    if(err){ alert('❌ '+err); }
+    await recalcBalance(d.cid);
+    await checkBadges(d.cid);
+    toast('✅ Validé à la place de '+name);
+    await anim;
+    await refreshParentScreen();
+  },
+  validateAll:async function(d,el){
+    var cid=d.cid, logs=S.logs.filter(function(l){return l.child_id===cid});
+    if(!logs.length) return;
+    if(el) el.disabled=true;
+    var rows=[].slice.call(document.querySelectorAll('.task.pending[data-cid="'+cid+'"]'));
+    var anims=rows.map(function(r,i){ return animateRow(r,parseInt(r.getAttribute('data-pts')||'0',10),i*140,'ok'); });
+    var okc=0, errs=[];
+    for(var i=0;i<logs.length;i++){
+      var err=await validateCore(logs[i].id,cid);
+      if(err) errs.push(err); else okc++;
+    }
+    await recalcBalance(cid);
+    await checkBadges(cid);
+    toast(okc>1?'✅ '+okc+' missions validées':(okc?'✅ Mission validée':'❌ Aucune mission validée'));
+    await Promise.all(anims);
+    if(errs.length) alert('⚠️ '+errs[0]);
+    await refreshParentScreen();
+    closeValidateIfDone();
   },
 
   mview:function(d){ ui.mview=d.v; ui.newOpen=false; ui.editId=null; ui.formErr=null; render(); },
@@ -1807,18 +1929,32 @@ var A={
   closeRewardMenu:function(){ if(Date.now()-_rewardMenuOpenedAt<400) return; ui.rewardMenu=null; render(); },
   menuEditReward:function(d){ ui.rewardMenu=null; A.editReward({id:d.id}); },
   menuDeleteReward:async function(d){ ui.rewardMenu=null; render(); await A.deleteReward({id:d.id}); },
-  decideRedemption:async function(d){
+  decideRedemption:async function(d,el){
+    var row=el&&el.closest?el.closest('.task'):null;
+    var anim=animateRow(row,0,0,d.decision==='given'?'ok':'no','🎁');
     var {error}=await client.from('redemptions').update({status:d.decision, decided_at:new Date().toISOString()}).eq('id',d.id);
-    if(error){ alert('❌ '+error.message); return; }
+    if(error){ unanimateRow(row); alert('❌ '+error.message); return; }
     if(d.decision==='given'){
       await client.from('adjustments').insert({family_id:S.profile.family_id, child_id:d.cid, points:-parseInt(d.cost,10), reason:'🎁 '+d.label});
       await recalcBalance(d.cid);
     }
     toast(d.decision==='given'?'🎁 Récompense donnée':'Demande refusée');
+    await anim;
     await refreshParentScreen();
+    closeValidateIfDone();
   },
 
   /* récompenses (enfant) */
+  cancelRedemption:async function(d,btn){
+    if(!confirm('Annuler ta demande de récompense ?')) return;
+    if(btn) btn.disabled=true;
+    var {data,error}=await client.from('redemptions').delete().eq('id',d.id).eq('child_id',S.me.id).eq('status','pending').select();
+    if(error){ if(btn) btn.disabled=false; alert('❌ '+error.message); return; }
+    if(!data||!data.length){
+      toast('Cette demande a déjà été traitée par tes parents');
+    } else toast('↩️ Demande annulée');
+    await refreshChildScreen();
+  },
   requestReward:async function(d, btn){
     if(btn){ btn.disabled=true; btn.textContent='...'; }
     if(S.stars<+d.cost){ alert('Pas assez d’étoiles pour cette récompense.'); if(btn){btn.disabled=false; btn.textContent='Demander';} return; }
