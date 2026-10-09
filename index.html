@@ -539,6 +539,8 @@ async function loadParentData(){
   var spIds=S.tasks.filter(function(t){return !t.recurring}).map(function(t){return t.id});
   var {data:spHist}=spIds.length?await client.from('task_logs').select('id,task_id,child_id,title,points,date,validated_at,archived').in('task_id',spIds).eq('status','validated').order('validated_at',{ascending:false}).limit(50):{data:[]};
   S.specialHistory=spHist||[];
+  var {data:recLogs}=await client.from('task_logs').select('child_id,points,date').eq('status','validated').gte('date',addDays(todayStr(),-27));
+  S.recentLogs=recLogs||[];
   var {data:logs}=await client.from('task_logs').select('*, profiles!task_logs_child_id_fkey(display_name)').eq('family_id',S.profile.family_id).eq('status','pending').order('created_at');
   S.logs=logs||[];
   var {data:todayLogs}=await client.from('task_logs').select('task_id,child_id,status').eq('family_id',S.profile.family_id).eq('date',todayStr());
@@ -1169,11 +1171,36 @@ function rewardMenuContent(){
     '</div>';
   return h;
 }
+function starStats(c){
+  var week=0;
+  S.tasks.forEach(function(t){ if(!t.recurring||!appliesToList(t,c.id)) return; week+=(t.points||0)*(t.freq==='weekly'?(t.days||[]).length:7); });
+  var logs=(S.recentLogs||[]).filter(function(l){return l.child_id===c.id});
+  var real=null;
+  if(logs.length){
+    var first=logs.reduce(function(m,l){return l.date<m?l.date:m},logs[0].date);
+    var span=Math.round((new Date(todayStr())-new Date(first))/864e5)+1;
+    var days=Math.min(28,Math.max(7,span));
+    real=logs.reduce(function(t,l){return t+(l.points||0)},0)/days;
+  }
+  return {potWeek:week, potDay:week/7, realDay:real, realWeek:real==null?null:real*7};
+}
+function rewardStatsHtml(){
+  if(!S.children.length) return '';
+  var r=function(n){return Math.round(n)};
+  var rows=S.children.map(function(c){
+    var st=starStats(c);
+    var pot=st.potWeek>0?'Jusqu’à <b>'+r(st.potDay)+' ⭐/jour</b> · <b>'+r(st.potWeek)+' ⭐/semaine</b> avec les routines':'Aucune routine assignée';
+    var real=st.realDay==null?'Pas encore assez de missions validées':'En pratique : <b>≈ '+r(st.realDay)+' ⭐/jour</b> · <b>≈ '+r(st.realWeek)+' ⭐/semaine</b>';
+    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)"><span style="font-size:28px;flex:none">'+c.avatar+'</span><div style="min-width:0"><div style="font-weight:800">'+esc(c.display_name)+'</div><div style="font-size:13px;margin-top:2px">'+pot+'</div><div class="muted" style="font-size:13px">'+real+'</div></div></div>';
+  }).join('');
+  return '<div class="card" style="padding:12px 14px;margin-bottom:16px"><div style="font-weight:800;font-size:14px;margin-bottom:6px">📊 Pour t’aider à fixer les coûts</div>'+rows.replace('border-top:1px solid var(--line)','')+'<p class="muted" style="font-size:12px;margin:8px 0 0">Repère : une petite récompense ≈ 1 jour de gains, une grande ≈ 1 semaine. Moyenne réelle calculée sur les 4 dernières semaines.</p></div>';
+}
 function pShop(){
   var full=S.rewards.length>=6;
   var h='<div class="vhead"><h2>Récompenses</h2><button class="btn small" data-a="openRewardForm"'+(full?' disabled':'')+'>＋ Ajouter une récompense</button></div>';
   h+='<p class="muted" style="margin:-4px 0 '+(full?'6':'16')+'px;font-size:14px">Vos enfants peuvent échanger leurs étoiles contre des récompenses.<br>À vous de définir le gain et le coût.</p>';
   if(full) h+='<p class="muted" style="margin:0 0 16px;font-size:13px;font-weight:700">Maximum de récompenses atteint (6).</p>';
+  h+=rewardStatsHtml();
   if(!S.rewards.length) return h+'<div class="empty"><div class="big">🎁</div><p>Aucune récompense créée.</p></div>';
   h+=S.rewards.map(rewardCard).join('');
   return h;
