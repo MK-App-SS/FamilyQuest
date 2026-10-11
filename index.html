@@ -106,12 +106,24 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .kid:active,.mcard:active{transform:scale(.985)}
 .chip:active,.ntf:active{transform:scale(.94)}
 @media(prefers-reduced-motion:reduce){.task.row-out,.task.row-out-no,.modal-backdrop.enter,.modal-backdrop.enter .modal,.anim-in>*{animation:none}.float-star,.spark{display:none}}
+.logo{display:flex;align-items:center}
+.info-btn{background:var(--pri-soft);border:0;border-radius:50%;width:30px;height:30px;font-size:16px;line-height:1;margin-left:10px;cursor:pointer;display:grid;place-items:center;padding:0;flex:none}
+.info-btn:active{transform:scale(.9)}
+.help-box{background:var(--warn-soft);border-radius:16px;padding:12px 14px;font-weight:700;font-size:14px;line-height:1.45;margin:10px 0}
 /* détails de mission */
 .det-btn{margin-top:6px;background:var(--pri-soft);border:0;border-radius:12px;padding:6px 10px;font-weight:800;font-size:13px;color:var(--ink);cursor:pointer}
 .det-btn:active{transform:scale(.95)}
-.det-list{list-style:none;padding:0;margin:8px 0 14px}
-.det-list li{background:var(--pri-soft);border-radius:14px;padding:11px 14px;margin-bottom:6px;font-weight:800;font-size:16px;display:flex;gap:10px;align-items:flex-start}
-.det-list li::before{content:'•';color:var(--pri);font-weight:900}
+.det-list{margin:8px 0 14px}
+.chk-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--pri-soft);border:2px solid transparent;border-radius:16px;padding:12px 14px;margin-bottom:8px;font-weight:800;font-size:16px;color:var(--ink);cursor:pointer;font-family:inherit}
+.chk-row.static{cursor:default}
+.chk-row.on{background:var(--ok-soft);border-color:var(--ok)}
+.chk-row.on>span:last-child{text-decoration:line-through;opacity:.7}
+.chk-box{width:26px;height:26px;border-radius:8px;border:3px solid var(--line);background:var(--card);flex:none;display:grid;place-items:center;font-weight:900;color:#fff;font-size:16px}
+.chk-row.on .chk-box{background:var(--ok);border-color:var(--ok);animation:celBounce .35s ease-out 1}
+.det-note{border-radius:14px;padding:10px 14px;font-weight:800;font-size:14px;margin:6px 0}
+.det-note.warn{background:var(--warn-soft);animation:shake .45s ease-in-out}
+.det-note.ok{background:var(--ok-soft)}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
 /* avatar enfant */
 .hero-av{position:relative}
 .av-gear{position:absolute;right:-4px;bottom:-4px;width:30px;height:30px;border-radius:50%;background:var(--card);border:2px solid var(--line);font-size:15px;line-height:1;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.18);padding:0}
@@ -380,7 +392,6 @@ var BADGE_DEFS=[
   {id:'kickoff',scope:'day',emoji:'🚀',name:'Coup d’envoi',reward:1,desc:'Valider sa toute première mission de la journée.'},
   {id:'perfectday',scope:'day',emoji:'🌟',name:'Journée parfaite',reward:1,desc:'Valider toutes les routines quotidiennes du jour.'},
   {id:'helpinghand',scope:'day',emoji:'🙌',name:'Coup de main',reward:1,desc:'Valider au moins une mission spéciale aujourd’hui.'},
-  {id:'morningpro',scope:'day',emoji:'🌅',name:'Matin efficace',reward:1,desc:'Valider toutes les routines du matin avant 9h00.'},
   {id:'perfectweek',scope:'week',emoji:'🏆',name:'Semaine parfaite',reward:5,desc:'Toutes les routines quotidiennes validées, chaque jour de la semaine.'},
   {id:'ironregular',scope:'week',emoji:'💪',name:'Régularité de fer',reward:1,desc:'Valider au moins 5 missions chaque jour, 7 jours d’affilée.'},
   {id:'bonushunter',scope:'week',emoji:'🎯',name:'Chasseur de bonus',reward:1,desc:'Valider au moins 3 missions spéciales cette semaine.'},
@@ -520,7 +531,7 @@ function whoLabel(t){
 
 var ui={view:'loading', ptab:'today', tab:'missions', loginErr:null, loginBusy:false,
   mview:'daily', mfilter:'all', mFilterChild:'', newOpen:false, newFreq:'daily', newSlot:'none', newAssignAll:false, newPicked:[], newDays:[],
-  newSMode:'race', newSPicked:[], newTitle:'', newPoints:'5', newSTitle:'', newSPoints:'10',
+  newSMode:'race', newSPicked:[], newTitle:'', newPoints:'1', newSTitle:'', newSPoints:'5',
   expandChild:null,
   fview:'kids', sview:'rewards',
   pauseChild:'', pauseFrom:todayStr(), pauseTo:'', pauseReason:'',
@@ -784,16 +795,6 @@ async function checkBadges(childId){
   if(ownValidated(d).length>=1) await awardBadge(childId,'kickoff','day',d,1);
   if(strictRoutineDay(d)==='ok') await awardBadge(childId,'perfectday','day',d,1);
   if(ownValidated(d).some(function(l){var t=taskOf(l); return t&&!t.recurring})) await awardBadge(childId,'helpinghand','day',d,1);
-  var morningTasks=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,d)&&t.slot==='morning'});
-  if(morningTasks.length){
-    var allEarly=morningTasks.every(function(t){
-      var l=ownValidated(d).filter(function(x){return x.task_id===t.id})[0];
-      if(!l||!l.validated_at) return false;
-      var vd=new Date(l.validated_at);
-      return (vd.getHours()*60+vd.getMinutes())<9*60;
-    });
-    if(allEarly) await awardBadge(childId,'morningpro','day',d,1);
-  }
 
   if(dowOf(d)===1){
     var prevMonday=addDays(monday,-7);
@@ -994,7 +995,7 @@ function mform(){
     fields='<label class="lbl">Titre</label><input class="inp" data-field="ntitle" placeholder="Ex : Faire son lit" value="'+esc(ui.newTitle||'')+'">'+
       iconBlockHtml(ui.newTitle||'')+
       detailsFormHtml()+
-      '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="npoints" value="'+esc(ui.newPoints!=null?ui.newPoints:5)+'">'+
+      '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="npoints" value="'+esc(ui.newPoints!=null?ui.newPoints:1)+'">'+(ui.editId?'':'<p class="muted" style="font-size:12px;margin:4px 0 0">Valeur conseillée : 1</p>')+
       '<label class="lbl">Fréquence</label><div class="chiprow"><button class="chip '+(ui.newFreq==='daily'?'sel':'')+'" data-a="setFreq" data-v="daily">🔁 Chaque jour</button><button class="chip '+(ui.newFreq==='weekly'?'sel':'')+'" data-a="setFreq" data-v="weekly">📆 Certains jours</button></div>'+
       (ui.newFreq==='weekly'?'<div class="chiprow" style="margin-top:8px">'+[1,2,3,4,5,6,0].map(function(d){return '<button class="chip '+(ui.newDays.indexOf(d)>-1?'sel':'')+'" data-a="toggleDay" data-v="'+d+'">'+DAY_LABEL[d]+'</button>'}).join('')+'</div>':'')+
       '<label class="lbl">Moment de la journée</label><div class="chiprow">'+Object.keys(SLOT_LABEL).map(function(k){return '<button class="chip '+(ui.newSlot===k?'sel':'')+'" data-a="setSlot" data-v="'+k+'">'+SLOT_LABEL[k]+'</button>'}).join('')+'</div>'+
@@ -1008,7 +1009,7 @@ function mform(){
     fields='<label class="lbl">Titre</label><input class="inp" data-field="stitle" placeholder="Ex : Trier ses jouets" value="'+esc(ui.newSTitle||'')+'">'+
       iconBlockHtml(ui.newSTitle||'')+
       detailsFormHtml()+
-      '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="spoints" value="'+esc(ui.newSPoints!=null?ui.newSPoints:10)+'">'+
+      '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="spoints" value="'+esc(ui.newSPoints!=null?ui.newSPoints:5)+'">'+(ui.editId?'':'<p class="muted" style="font-size:12px;margin:4px 0 0">Valeur conseillée : 5. Elle peut dépendre de la pénibilité ou du temps requis.</p>')+
       (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
       '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createSpecial">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button></div>';
   }
@@ -1223,6 +1224,7 @@ function childMenuContent(){
   var h='<div class="modal-head"><h2>'+(c?esc(c.display_name):'Enfant')+'</h2><button class="modal-x" data-a="closeChildMenu" aria-label="Fermer">✕</button></div>';
   h+='<div style="display:flex;flex-direction:column;gap:10px;margin-top:6px">'+
     '<button class="btn ghost wide" data-a="menuRenameChild" data-id="'+(c?c.id:'')+'">✏️ Renommer</button>'+
+    '<button class="btn ghost wide" data-a="menuResetChild" data-id="'+(c?c.id:'')+'" data-name="'+(c?esc(c.display_name):'')+'">🔄 Réinitialiser (tout remettre à zéro)</button>'+
     '<button class="btn ghost wide" data-a="menuDeleteChild" data-id="'+(c?c.id:'')+'" data-name="'+(c?esc(c.display_name):'')+'">🗑️ Supprimer le compte</button>'+
     '</div>';
   return h;
@@ -1263,13 +1265,24 @@ function rewardStatsHtml(){
 function pShop(){
   var full=S.rewards.length>=6;
   var h='<p class="muted" style="margin:0 0 14px;font-size:14px">Vos enfants peuvent échanger leurs étoiles contre des récompenses.<br>À vous de définir le gain et le coût.<br>Vous pouvez proposer <b>6 cadeaux au maximum</b>.</p>';
-  h+='<div style="display:flex;gap:10px"><button class="btn" style="flex:1" data-a="openRewardForm"'+(full?' disabled':'')+'>＋ Ajouter un cadeau</button>'+
-     '<button class="btn ghost" style="flex:1" data-a="openRewardHelp">💡 Aide et conseils</button></div>';
+  h+='<button class="btn wide" data-a="openRewardForm"'+(full?' disabled':'')+'>＋ Ajouter un cadeau</button>';
   if(full) h+='<p class="muted" style="margin:8px 0 0;font-size:13px;font-weight:700;text-align:center">Maximum de cadeaux atteint (6).</p>';
   h+='<div class="sec"><h3>Vos cadeaux</h3></div>';
   if(!S.rewards.length) return h+'<div class="empty"><div class="big">🎁</div><p>Aucun cadeau créé pour l’instant.</p></div>';
   h+=S.rewards.map(rewardCard).join('');
   return h;
+}
+function missionHelpHtml(){
+  return '<div class="modal-head"><h2>💡 Bien dimensionner les missions</h2><button class="modal-x" data-a="closeMissionHelp" aria-label="Fermer">✕</button></div>'+
+    '<div style="font-size:14px;line-height:1.5">'+
+      '<div style="font-weight:800;font-size:15px">🔁 Les routines</div>'+
+      '<p style="margin:4px 0">Ce sont les missions du quotidien : le <b>minimum que vous attendez de vos enfants chaque jour</b>. C’est là qu’ils gagneront le plus d’étoiles sur la semaine. Il faut donc en maîtriser à la fois le <b>nombre</b> et le <b>gain</b>.</p>'+
+      '<div class="help-box">💡 <b>Conseil :</b> 7 à 12 routines quotidiennes à 1 ⭐ rapportent environ <b>50 à 84 ⭐ par semaine</b> à votre enfant.</div>'+
+      '<div style="font-weight:800;font-size:15px;margin-top:14px">✨ Les missions spéciales</div>'+
+      '<p style="margin:4px 0">Ponctuelles, elles invitent vos enfants à gagner <b>des étoiles en plus</b> en rendant des « services » que vous leur demandez (porter les courses, ranger le garage, aider à préparer le repas…). Adaptez le gain à l’effort demandé.</p>'+
+      '<div class="help-box">💡 <b>Astuce :</b> gardez des gains petits pour les routines, et réservez les gros gains aux missions spéciales.</div>'+
+    '</div>'+
+    '<div style="margin-top:14px"><button class="btn wide" data-a="closeMissionHelp">Compris</button></div>';
 }
 function rewardHelpHtml(){
   return '<div class="modal-head"><h2>💡 Aide et conseils</h2><button class="modal-x" data-a="closeRewardHelp" aria-label="Fermer">✕</button></div>'+
@@ -1393,7 +1406,8 @@ function viewParent(){
   if(ui.ptab!=='today'){
     var title={missions:'Missions',shop:'Cadeaux',family:'Préférences'}[ui.ptab];
     var sub=ui.ptab==='missions'?'Créez, éditez et assignez vos missions':'';
-    return '<header class="top ptop"><div><div class="logo">'+title+'</div>'+(sub?'<p class="wel-sub">'+esc(sub)+'</p>':'')+'</div><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+body;
+    var infoBtn=ui.ptab==='missions'?'<button class="info-btn" data-a="openMissionHelp" aria-label="Conseils sur les missions">💡</button>':(ui.ptab==='shop'?'<button class="info-btn" data-a="openRewardHelp" aria-label="Aide et conseils sur les cadeaux">💡</button>':'');
+    return '<header class="top ptop"><div><div class="logo">'+title+infoBtn+'</div>'+(sub?'<p class="wel-sub">'+esc(sub)+'</p>':'')+'</div><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+body;
   }
   var scheduledCount=S.tasks.filter(function(t){return t.recurring && t.freq==='weekly' && isDueToday(t)}).length;
   var banner=scheduledCount?'<button class="btn ghost small" style="margin-top:8px" data-a="scrollToScheduled">📌 '+scheduledCount+' mission(s) à penser aujourd’hui</button>':'';
@@ -1408,7 +1422,7 @@ function taskCardKid(t){
   if(st==='todo') right='<button class="btn go" data-a="doTask" data-id="'+t.id+'" data-title="'+esc(t.title)+'" data-points="'+t.points+'">C’est fait !</button>';
   else if(st==='pending') right='<span class="pill wait">⏳ À valider</span>';
   else right='<span class="pill ok">✅ Validé</span>';
-  return '<div class="task ktask '+st+'"><span class="t-emoji">'+taskIco(t,'🔁')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+freqLabel(t)+'</span>'+note+detailsBtn(t)+'</span>'+right+'</div>';
+  return '<div class="task ktask '+st+'"><span class="t-emoji">'+taskIco(t,'🔁')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+freqLabel(t)+'</span>'+note+detailsBtn(t,st)+'</span>'+right+'</div>';
 }
 function specialCardKid(t){
   var log=(S.specialLogs||[]).filter(function(l){return l.task_id===t.id&&l.child_id===S.me.id})[0];
@@ -1422,7 +1436,7 @@ function specialCardKid(t){
     if(log.comment) note='<span class="t-comment">💬 « '+esc(log.comment)+' »</span>';
   }
   else right='<span class="pill ok">✅ Validé</span>';
-  return '<div class="task ktask '+st+'"><span class="t-emoji">'+taskIco(t,'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+note+detailsBtn(t)+'</span>'+right+'</div>';
+  return '<div class="task ktask '+st+'"><span class="t-emoji">'+taskIco(t,'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+note+detailsBtn(t,st)+'</span>'+right+'</div>';
 }
 function activeSpecials(){
   return (S.mySpecials||[]).filter(function(t){
@@ -1472,16 +1486,42 @@ function rewardLock(r){
   return {date:unlock, days:Math.round((new Date(unlock)-new Date(t))/864e5)};
 }
 function fmtShort(d){ var p=d.split('-'); return p[2]+'/'+p[1]; }
-var KID_TASKS={};
+var KID_TASKS={}, KID_ST={};
 function detailLines(t){ return String((t&&t.details)||'').split('\n').map(function(x){return x.trim()}).filter(Boolean); }
-function detailsBtn(t){ KID_TASKS[t.id]=t; return detailLines(t).length?'<div><button type="button" class="det-btn" data-a="showDetails" data-id="'+t.id+'">📋 Voir les détails</button></div>':''; }
+function chkKey(t){ return 'mf_chk_'+S.me.id+'_'+t.id+'_'+(t.recurring?todayStr():'sp'); }
+function chkGet(t){ try{ var a=JSON.parse(lsGet(chkKey(t))||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function chkCount(t){ var c=chkGet(t); return detailLines(t).filter(function(l){return c.indexOf(l)>-1}).length; }
+function allChecked(t){ return chkCount(t)===detailLines(t).length; }
+function chkClear(t){ try{ localStorage.removeItem(chkKey(t)); }catch(e){} }
+function checklistBlocked(taskId){
+  var t=KID_TASKS[taskId];
+  if(t&&detailLines(t).length&&!allChecked(t)){ ui.detailsTask=taskId; ui.detailsInvite=true; render(); return true; }
+  return false;
+}
+function detailsBtn(t,st){
+  KID_TASKS[t.id]=t; KID_ST[t.id]=st;
+  var n=detailLines(t).length; if(!n) return '';
+  var label=st==='todo'?('📋 Détails à cocher ('+chkCount(t)+'/'+n+')'):'📋 Voir les détails';
+  return '<div><button type="button" class="det-btn" data-a="showDetails" data-id="'+t.id+'">'+label+'</button></div>';
+}
 function detailsModalHtml(){
   var t=KID_TASKS[ui.detailsTask]; if(!t) return '';
-  var lines=detailLines(t);
-  return '<div class="modal-head"><h2>'+esc(t.title)+'</h2><button class="modal-x" data-a="closeDetails" aria-label="Fermer">✕</button></div>'+
-    '<p class="muted" style="font-weight:700;margin:2px 0 0">Pense à :</p>'+
-    '<ul class="det-list">'+lines.map(function(l){return '<li>'+esc(l)+'</li>';}).join('')+'</ul>'+
-    '<button class="btn go wide" data-a="closeDetails">Compris !</button>';
+  var lines=detailLines(t), done=chkGet(t), n=lines.length, k=chkCount(t), all=k===n, todo=KID_ST[t.id]==='todo';
+  var h='<div class="modal-head"><h2>'+esc(t.title)+'</h2><button class="modal-x" data-a="closeDetails" aria-label="Fermer">✕</button></div>';
+  if(todo){
+    if(all) h+='<div class="det-note ok">🎉 Tout est prêt ! Tu peux valider ta mission.</div>';
+    else if(ui.detailsInvite) h+='<div class="det-note warn">👀 Avant de valider, coche chaque élément de la liste !</div>';
+    else h+='<p class="muted" style="font-weight:700;margin:2px 0 0">Coche chaque élément pour pouvoir valider :</p>';
+    h+='<div class="bar" style="margin:10px 0 4px"><i style="width:'+Math.round(k/n*100)+'%"></i></div><div class="muted" style="font-size:13px;font-weight:800;text-align:right;margin-bottom:6px">'+k+' / '+n+'</div>';
+  } else h+='<p class="muted" style="font-weight:700;margin:2px 0 0">Pense à :</p>';
+  h+='<div class="det-list">'+lines.map(function(l,i){
+    var on=done.indexOf(l)>-1;
+    return todo?'<button type="button" class="chk-row'+(on?' on':'')+'" data-a="toggleCheck" data-i="'+i+'"><span class="chk-box">'+(on?'✓':'')+'</span><span>'+esc(l)+'</span></button>'
+               :'<div class="chk-row static"><span class="chk-box" style="border-style:dashed"></span><span>'+esc(l)+'</span></div>';
+  }).join('')+'</div>';
+  if(todo) h+=all?'<button class="btn go wide" data-a="validateFromDetails">✅ C’est fait !</button>':'<button class="btn wide" disabled>Coche tout pour valider</button>';
+  else h+='<button class="btn go wide" data-a="closeDetails">Compris !</button>';
+  return h;
 }
 function detailsToSave(){
   if(!ui.newHasDetails) return null;
@@ -1491,7 +1531,7 @@ function detailsToSave(){
 function detailsFormHtml(){
   return '<label class="lbl">Détails <span class="muted" style="font-weight:700">(facultatif)</span></label>'+
     '<button type="button" class="chip '+(ui.newHasDetails?'sel':'')+'" data-a="toggleDetails">📋 '+(ui.newHasDetails?'Détails activés':'Ajouter des détails pour l’enfant')+'</button>'+
-    (ui.newHasDetails?'<textarea class="inp" rows="4" data-field="ndetails" style="margin-top:8px" placeholder="Un détail par ligne, par exemple :&#10;chaussettes&#10;caleçon&#10;t-shirt">'+esc(ui.newDetails||'')+'</textarea><p class="muted" style="font-size:12px;margin:4px 0 0">L’enfant verra un bouton « Voir les détails » sur la mission.</p>':'');
+    (ui.newHasDetails?'<textarea class="inp" rows="4" data-field="ndetails" style="margin-top:8px" placeholder="Un détail par ligne, par exemple :&#10;chaussettes&#10;caleçon&#10;t-shirt">'+esc(ui.newDetails||'')+'</textarea><p class="muted" style="font-size:12px;margin:4px 0 0">L’enfant devra cocher chaque détail avant de pouvoir valider la mission.</p>':'');
 }
 function cancelReqBtn(id){
   return '<button class="btn ghost small" data-a="cancelRedemption" data-id="'+id+'">Annuler la demande</button>';
@@ -1555,6 +1595,7 @@ async function checkCelebration(){
     var me=S.me.id, kLast='mf_seen_'+me, kLvl='mf_lvl_'+me;
     var last=lsGet(kLast), lastLvl=parseInt(lsGet(kLvl)||'0',10);
     var lvl=levelFor(S.earned||S.stars);
+    if(lvl<lastLvl){ lsSet(kLvl,lvl); lastLvl=lvl; lsSet(kLast,new Date().toISOString()); last=lsGet(kLast); }
     if(!last){ lsSet(kLast,new Date().toISOString()); lsSet(kLvl,lvl); return; }
     var [rl,rr,rb,ra]=await Promise.all([
       client.from('task_logs').select('title,points,validated_at').eq('child_id',me).eq('status','validated').gt('validated_at',last).order('validated_at'),
@@ -1632,6 +1673,7 @@ function render(){
   var modal='';
   if(ui.newOpen) modal='<div class="modal-backdrop" data-a="closeForm"><div class="modal" data-a="noop">'+mform()+'</div></div>';
   else if(ui.rFormOpen) modal='<div class="modal-backdrop" data-a="closeRewardForm"><div class="modal" data-a="noop">'+rform()+'</div></div>';
+  else if(ui.missionHelp) modal='<div class="modal-backdrop" data-a="closeMissionHelp"><div class="modal" data-a="noop">'+missionHelpHtml()+'</div></div>';
   else if(ui.rewardHelp) modal='<div class="modal-backdrop" data-a="closeRewardHelp"><div class="modal" data-a="noop">'+rewardHelpHtml()+'</div></div>';
   else if(ui.validateModal) modal='<div class="modal-backdrop" data-a="closeValidateModal"><div class="modal" data-a="noop">'+validateModalContent(ui.validateModal)+'</div></div>';
   else if(ui.assignTarget) modal='<div class="modal-backdrop" data-a="closeAssign"><div class="modal" data-a="noop">'+assignForm()+'</div></div>';
@@ -1644,6 +1686,8 @@ function render(){
   if(ui.celebrate && ui.view==='child') modal=celebrateHtml(ui.celebrate);
   var app=document.getElementById('app');
   var hadModal=!!app.querySelector('.modal-backdrop');
+  var _pm=app.querySelector('.modal'), _ps=_pm?_pm.scrollTop:0;
+  var _pg=[].slice.call(app.querySelectorAll('.ico-grid')).map(function(g){return g.scrollTop});
   if(modal && !hadModal) modal=modal.replace('class="modal-backdrop','class="modal-backdrop enter');
   var viewKey=[ui.view,ui.ptab,ui.tab,ui.fview,ui.mview,ui.detailChild].join('|');
   var changed=viewKey!==render._k; render._k=viewKey;
@@ -1651,6 +1695,10 @@ function render(){
   app.innerHTML = h+nav+modal;
   if(changed && !ui.celebrate){ app.classList.add('anim-in'); clearTimeout(render._t); render._t=setTimeout(function(){app.classList.remove('anim-in')},400); }
   if(ui.celebrate && ui.view==='child') runCountUps();
+  if(hadModal){
+    var _nm=app.querySelector('.modal'); if(_nm&&_ps) _nm.scrollTop=_ps;
+    [].slice.call(app.querySelectorAll('.ico-grid')).forEach(function(g,i){ if(_pg[i]) g.scrollTop=_pg[i]; });
+  }
   if(_tour) tourPlace();
   tourCheck();
 }
@@ -1665,12 +1713,13 @@ var TOURS={
   ],
   parent_missions:[
     {sel:'.seg',title:'Routines et missions spéciales',text:'Les routines reviennent tous les jours ou certains jours. Les missions spéciales sont des coups de main ponctuels, à faire une fois.'},
+    {sel:'[data-a="openMissionHelp"]',title:'Conseils',text:'Touche 💡 pour savoir comment dimensionner tes routines et tes missions spéciales.'},
     {sel:'.vhead .btn',title:'Créer une mission',text:'Choisis un titre, une image et le nombre d’étoiles. Une image est proposée automatiquement d’après le titre.'},
     {sel:'.mcard',title:'Une mission',text:'Appui long pour l’assigner, la modifier ou la supprimer. Les avatars à droite montrent qui doit la faire.'}
   ],
   parent_shop:[
     {sel:'[data-a="openRewardForm"]',title:'Ajouter un cadeau',text:'Jusqu’à 6 cadeaux. Tu fixes librement le coût en étoiles.'},
-    {sel:'[data-a="openRewardHelp"]',title:'Aide et conseils',text:'Les étoiles que chaque enfant gagne par jour et par semaine, pour fixer des coûts réalistes.'},
+    {sel:'[data-a="openRewardHelp"]',title:'Aide et conseils',text:'Touche 💡 à côté du titre : les étoiles que chaque enfant gagne par jour et par semaine, pour fixer des coûts réalistes.'},
     {sel:'.mcard',title:'Un cadeau',text:'Appui long pour le modifier ou le supprimer. Les demandes des enfants arrivent via le 🎁 de l’accueil.'}
   ],
   parent_family:[
@@ -1986,7 +2035,7 @@ var A={
   mview:function(d){ ui.mview=d.v; ui.newOpen=false; ui.editId=null; ui.formErr=null; render(); },
   setMFilter:function(d){ ui.mfilter=d.v; render(); },
   setMFilterChild:function(d){ ui.mFilterChild=d.v; render(); },
-  openNew:function(){ ui.newOpen=true; ui.editId=null; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='5'; ui.newSTitle=''; ui.newSPoints='10'; ui.newIcon=null; ui.newIconManual=false; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank'; ui.newHasDetails=false; ui.newDetails=''; render(); },
+  openNew:function(){ ui.newOpen=true; ui.editId=null; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='1'; ui.newSTitle=''; ui.newSPoints='5'; ui.newIcon=null; ui.newIconManual=false; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank'; ui.newHasDetails=false; ui.newDetails=''; render(); },
   closeForm:function(){ ui.newOpen=false; ui.editId=null; ui.iconPicker=false; render(); },
   editTask:function(d){
     var t=S.tasks.filter(function(x){return x.id===d.id})[0];
@@ -2041,7 +2090,7 @@ var A={
 
   createRecurring:async function(){
     var title=(ui.newTitle||'').trim();
-    var points=parseInt(ui.newPoints,10)||5;
+    var points=parseInt(ui.newPoints,10)||1;
     if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
     if(ui.newFreq==='weekly' && !ui.newDays.length){ ui.formErr='Choisissez au moins un jour de la semaine.'; render(); return; }
     var fields={title:title, points:points, icon:ui.newIcon||null, details:detailsToSave(), assign_all:ui.newAssignAll, freq:ui.newFreq, days:ui.newFreq==='weekly'?ui.newDays:null, slot:ui.newSlot};
@@ -2066,7 +2115,7 @@ var A={
   },
   createSpecial:async function(){
     var title=(ui.newSTitle||'').trim();
-    var points=parseInt(ui.newSPoints,10)||10;
+    var points=parseInt(ui.newSPoints,10)||5;
     if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
     var fields={title:title, points:points, icon:ui.newIcon||null, details:detailsToSave()};
     if(ui.editId){
@@ -2133,14 +2182,17 @@ var A={
   menuDelete:async function(d){ ui.taskMenu=null; render(); await A.delTask({id:d.id}); },
 
   doTask:async function(d){
+    if(checklistBlocked(d.id)) return;
     var {error}=await client.from('task_logs').insert({
       family_id:S.profile.family_id, task_id:d.id, child_id:S.me.id, title:d.title, points:+d.points, status:'pending', date:todayStr()
     });
     if(error){ showAlert('❌ '+error.message); return; }
+    if(KID_TASKS[d.id]) chkClear(KID_TASKS[d.id]);
     toast('⏳ Envoyé à tes parents pour validation');
     await refreshChildScreen();
   },
   doSpecial:async function(d){
+    if(checklistBlocked(d.id)) return;
     var cm=await askPrompt({icon:'✨',title:'Mission terminée ?',label:'Un petit mot pour tes parents ? (facultatif)',placeholder:'Écris ici…',multiline:true,okLabel:'Envoyer'});
     if(cm===null) return;
     var comment=cm.trim()||null;
@@ -2148,6 +2200,7 @@ var A={
       family_id:S.profile.family_id, task_id:d.id, child_id:S.me.id, title:d.title, points:+d.points, status:'pending', date:todayStr(), comment:comment
     });
     if(error){ showAlert('❌ '+error.message); return; }
+    if(KID_TASKS[d.id]) chkClear(KID_TASKS[d.id]);
     toast('⏳ Envoyé à tes parents pour validation');
     await refreshChildScreen();
   },
@@ -2254,8 +2307,22 @@ var A={
   /* récompenses (parent) */
   openRewardForm:function(){ if(S.rewards.length>=6) return; ui.rFormOpen=true; ui.editRewardId=null; ui.rTitle=''; ui.rEmoji=''; ui.rCost='10'; ui.rCooldown=0; ui.formErr=null; render(); },
   toggleDetails:function(){ ui.newHasDetails=!ui.newHasDetails; render(); },
-  showDetails:function(d){ ui.detailsTask=d.id; render(); },
-  closeDetails:function(){ ui.detailsTask=null; render(); },
+  showDetails:function(d){ ui.detailsTask=d.id; ui.detailsInvite=false; render(); },
+  closeDetails:function(){ ui.detailsTask=null; ui.detailsInvite=false; render(); },
+  toggleCheck:function(d){
+    var t=KID_TASKS[ui.detailsTask]; if(!t) return;
+    var line=detailLines(t)[parseInt(d.i,10)]; if(line==null) return;
+    var c=chkGet(t), i=c.indexOf(line);
+    if(i>-1) c.splice(i,1); else c.push(line);
+    lsSet(chkKey(t),JSON.stringify(c));
+    render();
+  },
+  validateFromDetails:async function(){
+    var t=KID_TASKS[ui.detailsTask]; if(!t) return;
+    ui.detailsTask=null; ui.detailsInvite=false; render();
+    var d={id:t.id,title:t.title,points:t.points};
+    if(t.recurring) await A.doTask(d); else await A.doSpecial(d);
+  },
   openAvatarMenu:function(){ ui.avatarMenu=true; ui.avatarPick=myAvatar(); render(); },
   closeAvatarMenu:function(){ ui.avatarMenu=false; ui.avatarPick=null; render(); },
   pickAvatar:function(d){
@@ -2272,6 +2339,8 @@ var A={
     toast('✨ Nouvel avatar enregistré !');
     render();
   },
+  openMissionHelp:function(){ ui.missionHelp=true; render(); },
+  closeMissionHelp:function(){ ui.missionHelp=false; render(); },
   openRewardHelp:function(){ ui.rewardHelp=true; render(); },
   closeRewardHelp:function(){ ui.rewardHelp=false; render(); },
   closeRewardForm:function(){ ui.rFormOpen=false; ui.editRewardId=null; render(); },
@@ -2307,6 +2376,17 @@ var A={
   openChildMenu:function(d){ ui.childMenu=d.id; render(); },
   closeChildMenu:function(){ ui.childMenu=null; render(); },
   menuRenameChild:function(d){ ui.childMenu=null; A.renameChild({id:d.id}); },
+  menuResetChild:function(d){ ui.childMenu=null; A.resetChild({id:d.id, name:d.name}); },
+  resetChild:async function(d){
+    var name=d.name||'cet enfant';
+    if(!(await askConfirm({icon:'🚨',title:'Réinitialiser '+name+' ?',message:'Vont être effacés DÉFINITIVEMENT :\n• toutes ses étoiles et son niveau\n• tous ses badges\n• tout son historique de missions et de cadeaux\n\nCette action est IRRÉVERSIBLE.',okLabel:'Je comprends, continuer',danger:true}))) return;
+    var typed=await askPrompt({icon:'⛔',title:'Dernière confirmation',message:'Tout ce que '+name+' a accumulé sera perdu pour toujours. Il n’y a aucun moyen d’annuler.',label:'Pour confirmer, écris son prénom : '+name,placeholder:name,okLabel:'Tout effacer',danger:true,validate:function(v){return v.trim().toLowerCase()===name.trim().toLowerCase()?null:'Le prénom ne correspond pas.';}});
+    if(typed===null) return;
+    var {error}=await client.rpc('reset_child',{p_child:d.id});
+    if(error){ showAlert('❌ Réinitialisation impossible : '+error.message+'\n\nVérifie que la fonction SQL « reset_child » a bien été créée dans Supabase.'); return; }
+    toast('🔄 '+name+' repart de zéro');
+    await refreshParentScreen();
+  },
   menuDeleteChild:function(d){ ui.childMenu=null; A.deleteChild({id:d.id, name:d.name}); },
   openRewardMenu:function(d){ ui.rewardMenu=d.id; _rewardMenuOpenedAt=Date.now(); render(); },
   closeRewardMenu:function(){ if(Date.now()-_rewardMenuOpenedAt<400) return; ui.rewardMenu=null; render(); },
