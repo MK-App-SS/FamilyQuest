@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<script>try{var _t=localStorage.getItem('mf_theme');if(_t)document.documentElement.setAttribute('data-theme',_t);}catch(e){}</script>
+<meta name="theme-color" content="#fff9ef">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
@@ -17,17 +19,17 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#16121f;--card:#221c31;--ink:#f4f0fb;--muted:#a99fc2;
-    --pri:#8b7dff;--pri-d:#5f50e0;--pri-ink:#150f28;--pri-soft:#2f2751;
-    --acc:#ffc247;--ok:#3ed08e;--ok-soft:#173a2d;--bad:#ff6b70;
-    --warn-soft:#3c3216;--line:#352d47;--shadow:0 8px 24px rgba(0,0,0,.35);
+    --bg:#141a2e;--card:#1e2640;--ink:#f4f1ec;--muted:#a1a9c4;
+    --pri:#ff6b5e;--pri-d:#e8564a;--pri-ink:#ffffff;--pri-soft:#33283a;
+    --acc:#ffd166;--ok:#3ed08e;--ok-soft:#173a2f;--bad:#ff6b70;
+    --warn-soft:#3b3218;--line:#2e3858;--shadow:0 8px 24px rgba(0,0,0,.4);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#16121f;--card:#221c31;--ink:#f4f0fb;--muted:#a99fc2;
-  --pri:#8b7dff;--pri-d:#5f50e0;--pri-ink:#150f28;--pri-soft:#2f2751;
-  --acc:#ffc247;--ok:#3ed08e;--ok-soft:#173a2d;--bad:#ff6b70;
-  --warn-soft:#3c3216;--line:#352d47;--shadow:0 8px 24px rgba(0,0,0,.35);
+  --bg:#141a2e;--card:#1e2640;--ink:#f4f1ec;--muted:#a1a9c4;
+  --pri:#ff6b5e;--pri-d:#e8564a;--pri-ink:#ffffff;--pri-soft:#33283a;
+  --acc:#ffd166;--ok:#3ed08e;--ok-soft:#173a2f;--bad:#ff6b70;
+  --warn-soft:#3b3218;--line:#2e3858;--shadow:0 8px 24px rgba(0,0,0,.4);
 }
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
 html{scroll-padding-top:env(safe-area-inset-top,0px);}
@@ -85,13 +87,36 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .chips{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0 14px}
 .stat{background:var(--warn-soft);border-radius:99px;padding:6px 14px;font-weight:800;font-size:15px}
 
+.switch{width:54px;height:32px;border-radius:99px;border:0;background:var(--line);position:relative;cursor:pointer;flex:none;transition:background .2s;padding:0}
+.switch::after{content:'';position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.3);transition:transform .2s}
+.switch.on{background:var(--pri)}
+.switch.on::after{transform:translateX(22px)}
+.theme-btn{font-size:20px;padding:6px 10px}
+.long-hint{font-size:12px;color:var(--muted);text-align:center;margin:0 0 10px;font-weight:700}
+/* animations parent (mises à jour) */
+.leaving{overflow:hidden;pointer-events:none;animation:cardOut .45s ease-in forwards}
+@keyframes cardOut{0%{max-height:var(--h);opacity:1}40%{opacity:.45;transform:scale(.97)}100%{max-height:0;opacity:0;margin:0;padding-top:0;padding-bottom:0;transform:scale(.9)}}
+.pop-new{animation:popNew .6s cubic-bezier(.2,1.4,.4,1) both,glowNew 1.6s ease-out}
+@keyframes popNew{0%{opacity:0;transform:scale(.85) translateY(14px)}100%{opacity:1;transform:none}}
+@keyframes glowNew{0%{box-shadow:0 0 0 0 rgba(31,174,107,.6)}30%{box-shadow:0 0 0 7px rgba(31,174,107,.3)}100%{box-shadow:var(--shadow)}}
+.flash-upd{animation:flashUpd 1.1s ease-out}
+@keyframes flashUpd{0%{background:var(--ok-soft);transform:scale(1.02)}100%{background:var(--card);transform:none}}
+.ghost-out{pointer-events:none;animation:ghostOut .22s ease-in forwards}
+.ghost-out .modal{animation:modalDown .22s ease-in forwards}
+@keyframes ghostOut{from{opacity:1}to{opacity:0}}
+@keyframes modalDown{from{transform:none;opacity:1}to{transform:translateY(34px);opacity:0}}
+.bar i{transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.num.bump{display:inline-block;animation:numBump .6s ease-out}
+@keyframes numBump{0%{transform:scale(1)}40%{transform:scale(1.35);color:var(--ok)}100%{transform:scale(1)}}
+.anim-in>*:nth-child(2){animation-delay:0.04s}.anim-in>*:nth-child(3){animation-delay:0.08s}.anim-in>*:nth-child(4){animation-delay:0.12s}.anim-in>*:nth-child(5){animation-delay:0.16s}.anim-in>*:nth-child(6){animation-delay:0.20s}.anim-in>*:nth-child(7){animation-delay:0.24s}.anim-in>*:nth-child(8){animation-delay:0.28s}.anim-in>*:nth-child(9){animation-delay:0.32s}.anim-in>*:nth-child(10){animation-delay:0.36s}
+@media(prefers-reduced-motion:reduce){.pop-new,.flash-upd,.leaving,.ghost-out,.ghost-out .modal,.num.bump{animation:none}.bar i{transition:none}}
 /* animations parent */
 .task.row-out,.task.row-out-no{overflow:hidden;pointer-events:none}
 .task.row-out{animation:rowOk .7s ease-in forwards}
 .task.row-out-no{animation:rowNo .6s ease-in forwards}
 .task.row-out .ib.ok{animation:celBounce .5s ease-out}
 @keyframes rowOk{0%{max-height:var(--h);background:var(--ok-soft)}25%{max-height:var(--h);background:var(--ok-soft);border-color:var(--ok);transform:scale(1.03)}60%{max-height:var(--h);opacity:1;transform:translateX(0)}100%{max-height:0;opacity:0;transform:translateX(70px);margin:0;padding-top:0;padding-bottom:0;border-width:0}}
-@keyframes rowNo{0%{max-height:var(--h);background:#eee9e2}40%{max-height:var(--h);opacity:.8}100%{max-height:0;opacity:0;transform:translateX(-60px);margin:0;padding-top:0;padding-bottom:0;border-width:0}}
+@keyframes rowNo{0%{max-height:var(--h);background:var(--line)}40%{max-height:var(--h);opacity:.8}100%{max-height:0;opacity:0;transform:translateX(-60px);margin:0;padding-top:0;padding-bottom:0;border-width:0}}
 .float-star{position:fixed;z-index:95;font-weight:900;font-size:20px;color:#1F9D63;pointer-events:none;text-shadow:0 1px 0 #fff;animation:floatUp 1.1s ease-out forwards}
 @keyframes floatUp{0%{opacity:0;transform:translateY(0) scale(.6)}20%{opacity:1;transform:translateY(-10px) scale(1.2)}100%{opacity:0;transform:translateY(-64px) scale(1)}}
 .spark{position:fixed;z-index:95;font-size:16px;pointer-events:none;animation:sparkOut .8s ease-out forwards}
@@ -180,7 +205,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .ico-prev{width:72px;height:72px;flex:none;border-radius:20px;background:var(--pri-soft);display:grid;place-items:center;overflow:hidden}
 .ico-sugg{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
 .ico-th{width:48px;height:48px;border-radius:14px;border:2px solid transparent;background:var(--pri-soft);padding:0;display:grid;place-items:center;cursor:pointer;overflow:hidden}
-.ico-th.sel{border-color:var(--pri);background:#fff}
+.ico-th.sel{border-color:var(--pri);background:var(--card)}
 .ico-pk{margin-top:10px;background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:10px}
 .ico-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;margin-top:10px;max-height:220px;overflow-y:auto}
 .ico-grid .ico-th{width:100%;height:52px}
@@ -197,7 +222,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .cel-row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cel-row .sub{display:block;font-weight:700;font-size:12px;color:var(--muted);margin-top:2px;white-space:normal}
 .cel-row .p{flex:none;color:#1F9D63;white-space:nowrap}
-.cel-row.soft{background:#F3F1EC;font-weight:700}
+.cel-row.soft{background:var(--line);font-weight:700}
 .cel-total{margin:14px 0 4px;font-family:'Baloo 2','Nunito',sans-serif;font-weight:800;font-size:34px;animation:celPulse 1.3s ease-in-out infinite}
 .cel .btn{margin-top:12px}
 .cel-conf{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -322,7 +347,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .mcard-title{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mcard-sub{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mcard-avatars{display:flex;flex:none;margin-left:4px}
-.mcard-avatars span{font-size:24px;margin-left:-9px;background:var(--card);border-radius:50%;box-shadow:0 0 0 2px #000}
+.mcard-avatars span{font-size:24px;margin-left:-9px;background:var(--card);border-radius:50%;box-shadow:0 0 0 2px var(--ink)}
 
 .fseg{display:flex;gap:2px;overflow-x:auto;margin-bottom:10px}
 .fseg::-webkit-scrollbar{display:none}
@@ -881,6 +906,13 @@ function navHtml(items,cur,act){
 function parentNav(){ return navHtml([['today','🏠','Accueil',pendingCount()],['missions','📋','Missions'],['shop','🎁','Cadeaux',S.redemptions.length],['family','⚙️','Préférences']],ui.ptab,'ptab'); }
 function childNav(){ return navHtml([['missions','🎯','Missions'],['shop','🛍️','Boutique'],['trophies','🏆','Trophées']],ui.tab,'tab'); }
 
+function collapseEl(el){
+  return new Promise(function(res){
+    if(!el||(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)){ setTimeout(res,0); return; }
+    el.style.setProperty('--h',el.getBoundingClientRect().height+'px');
+    el.classList.add('leaving'); setTimeout(res,460);
+  });
+}
 function animateRow(row,pts,delay,kind,label){
   return new Promise(function(res){
     if(!row||(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)){ setTimeout(res,0); return; }
@@ -973,7 +1005,7 @@ function pToday(){
     var notifs=(pend?'<span class="ntf" data-a="openValidateModal" data-id="'+c.id+'" title="'+pend+' mission(s) à valider">🔔<span class="dot">'+pend+'</span></span>':'')+
       (pendGifts?'<span class="ntf" data-a="openValidateModal" data-id="'+c.id+'" title="'+pendGifts+' demande(s) de cadeau">🎁<span class="dot">'+pendGifts+'</span></span>':'');
     var head='<div class="kid" data-a="openChildDetail" data-id="'+c.id+'"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+' '+notifs+'</span>'+
-      '<span class="t-meta">Niv. '+c.level+' · ⭐ '+c.stars+' · 🔥 '+c.streak+'</span></span>'+
+      '<span class="t-meta">Niv. '+c.level+' · ⭐ <span class="num" data-n="'+c.stars+'">'+c.stars+'</span> · 🔥 '+c.streak+'</span></span>'+
       '<span class="pill">'+st.done+' / '+st.total+' faites</span><span class="chev">›</span></div>';
     var bar='<div class="bar" style="margin-top:10px"><i style="width:'+(st.total?Math.round(st.done/st.total*100):0)+'%"></i></div>';
     var dayDefs=BADGE_DEFS.filter(function(b){return b.scope==='day'});
@@ -1060,7 +1092,7 @@ function pMissions(){
   if(daily && ui.mfilter!=='all') list=list.filter(function(t){return (t.freq||'daily')===ui.mfilter});
   if(ui.mFilterChild) list=list.filter(function(t){return appliesToList(t,ui.mFilterChild)});
   if(!list.length) h+='<div class="empty"><div class="big">'+(daily?'📅':'✨')+'</div><p>'+(daily?'Aucune mission de routine.':'Aucune mission spéciale.')+'</p></div>';
-  else h+=list.map(function(t){ return missionCard(t, daily); }).join('');
+  else h+='<p class="long-hint">👆 Appui long sur une mission pour l’assigner, la modifier ou la supprimer</p>'+list.map(function(t){ return missionCard(t, daily); }).join('');
   if(!daily){
     var hist=(S.specialHistory||[]).filter(function(l){return !ui.mFilterChild||l.child_id===ui.mFilterChild});
     h+='<div class="sec"><h3>Historique</h3></div><p class="vhint">Missions spéciales déjà validées (l’assignation est retirée à la validation). Pour la refaire, réassignez-la (appui long).</p>';
@@ -1122,6 +1154,7 @@ function pFamily(){
     }).join('');
     h+='<div class="sec"><h3>Réglages</h3></div><div style="display:flex;flex-direction:column;gap:10px">'+
       '<button class="btn ghost" data-a="changePassword">🔑 Changer mon mot de passe</button></div>';
+    h+='<div class="sec"><h3>Apparence</h3></div><div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px"><span style="font-size:26px">🌙</span><div style="flex:1;min-width:0"><div style="font-weight:800">Mode sombre</div><div class="muted" style="font-size:13px">Plus reposant le soir.</div></div><button class="switch'+(isDarkTheme()?' on':'')+'" data-a="toggleTheme" role="switch" aria-checked="'+(isDarkTheme()?'true':'false')+'" aria-label="Mode sombre"></button></div>';
     h+='<div class="sec"><h3>Aide</h3></div><div class="card" id="help-card" style="padding:12px 14px"><div style="font-weight:800">🎓 Tutoriel</div><p class="muted" style="font-size:13px;margin:4px 0 10px">Revois les explications de chaque page, pas à pas.</p><button class="btn ghost wide" data-a="restartTour">Revoir le tutoriel</button></div>';
   } else if(ui.fview==='pauses'){
     var pastReasons=[];
@@ -1269,7 +1302,7 @@ function pShop(){
   if(full) h+='<p class="muted" style="margin:8px 0 0;font-size:13px;font-weight:700;text-align:center">Maximum de cadeaux atteint (6).</p>';
   h+='<div class="sec"><h3>Vos cadeaux</h3></div>';
   if(!S.rewards.length) return h+'<div class="empty"><div class="big">🎁</div><p>Aucun cadeau créé pour l’instant.</p></div>';
-  h+=S.rewards.map(rewardCard).join('');
+  h+='<p class="long-hint">👆 Appui long sur un cadeau pour le modifier ou le supprimer</p>'+S.rewards.map(rewardCard).join('');
   return h;
 }
 function missionHelpHtml(){
@@ -1317,8 +1350,8 @@ function viewChildDetail(){
   }).join('')+'</div>';
 
   var tiles=[
-    ['⭐',c.stars,'solde actuel'],
-    ['🌟',d.earned,'étoiles gagnées'],
+    ['⭐','<span class="num" data-n="'+c.stars+'">'+c.stars+'</span>','solde actuel'],
+    ['🌟','<span class="num" data-n="'+d.earned+'">'+d.earned+'</span>','étoiles gagnées'],
     ['📊',(d.successRate!=null?d.successRate+'%':'–'),'taux de réussite'],
     ['🔥',c.streak,'série en cours'],
     ['🥇',d.longest,'meilleure série'],
@@ -1533,6 +1566,12 @@ function detailsFormHtml(){
     '<button type="button" class="chip '+(ui.newHasDetails?'sel':'')+'" data-a="toggleDetails">📋 '+(ui.newHasDetails?'Détails activés':'Ajouter des détails pour l’enfant')+'</button>'+
     (ui.newHasDetails?'<textarea class="inp" rows="4" data-field="ndetails" style="margin-top:8px" placeholder="Un détail par ligne, par exemple :&#10;chaussettes&#10;caleçon&#10;t-shirt">'+esc(ui.newDetails||'')+'</textarea><p class="muted" style="font-size:12px;margin:4px 0 0">L’enfant devra cocher chaque détail avant de pouvoir valider la mission.</p>':'');
 }
+function isDarkTheme(){
+  var t=document.documentElement.getAttribute('data-theme');
+  if(t==='dark') return true; if(t==='light') return false;
+  return !!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+function applyThemeMeta(){ var m=document.querySelector('meta[name="theme-color"]'); if(m) m.setAttribute('content',isDarkTheme()?'#141a2e':'#fff9ef'); }
 function cancelReqBtn(id){
   return '<button class="btn ghost small" data-a="cancelRedemption" data-id="'+id+'">Annuler la demande</button>';
 }
@@ -1576,7 +1615,7 @@ function viewChild(){
   var lvl=levelFor(S.earned||S.stars), base=(lvl-1)*50, prog=Math.max(0,(S.earned||S.stars)-base), pct=Math.min(100,Math.round(prog/50*100));
   var streak=S.myStreak||0;
   var got=currentBadgeIds();
-  return '<header class="top"><button class="ghost-link" data-a="replayTour">💡 Aide</button><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+
+  return '<header class="top"><button class="ghost-link" data-a="replayTour">💡 Aide</button><span style="display:flex;align-items:center;gap:4px"><button class="ghost-link theme-btn" data-a="toggleTheme" aria-label="'+(isDarkTheme()?'Passer en mode clair':'Passer en mode sombre')+'">'+(isDarkTheme()?'☀️':'🌙')+'</button><button class="ghost-link" data-a="logout">Déconnexion</button></span></header>'+
     '<section class="hero"><div class="hero-av">'+myAvatar()+'<button class="av-gear" data-a="openAvatarMenu" aria-label="Personnaliser mon profil">⚙️</button></div><div class="hero-main">'+
     '<div class="hero-name">Salut '+esc(S.profile.display_name)+' !</div>'+
     '<div class="hero-lvl">Niveau '+lvl+' · '+levelTitle(lvl)+'</div>'+
@@ -1687,14 +1726,40 @@ function render(){
   var app=document.getElementById('app');
   var hadModal=!!app.querySelector('.modal-backdrop');
   var _pm=app.querySelector('.modal'), _ps=_pm?_pm.scrollTop:0;
+  var _oldBack=app.querySelector('.modal-backdrop');
+  var _cardKey=function(el){ return el.getAttribute('data-longpress')?'t'+el.getAttribute('data-longpress'):el.getAttribute('data-longpress-reward')?'r'+el.getAttribute('data-longpress-reward'):(el.classList.contains('kid')?'k'+el.getAttribute('data-id'):null); };
+  var _prevCards={}; [].slice.call(app.querySelectorAll('.mcard,.kid')).forEach(function(el){ var k=_cardKey(el); if(k) _prevCards[k]=el.innerHTML; });
+  var _prevBars=[].slice.call(app.querySelectorAll('.bar i')).map(function(el){return el.style.width});
+  var _prevNums=[].slice.call(app.querySelectorAll('.num[data-n]')).map(function(el){return parseInt(el.getAttribute('data-n'),10)});
   var _pg=[].slice.call(app.querySelectorAll('.ico-grid')).map(function(g){return g.scrollTop});
   if(modal && !hadModal) modal=modal.replace('class="modal-backdrop','class="modal-backdrop enter');
   var viewKey=[ui.view,ui.ptab,ui.tab,ui.fview,ui.mview,ui.detailChild].join('|');
   var changed=viewKey!==render._k; render._k=viewKey;
+  if(_oldBack && !modal && !ui.celebrate){
+    var _g=_oldBack.cloneNode(true); _g.classList.add('ghost-out'); _g.classList.remove('enter');
+    [].slice.call(_g.querySelectorAll('[data-a]')).forEach(function(n){n.removeAttribute('data-a')}); _g.removeAttribute('data-a');
+    document.body.appendChild(_g); setTimeout(function(){_g.remove()},260);
+  }
   app.className = nav ? '' : 'nonav';
   app.innerHTML = h+nav+modal;
   if(changed && !ui.celebrate){ app.classList.add('anim-in'); clearTimeout(render._t); render._t=setTimeout(function(){app.classList.remove('anim-in')},400); }
   if(ui.celebrate && ui.view==='child') runCountUps();
+  if(!changed){
+    [].slice.call(app.querySelectorAll('.mcard,.kid')).forEach(function(el){
+      var k=_cardKey(el); if(!k) return;
+      if(!(k in _prevCards)){ el.classList.add('pop-new'); }
+      else if(_prevCards[k]!==el.innerHTML){ el.classList.add('flash-upd'); }
+    });
+    var _bars=[].slice.call(app.querySelectorAll('.bar i'));
+    if(_bars.length===_prevBars.length) _bars.forEach(function(el,i){ var nw=el.style.width; if(_prevBars[i]!==nw){ el.style.width=_prevBars[i]; void el.offsetWidth; el.style.width=nw; } });
+    var _nums=[].slice.call(app.querySelectorAll('.num[data-n]'));
+    if(_nums.length===_prevNums.length) _nums.forEach(function(el,i){
+      var to=parseInt(el.getAttribute('data-n'),10), from=_prevNums[i];
+      if(isNaN(to)||isNaN(from)||to===from) return;
+      el.classList.add('bump'); var t0=null;
+      (function step(ts){ if(t0===null) t0=ts; var k=Math.min(1,(ts-t0)/700); el.textContent=Math.round(from+(to-from)*k); if(k<1&&document.body.contains(el)) requestAnimationFrame(step); else el.textContent=to; })(performance.now());
+    });
+  }
   if(hadModal){
     var _nm=app.querySelector('.modal'); if(_nm&&_ps) _nm.scrollTop=_ps;
     [].slice.call(app.querySelectorAll('.ico-grid')).forEach(function(g,i){ if(_pg[i]) g.scrollTop=_pg[i]; });
@@ -1943,6 +2008,10 @@ var A={
     }
   },
   logout:async function(){ await client.auth.signOut(); location.reload(); },
+  toggleTheme:function(){
+    var next=isDarkTheme()?'light':'dark';
+    document.documentElement.setAttribute('data-theme',next); lsSet('mf_theme',next); applyThemeMeta(); render();
+  },
   restartTour:function(){
     tourReset(tourRolePages('parent_x'));
     ui.ptab='today'; ui.view='parent'; ui.expandChild=null; render();
@@ -2171,8 +2240,10 @@ var A={
   },
   delTask:async function(d){
     if(!(await askConfirm({icon:'🗑️',title:'Supprimer cette mission ?',message:'Cette action est irréversible.',okLabel:'Supprimer',danger:true}))) return;
+    var anim=collapseEl(document.querySelector('[data-longpress="'+d.id+'"]'));
     var {error}=await client.from('tasks').delete().eq('id',d.id);
-    if(error){ showAlert('❌ '+error.message); return; }
+    if(error){ var _c=document.querySelector('[data-longpress="'+d.id+'"]'); if(_c) _c.classList.remove('leaving'); showAlert('❌ '+error.message); return; }
+    await anim;
     await loadParentData(); render();
   },
   openTaskMenu:function(d){ ui.taskMenu=d.id; _taskMenuOpenedAt=Date.now(); render(); },
@@ -2297,10 +2368,12 @@ var A={
     ui.adjPoints=''; ui.adjReason=''; toast('✅ Ajustement enregistré');
     await refreshParentScreen();
   },
-  deleteAdjustment:async function(d){
+  deleteAdjustment:async function(d,el){
     if(!(await askConfirm({icon:'🗑️',title:'Supprimer cet ajustement ?',message:'Le solde de l’enfant sera recalculé.',okLabel:'Supprimer',danger:true}))) return;
+    var anim=collapseEl(el&&el.closest?el.closest('.task,.card'):null);
     await client.from('adjustments').delete().eq('id',d.id);
     await recalcBalance(d.cid);
+    await anim;
     await refreshParentScreen();
   },
 
@@ -2370,7 +2443,9 @@ var A={
   },
   deleteReward:async function(d){
     if(!(await askConfirm({icon:'🗑️',title:'Supprimer cette récompense ?',message:'Cette action est irréversible.',okLabel:'Supprimer',danger:true}))) return;
+    var anim=collapseEl(document.querySelector('[data-longpress-reward="'+d.id+'"]'));
     await client.from('rewards').delete().eq('id',d.id);
+    await anim;
     await loadParentData(); render();
   },
   openChildMenu:function(d){ ui.childMenu=d.id; render(); },
@@ -2490,6 +2565,7 @@ document.addEventListener('keydown',function(e){
   else if(ui.view==='kidlogin') A.doChildPair();
 });
 
+applyThemeMeta();
 boot();
 })();
 </script>
