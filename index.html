@@ -106,6 +106,16 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .kid:active,.mcard:active{transform:scale(.985)}
 .chip:active,.ntf:active{transform:scale(.94)}
 @media(prefers-reduced-motion:reduce){.task.row-out,.task.row-out-no,.modal-backdrop.enter,.modal-backdrop.enter .modal,.anim-in>*{animation:none}.float-star,.spark{display:none}}
+/* avatar enfant */
+.hero-av{position:relative}
+.av-gear{position:absolute;right:-4px;bottom:-4px;width:30px;height:30px;border-radius:50%;background:var(--card);border:2px solid var(--line);font-size:15px;line-height:1;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.18);padding:0}
+.av-gear:active{transform:scale(.9)}
+.av-prev{width:96px;height:96px;border-radius:50%;background:var(--pri-soft);display:grid;place-items:center;font-size:56px;margin:6px auto 4px}
+.av-cat{font-family:'Baloo 2','Nunito',sans-serif;font-weight:800;font-size:15px;color:var(--muted);margin:14px 0 6px}
+.av-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:8px}
+.av-opt{aspect-ratio:1;border-radius:18px;background:var(--pri-soft);border:3px solid transparent;font-size:32px;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;transition:transform .12s ease}
+.av-opt:active{transform:scale(.92)}
+.av-opt.sel{border-color:var(--pri);background:var(--card);transform:scale(1.06)}
 /* tutoriel guidé */
 #tour{position:fixed;inset:0;z-index:110}
 .tour-dim{position:absolute;inset:0;background:rgba(23,35,60,.74);animation:celFade .2s ease-out}
@@ -324,6 +334,28 @@ var FN_URL='https://fpkuhwqsmnxhfbacksqa.supabase.co/functions/v1/rapid-processo
 var client=supabase.createClient(SUPA_URL,SUPA_KEY);
 
 var AV=['🦊','🐼','🦁','🐸','🦄','🐯','🐵','🐙','🚀','🦖','🐱','🐶'];
+var AVATAR_GROUPS=[
+  ['🐾 Animaux',['🦊','🐼','🦁','🐸','🐯','🐵','🐱','🐶','🐰','🐻','🐨','🐮','🐷','🐭','🐹','🐺','🦝','🐴','🦓','🦒','🐘','🦏','🦔','🐿️','🦦','🦥']],
+  ['🌊 Mer et ciel',['🐧','🐦','🦉','🦅','🦆','🦜','🦩','🐬','🐳','🦈','🐙','🦀','🐠','🦋','🐝','🐞']],
+  ['🐉 Fantastique',['🦄','🐉','🦖','🦕','🐢','🐍','🦎','🐊','👽','🤖','👾','👻','🎃','☃️']],
+  ['🚀 Espace et aventure',['🚀','🛸','🌟','🪐','🌈','🌙','☀️','🔥','⚡','🏝️','🏰','⛵']],
+  ['⚽ Sport et jeux',['⚽','🏀','🏈','🎾','🏐','🏓','🎮','🎨','🎸','🎹','🥁','🎯','🏆','🛹','🚲','🏄']],
+  ['🍕 Gourmand',['🍕','🍔','🍟','🍩','🍪','🍦','🍓','🍉','🍎','🍌','🥑','🍿']],
+  ['🌻 Nature',['🌵','🌻','🌸','🍀','🍄','🌳']]
+];
+function myAvatar(){ return (S.profile&&S.profile.avatar)||avatarFor(S.me.id); }
+function avatarModalHtml(){
+  var cur=ui.avatarPick||myAvatar();
+  var h='<div class="modal-head"><h2>Mon profil</h2><button class="modal-x" data-a="closeAvatarMenu" aria-label="Fermer">✕</button></div>';
+  h+='<div class="av-prev" id="av-prev">'+cur+'</div><p class="muted" style="text-align:center;margin:0 0 4px;font-weight:700">Choisis ton avatar !</p>';
+  h+=AVATAR_GROUPS.map(function(g){
+    return '<div class="av-cat">'+g[0]+'</div><div class="av-grid">'+g[1].map(function(a){
+      return '<button type="button" class="av-opt'+(a===cur?' sel':'')+'" data-a="pickAvatar" data-v="'+a+'">'+a+'</button>';
+    }).join('')+'</div>';
+  }).join('');
+  h+='<div class="dlg-btns" style="position:sticky;bottom:-18px;background:var(--card);padding:12px 0 4px;margin-top:14px"><button class="btn ghost" data-a="closeAvatarMenu">Annuler</button><button class="btn go" data-a="saveAvatar">Enregistrer</button></div>';
+  return h;
+}
 function avatarFor(id){ var h=0; for(var i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))>>>0; return AV[h%AV.length]; }
 
 var DAY_LABEL={0:'dim.',1:'lun.',2:'mar.',3:'mer.',4:'jeu.',5:'ven.',6:'sam.'};
@@ -535,13 +567,13 @@ function levelTitle(l){ return LEVEL_TITLES[Math.min(l,LEVEL_TITLES.length)-1]; 
 function levelFor(stars){ return Math.max(1, Math.floor(stars/50)+1); }
 
 async function loadChildren(){
-  var {data}=await client.from('profiles').select('id, display_name, star_balance, total_earned').eq('family_id',S.profile.family_id).eq('role','child');
+  var {data}=await client.from('profiles').select('id, display_name, star_balance, total_earned, avatar').eq('family_id',S.profile.family_id).eq('role','child');
   S.children=data||[];
   var {data:pars}=await client.from('profiles').select('id, display_name').eq('family_id',S.profile.family_id).eq('role','parent').order('display_name');
   S.parents=pars||[];
   for(var i=0;i<S.children.length;i++){
     var c=S.children[i];
-    c.avatar=avatarFor(c.id);
+    c.avatar=c.avatar||avatarFor(c.id);
     c.stars=c.star_balance||0;
     c.earned=Math.max(c.total_earned||0,c.stars);
     c.level=levelFor(c.earned);
@@ -706,7 +738,8 @@ async function loadChildDetail(childId){
 
 async function refreshParentScreen(){ await loadChildren(); await loadParentData(); if(ui.view==='childDetail'&&ui.detailChild) await loadChildDetail(ui.detailChild); render(); }
 async function refreshChildScreen(){
-  var {data:profile}=await client.from('profiles').select('star_balance, total_earned').eq('id',S.me.id).single();
+  var {data:profile}=await client.from('profiles').select('star_balance, total_earned, avatar').eq('id',S.me.id).single();
+  if(profile&&profile.avatar) S.profile.avatar=profile.avatar;
   S.stars=profile?profile.star_balance||0:S.stars;
   if(profile) S.earned=Math.max(profile.total_earned||0,S.stars);
   await loadChildData(); render();
@@ -1217,17 +1250,30 @@ function rewardStatsHtml(){
     var real=st.realDay==null?'Pas encore assez de missions validées':'En pratique : <b>≈ '+r(st.realDay)+' ⭐/jour</b> · <b>≈ '+r(st.realWeek)+' ⭐/semaine</b>';
     return '<div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)"><span style="font-size:28px;flex:none">'+c.avatar+'</span><div style="min-width:0"><div style="font-weight:800">'+esc(c.display_name)+'</div><div style="font-size:13px;margin-top:2px">'+pot+'</div><div class="muted" style="font-size:13px">'+real+'</div></div></div>';
   }).join('');
-  return '<div class="card" id="reward-stats" style="padding:12px 14px;margin-bottom:16px"><div style="font-weight:800;font-size:14px;margin-bottom:6px">📊 Pour t’aider à fixer les coûts</div>'+rows.replace('border-top:1px solid var(--line)','')+'<p class="muted" style="font-size:12px;margin:8px 0 0">Repère : une petite récompense ≈ 1 jour de gains, une grande ≈ 1 semaine. Moyenne réelle calculée sur les 4 dernières semaines.</p></div>';
+  return '<div class="card" style="padding:12px 14px;margin-bottom:16px"><div style="font-weight:800;font-size:14px;margin-bottom:6px">📊 Pour t’aider à fixer les coûts</div>'+rows.replace('border-top:1px solid var(--line)','')+'<p class="muted" style="font-size:12px;margin:8px 0 0">Moyenne réelle calculée sur les 4 dernières semaines.</p></div>';
 }
 function pShop(){
   var full=S.rewards.length>=6;
-  var h='<div class="vhead"><h2>Récompenses</h2><button class="btn small" data-a="openRewardForm"'+(full?' disabled':'')+'>＋ Ajouter une récompense</button></div>';
-  h+='<p class="muted" style="margin:-4px 0 '+(full?'6':'16')+'px;font-size:14px">Vos enfants peuvent échanger leurs étoiles contre des récompenses.<br>À vous de définir le gain et le coût.</p>';
-  if(full) h+='<p class="muted" style="margin:0 0 16px;font-size:13px;font-weight:700">Maximum de récompenses atteint (6).</p>';
-  h+=rewardStatsHtml();
-  if(!S.rewards.length) return h+'<div class="empty"><div class="big">🎁</div><p>Aucune récompense créée.</p></div>';
+  var h='<p class="muted" style="margin:0 0 14px;font-size:14px">Vos enfants peuvent échanger leurs étoiles contre des récompenses.<br>À vous de définir le gain et le coût.<br>Vous pouvez proposer <b>6 cadeaux au maximum</b>.</p>';
+  h+='<div style="display:flex;gap:10px"><button class="btn" style="flex:1" data-a="openRewardForm"'+(full?' disabled':'')+'>＋ Ajouter un cadeau</button>'+
+     '<button class="btn ghost" style="flex:1" data-a="openRewardHelp">💡 Aide et conseils</button></div>';
+  if(full) h+='<p class="muted" style="margin:8px 0 0;font-size:13px;font-weight:700;text-align:center">Maximum de cadeaux atteint (6).</p>';
+  h+='<div class="sec"><h3>Vos cadeaux</h3></div>';
+  if(!S.rewards.length) return h+'<div class="empty"><div class="big">🎁</div><p>Aucun cadeau créé pour l’instant.</p></div>';
   h+=S.rewards.map(rewardCard).join('');
   return h;
+}
+function rewardHelpHtml(){
+  return '<div class="modal-head"><h2>💡 Aide et conseils</h2><button class="modal-x" data-a="closeRewardHelp" aria-label="Fermer">✕</button></div>'+
+    '<p class="muted" style="font-size:14px;margin:0 0 12px">Pour fixer des coûts justes, il faut une idée de ce que vos enfants gagnent.</p>'+
+    rewardStatsHtml()+
+    '<div style="font-size:14px;line-height:1.5">'+
+      '<div style="font-weight:800;margin-bottom:4px">Quelques conseils</div>'+
+      '<div>• Un petit plaisir : environ <b>1 jour</b> d’étoiles. Un gros cadeau : environ <b>1 semaine</b>.</div>'+
+      '<div>• Commencez bas : un premier cadeau vite atteint motive beaucoup.</div>'+
+      '<div>• Pour les gros cadeaux (une journée d’écran, par exemple), utilisez le <b>délai avant de pouvoir la racheter</b>.</div>'+
+    '</div>'+
+    '<div style="margin-top:16px"><button class="btn wide" data-a="closeRewardHelp">Compris</button></div>';
 }
 
 function viewChildDetail(){
@@ -1462,7 +1508,7 @@ function viewChild(){
   var streak=S.myStreak||0;
   var got=currentBadgeIds();
   return '<header class="top"><button class="ghost-link" data-a="replayTour">💡 Aide</button><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+
-    '<section class="hero"><div class="hero-av">'+avatarFor(S.me.id)+'</div><div class="hero-main">'+
+    '<section class="hero"><div class="hero-av">'+myAvatar()+'<button class="av-gear" data-a="openAvatarMenu" aria-label="Personnaliser mon profil">⚙️</button></div><div class="hero-main">'+
     '<div class="hero-name">Salut '+esc(S.profile.display_name)+' !</div>'+
     '<div class="hero-lvl">Niveau '+lvl+' · '+levelTitle(lvl)+'</div>'+
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
@@ -1535,7 +1581,8 @@ async function refreshChild(){
   if(ui.view!=='child'||ui.celebrate||Date.now()-_lastChildRefresh<15000) return;
   _lastChildRefresh=Date.now();
   try{
-    var {data:pr}=await client.from('profiles').select('star_balance, total_earned').eq('id',S.me.id).single();
+    var {data:pr}=await client.from('profiles').select('star_balance, total_earned, avatar').eq('id',S.me.id).single();
+    if(pr&&pr.avatar) S.profile.avatar=pr.avatar;
     if(pr){ S.profile.star_balance=pr.star_balance||0; S.stars=pr.star_balance||0; S.earned=Math.max(pr.total_earned||0,S.stars); }
     await loadChildData();
     await checkCelebration();
@@ -1556,11 +1603,13 @@ function render(){
   var modal='';
   if(ui.newOpen) modal='<div class="modal-backdrop" data-a="closeForm"><div class="modal" data-a="noop">'+mform()+'</div></div>';
   else if(ui.rFormOpen) modal='<div class="modal-backdrop" data-a="closeRewardForm"><div class="modal" data-a="noop">'+rform()+'</div></div>';
+  else if(ui.rewardHelp) modal='<div class="modal-backdrop" data-a="closeRewardHelp"><div class="modal" data-a="noop">'+rewardHelpHtml()+'</div></div>';
   else if(ui.validateModal) modal='<div class="modal-backdrop" data-a="closeValidateModal"><div class="modal" data-a="noop">'+validateModalContent(ui.validateModal)+'</div></div>';
   else if(ui.assignTarget) modal='<div class="modal-backdrop" data-a="closeAssign"><div class="modal" data-a="noop">'+assignForm()+'</div></div>';
   else if(ui.confirmAssignTask) modal='<div class="modal-backdrop" data-a="closeAssign"><div class="modal" data-a="noop">'+confirmAssignContent()+'</div></div>';
   else if(ui.taskMenu) modal='<div class="modal-backdrop" data-a="closeTaskMenu"><div class="modal" data-a="noop">'+taskMenuContent()+'</div></div>';
   else if(ui.rewardMenu) modal='<div class="modal-backdrop" data-a="closeRewardMenu"><div class="modal" data-a="noop">'+rewardMenuContent()+'</div></div>';
+  else if(ui.avatarMenu && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeAvatarMenu"><div class="modal" data-a="noop">'+avatarModalHtml()+'</div></div>';
   else if(ui.childMenu) modal='<div class="modal-backdrop" data-a="closeChildMenu"><div class="modal" data-a="noop">'+childMenuContent()+'</div></div>';
   if(ui.celebrate && ui.view==='child') modal=celebrateHtml(ui.celebrate);
   var app=document.getElementById('app');
@@ -1590,9 +1639,9 @@ var TOURS={
     {sel:'.mcard',title:'Une mission',text:'Appui long pour l’assigner, la modifier ou la supprimer. Les avatars à droite montrent qui doit la faire.'}
   ],
   parent_shop:[
-    {sel:'.vhead .btn',title:'Ajouter une récompense',text:'Jusqu’à 6 récompenses. Tu fixes librement le coût en étoiles.'},
-    {sel:'#reward-stats',title:'Des repères pour les coûts',text:'Les étoiles que chaque enfant peut gagner par jour et par semaine, pour fixer des coûts réalistes.'},
-    {sel:'.mcard',title:'Une récompense',text:'Appui long pour la modifier ou la supprimer. Les demandes des enfants arrivent via le 🎁 de l’accueil.'}
+    {sel:'[data-a="openRewardForm"]',title:'Ajouter un cadeau',text:'Jusqu’à 6 cadeaux. Tu fixes librement le coût en étoiles.'},
+    {sel:'[data-a="openRewardHelp"]',title:'Aide et conseils',text:'Les étoiles que chaque enfant gagne par jour et par semaine, pour fixer des coûts réalistes.'},
+    {sel:'.mcard',title:'Un cadeau',text:'Appui long pour le modifier ou le supprimer. Les demandes des enfants arrivent via le 🎁 de l’accueil.'}
   ],
   parent_family:[
     {sel:'.seg',title:'Quatre rubriques',text:'Famille (enfants et parents) · Pauses (vacances, maladie) · Ajustements (bonus ou retrait d’étoiles) · Badges (le catalogue).'},
@@ -1606,7 +1655,7 @@ var TOURS={
   ],
   child_missions:[
     {title:'Salut ! 👋',text:'Fais tes missions, gagne des ⭐, monte de niveau et débloque des badges. Je t’explique en 5 secondes !'},
-    {sel:'.hero',title:'Ton niveau',text:'Plus tu gagnes d’étoiles, plus ton niveau monte. Il ne redescend jamais, même si tu fais des achats !'},
+    {sel:'.hero',title:'Ton niveau',text:'Plus tu gagnes d’étoiles, plus ton niveau monte. Il ne redescend jamais, même si tu fais des achats ! Touche la roue dentée ⚙️ pour changer d’avatar.'},
     {sel:'.hero-top',title:'Tes étoiles et tes badges',text:'⭐ = ce que tu peux dépenser. 🔥 = jours parfaits d’affilée. Les badges se regagnent chaque jour ou chaque semaine.'},
     {sel:'.ktask .btn.go',title:'Quand c’est fait…',text:'Touche « C’est fait ! ». Tes parents vérifient, et tu reçois tes étoiles.'},
     {sel:'.nav-in',title:'Boutique et Trophées',text:'Échange tes étoiles contre des cadeaux dans la Boutique. Les Trophées arrivent bientôt !'}
@@ -2173,6 +2222,24 @@ var A={
 
   /* récompenses (parent) */
   openRewardForm:function(){ if(S.rewards.length>=6) return; ui.rFormOpen=true; ui.editRewardId=null; ui.rTitle=''; ui.rEmoji=''; ui.rCost='10'; ui.rCooldown=0; ui.formErr=null; render(); },
+  openAvatarMenu:function(){ ui.avatarMenu=true; ui.avatarPick=myAvatar(); render(); },
+  closeAvatarMenu:function(){ ui.avatarMenu=false; ui.avatarPick=null; render(); },
+  pickAvatar:function(d){
+    ui.avatarPick=d.v;
+    document.querySelectorAll('.av-opt').forEach(function(b){ b.classList.toggle('sel',b.getAttribute('data-v')===d.v); });
+    var pv=document.getElementById('av-prev'); if(pv) pv.textContent=d.v;
+  },
+  saveAvatar:async function(d,btn){
+    var pick=ui.avatarPick||myAvatar();
+    if(btn) btn.disabled=true;
+    var {error}=await client.rpc('set_my_avatar',{p_avatar:pick});
+    if(error){ if(btn) btn.disabled=false; showAlert('❌ Impossible d’enregistrer l’avatar : '+error.message+'\n\nVérifie que la fonction SQL « set_my_avatar » a bien été créée dans Supabase.'); return; }
+    S.profile.avatar=pick; ui.avatarMenu=false; ui.avatarPick=null;
+    toast('✨ Nouvel avatar enregistré !');
+    render();
+  },
+  openRewardHelp:function(){ ui.rewardHelp=true; render(); },
+  closeRewardHelp:function(){ ui.rewardHelp=false; render(); },
   closeRewardForm:function(){ ui.rFormOpen=false; ui.editRewardId=null; render(); },
   editReward:function(d){
     var r=S.rewards.filter(function(x){return x.id===d.id})[0];
