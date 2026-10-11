@@ -106,6 +106,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .kid:active,.mcard:active{transform:scale(.985)}
 .chip:active,.ntf:active{transform:scale(.94)}
 @media(prefers-reduced-motion:reduce){.task.row-out,.task.row-out-no,.modal-backdrop.enter,.modal-backdrop.enter .modal,.anim-in>*{animation:none}.float-star,.spark{display:none}}
+/* détails de mission */
+.det-btn{margin-top:6px;background:var(--pri-soft);border:0;border-radius:12px;padding:6px 10px;font-weight:800;font-size:13px;color:var(--ink);cursor:pointer}
+.det-btn:active{transform:scale(.95)}
+.det-list{list-style:none;padding:0;margin:8px 0 14px}
+.det-list li{background:var(--pri-soft);border-radius:14px;padding:11px 14px;margin-bottom:6px;font-weight:800;font-size:16px;display:flex;gap:10px;align-items:flex-start}
+.det-list li::before{content:'•';color:var(--pri);font-weight:900}
 /* avatar enfant */
 .hero-av{position:relative}
 .av-gear{position:absolute;right:-4px;bottom:-4px;width:30px;height:30px;border-radius:50%;background:var(--card);border:2px solid var(--line);font-size:15px;line-height:1;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.18);padding:0}
@@ -987,6 +993,7 @@ function mform(){
   if(ui.mview==='daily'){
     fields='<label class="lbl">Titre</label><input class="inp" data-field="ntitle" placeholder="Ex : Faire son lit" value="'+esc(ui.newTitle||'')+'">'+
       iconBlockHtml(ui.newTitle||'')+
+      detailsFormHtml()+
       '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="npoints" value="'+esc(ui.newPoints!=null?ui.newPoints:5)+'">'+
       '<label class="lbl">Fréquence</label><div class="chiprow"><button class="chip '+(ui.newFreq==='daily'?'sel':'')+'" data-a="setFreq" data-v="daily">🔁 Chaque jour</button><button class="chip '+(ui.newFreq==='weekly'?'sel':'')+'" data-a="setFreq" data-v="weekly">📆 Certains jours</button></div>'+
       (ui.newFreq==='weekly'?'<div class="chiprow" style="margin-top:8px">'+[1,2,3,4,5,6,0].map(function(d){return '<button class="chip '+(ui.newDays.indexOf(d)>-1?'sel':'')+'" data-a="toggleDay" data-v="'+d+'">'+DAY_LABEL[d]+'</button>'}).join('')+'</div>':'')+
@@ -1000,6 +1007,7 @@ function mform(){
   } else {
     fields='<label class="lbl">Titre</label><input class="inp" data-field="stitle" placeholder="Ex : Trier ses jouets" value="'+esc(ui.newSTitle||'')+'">'+
       iconBlockHtml(ui.newSTitle||'')+
+      detailsFormHtml()+
       '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="spoints" value="'+esc(ui.newSPoints!=null?ui.newSPoints:10)+'">'+
       (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
       '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createSpecial">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button></div>';
@@ -1015,7 +1023,7 @@ function missionCard(t, daily){
   return '<div class="mcard" data-longpress="'+t.id+'">'+
     '<div class="mcard-ico">'+taskIco(t,daily?'🔁':'✨')+'<span class="mcard-star">⭐'+t.points+'</span></div>'+
     '<div class="mcard-main"><div class="mcard-title">'+esc(t.title)+'</div>'+
-    '<div class="mcard-sub"><span>'+esc(freqText)+'</span>'+(slotText?'<span>· '+esc(slotText)+'</span>':'')+'</div></div>'+
+    '<div class="mcard-sub"><span>'+esc(freqText)+'</span>'+(slotText?'<span>· '+esc(slotText)+'</span>':'')+(detailLines(t).length?'<span>· 📋 Détails</span>':'')+'</div></div>'+
     '<div class="mcard-avatars">'+avatars+'</div>'+
     '</div>';
 }
@@ -1400,7 +1408,7 @@ function taskCardKid(t){
   if(st==='todo') right='<button class="btn go" data-a="doTask" data-id="'+t.id+'" data-title="'+esc(t.title)+'" data-points="'+t.points+'">C’est fait !</button>';
   else if(st==='pending') right='<span class="pill wait">⏳ À valider</span>';
   else right='<span class="pill ok">✅ Validé</span>';
-  return '<div class="task ktask '+st+'"><span class="t-emoji">'+taskIco(t,'🔁')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+freqLabel(t)+'</span>'+note+'</span>'+right+'</div>';
+  return '<div class="task ktask '+st+'"><span class="t-emoji">'+taskIco(t,'🔁')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+freqLabel(t)+'</span>'+note+detailsBtn(t)+'</span>'+right+'</div>';
 }
 function specialCardKid(t){
   var log=(S.specialLogs||[]).filter(function(l){return l.task_id===t.id&&l.child_id===S.me.id})[0];
@@ -1414,7 +1422,7 @@ function specialCardKid(t){
     if(log.comment) note='<span class="t-comment">💬 « '+esc(log.comment)+' »</span>';
   }
   else right='<span class="pill ok">✅ Validé</span>';
-  return '<div class="task ktask '+st+'"><span class="t-emoji">'+taskIco(t,'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+note+'</span>'+right+'</div>';
+  return '<div class="task ktask '+st+'"><span class="t-emoji">'+taskIco(t,'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+note+detailsBtn(t)+'</span>'+right+'</div>';
 }
 function activeSpecials(){
   return (S.mySpecials||[]).filter(function(t){
@@ -1464,6 +1472,27 @@ function rewardLock(r){
   return {date:unlock, days:Math.round((new Date(unlock)-new Date(t))/864e5)};
 }
 function fmtShort(d){ var p=d.split('-'); return p[2]+'/'+p[1]; }
+var KID_TASKS={};
+function detailLines(t){ return String((t&&t.details)||'').split('\n').map(function(x){return x.trim()}).filter(Boolean); }
+function detailsBtn(t){ KID_TASKS[t.id]=t; return detailLines(t).length?'<div><button type="button" class="det-btn" data-a="showDetails" data-id="'+t.id+'">📋 Voir les détails</button></div>':''; }
+function detailsModalHtml(){
+  var t=KID_TASKS[ui.detailsTask]; if(!t) return '';
+  var lines=detailLines(t);
+  return '<div class="modal-head"><h2>'+esc(t.title)+'</h2><button class="modal-x" data-a="closeDetails" aria-label="Fermer">✕</button></div>'+
+    '<p class="muted" style="font-weight:700;margin:2px 0 0">Pense à :</p>'+
+    '<ul class="det-list">'+lines.map(function(l){return '<li>'+esc(l)+'</li>';}).join('')+'</ul>'+
+    '<button class="btn go wide" data-a="closeDetails">Compris !</button>';
+}
+function detailsToSave(){
+  if(!ui.newHasDetails) return null;
+  var lines=String(ui.newDetails||'').split('\n').map(function(x){return x.trim()}).filter(Boolean).slice(0,20);
+  return lines.length?lines.join('\n'):null;
+}
+function detailsFormHtml(){
+  return '<label class="lbl">Détails <span class="muted" style="font-weight:700">(facultatif)</span></label>'+
+    '<button type="button" class="chip '+(ui.newHasDetails?'sel':'')+'" data-a="toggleDetails">📋 '+(ui.newHasDetails?'Détails activés':'Ajouter des détails pour l’enfant')+'</button>'+
+    (ui.newHasDetails?'<textarea class="inp" rows="4" data-field="ndetails" style="margin-top:8px" placeholder="Un détail par ligne, par exemple :&#10;chaussettes&#10;caleçon&#10;t-shirt">'+esc(ui.newDetails||'')+'</textarea><p class="muted" style="font-size:12px;margin:4px 0 0">L’enfant verra un bouton « Voir les détails » sur la mission.</p>':'');
+}
 function cancelReqBtn(id){
   return '<button class="btn ghost small" data-a="cancelRedemption" data-id="'+id+'">Annuler la demande</button>';
 }
@@ -1611,6 +1640,7 @@ function render(){
   else if(ui.rewardMenu) modal='<div class="modal-backdrop" data-a="closeRewardMenu"><div class="modal" data-a="noop">'+rewardMenuContent()+'</div></div>';
   else if(ui.avatarMenu && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeAvatarMenu"><div class="modal" data-a="noop">'+avatarModalHtml()+'</div></div>';
   else if(ui.childMenu) modal='<div class="modal-backdrop" data-a="closeChildMenu"><div class="modal" data-a="noop">'+childMenuContent()+'</div></div>';
+  if(ui.detailsTask && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeDetails"><div class="modal" data-a="noop">'+detailsModalHtml()+'</div></div>';
   if(ui.celebrate && ui.view==='child') modal=celebrateHtml(ui.celebrate);
   var app=document.getElementById('app');
   var hadModal=!!app.querySelector('.modal-backdrop');
@@ -1956,12 +1986,13 @@ var A={
   mview:function(d){ ui.mview=d.v; ui.newOpen=false; ui.editId=null; ui.formErr=null; render(); },
   setMFilter:function(d){ ui.mfilter=d.v; render(); },
   setMFilterChild:function(d){ ui.mFilterChild=d.v; render(); },
-  openNew:function(){ ui.newOpen=true; ui.editId=null; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='5'; ui.newSTitle=''; ui.newSPoints='10'; ui.newIcon=null; ui.newIconManual=false; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank'; render(); },
+  openNew:function(){ ui.newOpen=true; ui.editId=null; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='5'; ui.newSTitle=''; ui.newSPoints='10'; ui.newIcon=null; ui.newIconManual=false; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank'; ui.newHasDetails=false; ui.newDetails=''; render(); },
   closeForm:function(){ ui.newOpen=false; ui.editId=null; ui.iconPicker=false; render(); },
   editTask:function(d){
     var t=S.tasks.filter(function(x){return x.id===d.id})[0];
     if(!t) return;
     ui.editId=t.id; ui.newOpen=true; ui.formErr=null;
+    ui.newHasDetails=!!(t.details&&t.details.trim()); ui.newDetails=t.details||'';
     ui.newIcon=t.icon||autoIcon(t.title)||null; ui.newIconManual=!!t.icon; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank';
     ui.mview = t.recurring ? 'daily' : 'special';
     var pickedIds=(t.task_assignees||[]).map(function(a){return a.child_id});
@@ -2013,7 +2044,7 @@ var A={
     var points=parseInt(ui.newPoints,10)||5;
     if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
     if(ui.newFreq==='weekly' && !ui.newDays.length){ ui.formErr='Choisissez au moins un jour de la semaine.'; render(); return; }
-    var fields={title:title, points:points, icon:ui.newIcon||null, assign_all:ui.newAssignAll, freq:ui.newFreq, days:ui.newFreq==='weekly'?ui.newDays:null, slot:ui.newSlot};
+    var fields={title:title, points:points, icon:ui.newIcon||null, details:detailsToSave(), assign_all:ui.newAssignAll, freq:ui.newFreq, days:ui.newFreq==='weekly'?ui.newDays:null, slot:ui.newSlot};
     var taskId=ui.editId;
     if(taskId){
       var {error}=await client.from('tasks').update(fields).eq('id',taskId);
@@ -2037,7 +2068,7 @@ var A={
     var title=(ui.newSTitle||'').trim();
     var points=parseInt(ui.newSPoints,10)||10;
     if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
-    var fields={title:title, points:points, icon:ui.newIcon||null};
+    var fields={title:title, points:points, icon:ui.newIcon||null, details:detailsToSave()};
     if(ui.editId){
       var {error}=await client.from('tasks').update(fields).eq('id',ui.editId);
       if(error){ ui.formErr=error.message; render(); return; }
@@ -2222,6 +2253,9 @@ var A={
 
   /* récompenses (parent) */
   openRewardForm:function(){ if(S.rewards.length>=6) return; ui.rFormOpen=true; ui.editRewardId=null; ui.rTitle=''; ui.rEmoji=''; ui.rCost='10'; ui.rCooldown=0; ui.formErr=null; render(); },
+  toggleDetails:function(){ ui.newHasDetails=!ui.newHasDetails; render(); },
+  showDetails:function(d){ ui.detailsTask=d.id; render(); },
+  closeDetails:function(){ ui.detailsTask=null; render(); },
   openAvatarMenu:function(){ ui.avatarMenu=true; ui.avatarPick=myAvatar(); render(); },
   closeAvatarMenu:function(){ ui.avatarMenu=false; ui.avatarPick=null; render(); },
   pickAvatar:function(d){
@@ -2349,6 +2383,7 @@ document.addEventListener('input',function(e){
   if(f==='ntitle'){ ui.newTitle=el.value; if(!ui.newIconManual) ui.newIcon=autoIcon(el.value); refreshIconUI(el.value); }
   else if(f==='npoints') ui.newPoints=el.value;
   else if(f==='stitle'){ ui.newSTitle=el.value; if(!ui.newIconManual) ui.newIcon=autoIcon(el.value); refreshIconUI(el.value); }
+  else if(f==='ndetails') ui.newDetails=el.value;
   else if(f==='iconSearch'){ ui.iconSearch=el.value; var g=document.getElementById('ico-results'); if(g) g.innerHTML=iconResultsHtml(el.value); }
   else if(f==='spoints') ui.newSPoints=el.value;
   else if(f==='pauseFrom') ui.pauseFrom=el.value;
