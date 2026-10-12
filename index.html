@@ -93,6 +93,19 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .switch.on::after{transform:translateX(22px)}
 .theme-btn{font-size:20px;padding:6px 10px}
 .long-hint{font-size:12px;color:var(--muted);text-align:center;margin:0 0 10px;font-weight:700}
+/* bilan de la semaine */
+.review-card{background:var(--pri-soft);border-radius:22px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px}
+.review-card .rc-ico{font-size:34px;flex:none}
+.review-card .rc-t{flex:1;min-width:0}
+.review-card b{display:block;font-family:'Baloo 2','Nunito',sans-serif;font-size:17px}
+.review-card span.sm{font-size:13px;color:var(--muted);font-weight:700}
+.rv-q{font-weight:800;margin:14px 0 6px;text-align:left}
+.rv-faces{display:flex;gap:8px}
+.face-btn{flex:1;background:var(--pri-soft);border:3px solid transparent;border-radius:16px;padding:8px 4px;cursor:pointer;font-family:inherit;color:var(--ink);transition:transform .12s}
+.face-btn:active{transform:scale(.95)}
+.face-btn .f{display:block;font-size:30px;line-height:1.1}
+.face-btn .l{display:block;font-size:12px;font-weight:800;margin-top:2px}
+.face-btn.sel{border-color:var(--pri);background:var(--card);transform:scale(1.04)}
 /* animations parent (mises à jour) */
 .leaving{overflow:hidden;pointer-events:none;animation:cardOut .45s ease-in forwards}
 @keyframes cardOut{0%{max-height:var(--h);opacity:1}40%{opacity:.45;transform:scale(.97)}100%{max-height:0;opacity:0;margin:0;padding-top:0;padding-bottom:0;transform:scale(.9)}}
@@ -633,6 +646,8 @@ async function loadParentData(){
   S.specialHistory=spHist||[];
   var {data:recLogs}=await client.from('task_logs').select('child_id,points,date').eq('status','validated').gte('date',addDays(todayStr(),-27));
   S.recentLogs=recLogs||[];
+  var {data:recBadges}=await client.from('badges').select('child_id,reward,period').gte('period',addDays(todayStr(),-27));
+  S.recentBadges=recBadges||[];
   var {data:logs}=await client.from('task_logs').select('*, profiles!task_logs_child_id_fkey(display_name)').eq('family_id',S.profile.family_id).eq('status','pending').order('created_at');
   S.logs=logs||[];
   var {data:todayLogs}=await client.from('task_logs').select('task_id,child_id,status').eq('family_id',S.profile.family_id).eq('date',todayStr());
@@ -673,6 +688,10 @@ async function loadChildData(){
   S.myPause=(activePauses||[]).filter(function(p){return !p.to_date||p.to_date>=todayStr()})[0]||null;
   var {data:myBadges}=await client.from('badges').select('*').eq('child_id',S.me.id).order('created_at',{ascending:false});
   S.myBadges=myBadges||[];
+  try{
+    var {data:rv,error:rvErr}=await client.from('weekly_reviews').select('answers,pride,goal,shared').eq('child_id',S.me.id).eq('week',mondayOf(todayStr())).maybeSingle();
+    S.reviewOff=!!rvErr; S.myReview=rv||null;
+  }catch(e){ S.reviewOff=true; S.myReview=null; }
   S.myStreak=await computeStreak(S.me.id);
   var {data:rewards}=await client.from('rewards').select('*').eq('family_id',S.profile.family_id).order('cost');
   S.rewards=rewards||[];
@@ -775,7 +794,21 @@ async function loadChildDetail(childId){
   (givenRedemptions||[]).slice(0,6).forEach(function(r){ feed.push({type:'reward', label:(r.emoji?r.emoji+' ':'')+r.title, points:-r.cost, at:r.decided_at}); });
   feed.sort(function(a,b){ return new Date(b.at)-new Date(a.at); });
 
-  S.detail={childId:childId, days:days, longest:longest, earned:earned, missionsCount:(allValidated||[]).length, rewardsGiven:(givenRedemptions||[]).length, badges:myBadges||[], feed:feed.slice(0,8), successRate:successRate, weekRate:weekRate};
+  var rvWeek=(function(){ var dw=dowOf(todayStr()); return (dw===6||dw===0)?mondayOf(todayStr()):addDays(mondayOf(todayStr()),-7); })();
+  var review={week:rvWeek,off:false,done:false,shared:false,content:null};
+  try{
+    var {data:rst,error:rstErr}=await client.rpc('weekly_review_status',{p_week:rvWeek});
+    if(rstErr) review.off=true;
+    else {
+      var mineR=(rst||[]).filter(function(x){return x.child_id===childId})[0];
+      if(mineR){ review.done=!!mineR.done; review.shared=!!mineR.shared; }
+      if(review.shared){
+        var {data:rc}=await client.from('weekly_reviews').select('answers,pride,goal').eq('child_id',childId).eq('week',rvWeek).maybeSingle();
+        review.content=rc||null;
+      }
+    }
+  }catch(e){ review.off=true; }
+  S.detail={review:review, childId:childId, days:days, longest:longest, earned:earned, missionsCount:(allValidated||[]).length, rewardsGiven:(givenRedemptions||[]).length, badges:myBadges||[], feed:feed.slice(0,8), successRate:successRate, weekRate:weekRate};
 }
 
 async function refreshParentScreen(){ await loadChildren(); await loadParentData(); if(ui.view==='childDetail'&&ui.detailChild) await loadChildDetail(ui.detailChild); render(); }
@@ -848,6 +881,58 @@ async function checkBadges(childId){
   if(starSum>=40) await awardBadge(childId,'steadyeffort','week',monday,1);
 }
 
+/* ---------- vérification de la journée d'hier (parents) ---------- */
+function dayCheckKey(){ return 'mf_daycheck_'+S.me.id; }
+async function checkYesterday(){
+  try{
+    var today=todayStr();
+    if(lsGet(dayCheckKey())===today) return;
+    var d=addDays(today,-1);
+    var {data:logs,error}=await client.from('task_logs').select('task_id,child_id').eq('family_id',S.profile.family_id).eq('date',d);
+    if(error){ console.error('daycheck',error); return; }
+    var items=[];
+    S.children.forEach(function(c){
+      var paused=S.pauses.some(function(p){return (p.child_id===c.id||!p.child_id)&&p.from_date<=d&&(!p.to_date||p.to_date>=d)});
+      if(paused) return;
+      var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,c.id)&&isDueOn(t,d)&&(!t.created_at||t.created_at.slice(0,10)<=d)});
+      var mine=(logs||[]).filter(function(l){return l.child_id===c.id});
+      var missing=due.filter(function(t){return !mine.some(function(l){return l.task_id===t.id})});
+      if(missing.length) items.push({child:c,tasks:missing});
+    });
+    if(items.length) ui.dayCheck={date:d,items:items,sel:{}};
+    else { ui.dayCheck=null; lsSet(dayCheckKey(),today); }
+  }catch(e){ console.error('daycheck',e); }
+}
+async function parentDayCheck(){
+  if(ui.view!=='parent'||ui.dayCheck||!S.me) return;
+  await checkYesterday();
+  if(ui.dayCheck) render();
+}
+function dayCheckCount(){ return Object.keys(ui.dayCheck.sel).filter(function(k){return ui.dayCheck.sel[k]}).length; }
+function dayCheckHtml(){
+  var dc=ui.dayCheck, p=dc.date.split('-'), n=dayCheckCount();
+  var h='<div class="modal-head"><h2>📅 Journée d’hier</h2></div>'+
+    '<p class="muted" style="font-size:14px;margin:0 0 8px">Hier ('+p[2]+'/'+p[1]+'), certaines routines n’ont pas été validées. Si elles ont bien été faites, tu peux les valider maintenant. Sinon, confirme que la journée était incomplète.</p>';
+  dc.items.forEach(function(it){
+    h+='<div style="font-weight:800;margin:12px 0 6px">'+it.child.avatar+' '+esc(it.child.display_name)+'</div>';
+    h+=it.tasks.map(function(t){
+      var k=it.child.id+'|'+t.id, on=!!dc.sel[k];
+      return '<button type="button" class="chk-row'+(on?' on':'')+'" data-a="toggleDayCheck" data-k="'+k+'"><span class="chk-box">'+(on?'✓':'')+'</span><span style="flex:1;min-width:0">'+esc(t.title)+'</span><span class="muted" style="font-size:13px">'+t.points+' ⭐</span></button>';
+    }).join('');
+  });
+  h+='<button type="button" class="chip" style="margin-top:2px" data-a="selectAllDayCheck">Tout cocher</button>';
+  h+='<div class="dlg-btns" style="flex-direction:column;margin-top:14px"><button class="btn go wide" data-a="validateDayCheck"'+(n?'':' disabled')+'>✅ Valider les missions cochées'+(n?' ('+n+')':'')+'</button>'+
+     '<button class="btn ghost wide" data-a="confirmDayIncomplete">Confirmer : journée incomplète</button></div>';
+  return h;
+}
+async function retroBadges(childId,dateStr){
+  var {data}=await client.from('task_logs').select('task_id').eq('child_id',childId).eq('status','validated').eq('date',dateStr);
+  var v=data||[];
+  if(v.length) await awardBadge(childId,'kickoff','day',dateStr,1);
+  var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,dateStr)&&(!t.created_at||t.created_at.slice(0,10)<=dateStr)});
+  if(due.length&&due.every(function(t){return v.some(function(l){return l.task_id===t.id})})) await awardBadge(childId,'perfectday','day',dateStr,1);
+}
+
 /* ---------- auth ---------- */
 async function boot(){
   var {data:{session}}=await client.auth.getSession();
@@ -863,6 +948,7 @@ async function afterLogin(){
   if(profile.role==='parent'){
     await loadChildren();
     await loadParentData();
+    await checkYesterday();
     ui.view='parent'; ui.ptab='today';
   }else{
     S.stars=profile.star_balance||0;
@@ -1272,28 +1358,42 @@ function rewardMenuContent(){
   return h;
 }
 function starStats(c){
-  var week=0;
-  S.tasks.forEach(function(t){ if(!t.recurring||!appliesToList(t,c.id)) return; week+=(t.points||0)*(t.freq==='weekly'?(t.days||[]).length:7); });
+  var daily=0, partial=0, perDow=[0,0,0,0,0,0,0], routinePts=0;
+  S.tasks.forEach(function(t){
+    if(!t.recurring||!appliesToList(t,c.id)) return;
+    var pts=t.points||0;
+    if(t.freq==='weekly'){ var dd=t.days||[]; partial+=pts*dd.length; routinePts+=pts*dd.length; dd.forEach(function(dw){perDow[dw]++}); }
+    else { daily+=pts*7; routinePts+=pts*7; for(var i=0;i<7;i++) perDow[i]++; }
+  });
+  var brw=function(id){ var d=badgeDef(id); return d?d.reward:0; };
+  var dueDays=perDow.filter(function(n){return n>0}).length;
+  var badgesWeek=dueDays*(brw('kickoff')+brw('perfectday'))+(dueDays?brw('perfectweek'):0)+(routinePts>=40?brw('steadyeffort'):0)+(perDow.every(function(n){return n>=5})?brw('ironregular'):0);
+  var potWeek=routinePts+badgesWeek;
   var logs=(S.recentLogs||[]).filter(function(l){return l.child_id===c.id});
+  var bdg=(S.recentBadges||[]).filter(function(b){return b.child_id===c.id});
   var real=null;
-  if(logs.length){
-    var first=logs.reduce(function(m,l){return l.date<m?l.date:m},logs[0].date);
-    var span=Math.round((new Date(todayStr())-new Date(first))/864e5)+1;
+  if(logs.length||bdg.length){
+    var dates=logs.map(function(l){return l.date}).concat(bdg.map(function(b){return b.period})).sort();
+    var span=Math.round((new Date(todayStr())-new Date(dates[0]))/864e5)+1;
     var days=Math.min(28,Math.max(7,span));
-    real=logs.reduce(function(t,l){return t+(l.points||0)},0)/days;
+    real=(logs.reduce(function(t,l){return t+(l.points||0)},0)+bdg.reduce(function(t,b){return t+(b.reward||0)},0))/days;
   }
-  return {potWeek:week, potDay:week/7, realDay:real, realWeek:real==null?null:real*7};
+  return {dailyDay:daily/7, partialWeek:partial, routinesWeek:routinePts, badgesWeek:badgesWeek, potWeek:potWeek, potDay:potWeek/7, realDay:real, realWeek:real==null?null:real*7};
 }
 function rewardStatsHtml(){
   if(!S.children.length) return '';
   var r=function(n){return Math.round(n)};
-  var rows=S.children.map(function(c){
-    var st=starStats(c);
-    var pot=st.potWeek>0?'Jusqu’à <b>'+r(st.potDay)+' ⭐/jour</b> · <b>'+r(st.potWeek)+' ⭐/semaine</b> avec les routines':'Aucune routine assignée';
+  var rows=S.children.map(function(c,i){
+    var st=starStats(c), body;
+    if(st.routinesWeek>0){
+      body='<div style="font-size:13px;margin-top:2px">🔁 Routines : jusqu’à <b>'+r(st.dailyDay)+' ⭐/jour</b>'+(st.partialWeek>0?' + <b>'+r(st.partialWeek)+' ⭐/semaine</b> (routines de certains jours)':'')+'</div>'+
+           '<div style="font-size:13px">🏅 Badges : jusqu’à <b>'+r(st.badgesWeek)+' ⭐/semaine</b></div>'+
+           '<div style="font-size:13px">🎯 Total possible : <b>≈ '+r(st.potWeek)+' ⭐/semaine</b> (≈ '+r(st.potDay)+' ⭐/jour)</div>';
+    } else body='<div style="font-size:13px;margin-top:2px">Aucune routine assignée</div>';
     var real=st.realDay==null?'Pas encore assez de missions validées':'En pratique : <b>≈ '+r(st.realDay)+' ⭐/jour</b> · <b>≈ '+r(st.realWeek)+' ⭐/semaine</b>';
-    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)"><span style="font-size:28px;flex:none">'+c.avatar+'</span><div style="min-width:0"><div style="font-weight:800">'+esc(c.display_name)+'</div><div style="font-size:13px;margin-top:2px">'+pot+'</div><div class="muted" style="font-size:13px">'+real+'</div></div></div>';
+    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;'+(i?'border-top:1px solid var(--line)':'')+'"><span style="font-size:28px;flex:none">'+c.avatar+'</span><div style="min-width:0"><div style="font-weight:800">'+esc(c.display_name)+'</div>'+body+'<div class="muted" style="font-size:13px;margin-top:2px">'+real+'</div></div></div>';
   }).join('');
-  return '<div class="card" style="padding:12px 14px;margin-bottom:16px"><div style="font-weight:800;font-size:14px;margin-bottom:6px">📊 Pour t’aider à fixer les coûts</div>'+rows.replace('border-top:1px solid var(--line)','')+'<p class="muted" style="font-size:12px;margin:8px 0 0">Moyenne réelle calculée sur les 4 dernières semaines.</p></div>';
+  return '<div class="card" style="padding:12px 14px;margin-bottom:16px"><div style="font-weight:800;font-size:14px;margin-bottom:6px">📊 Pour t’aider à fixer les coûts</div>'+rows+'<p class="muted" style="font-size:12px;margin:8px 0 0">Le potentiel compte toutes les routines (quotidiennes ou de certains jours) et les badges accessibles avec elles. Les badges liés aux missions spéciales viennent en plus. La moyenne réelle (routines, missions spéciales et badges) est calculée sur les 4 dernières semaines.</p></div>';
 }
 function pShop(){
   var full=S.rewards.length>=6;
@@ -1363,6 +1463,18 @@ function viewChildDetail(){
     var icon=x.status==='ok'?'✅':x.status==='miss'?'❌':x.status==='paused'?'⏸️':x.status==='today'?'⏳':'·';
     return '<div class="wday"><span class="wd-l">'+DAY_LABEL[x.dow]+'</span><span class="wd-i">'+icon+'</span></div>';
   }).join('')+'</div>';
+
+  if(d.review&&!d.review.off){
+    var rv=d.review, wp=rv.week.split('-');
+    h+='<div class="sec"><h3>🌙 Bilan de la semaine</h3></div><div class="card" style="padding:12px 14px"><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><div style="font-weight:800">Semaine du '+wp[2]+'/'+wp[1]+'</div><div class="muted" style="font-size:13px">'+(rv.done?(rv.shared?'Bilan partagé par '+esc(c.display_name):'Bilan privé : seul l’enfant peut le lire'):'L’enfant n’a pas encore fait son bilan')+'</div></div><span class="pill '+(rv.done?'ok':'wait')+'">'+(rv.done?'✅ Fait':'⏳ Pas encore')+'</span></div>';
+    if(rv.shared&&rv.content){
+      var ans=Array.isArray(rv.content.answers)?rv.content.answers:[];
+      h+='<div style="margin-top:10px;font-size:14px">'+REVIEW_QUESTIONS.map(function(q,i){var f=REVIEW_FACES.filter(function(x){return x[0]===ans[i]})[0]; return '<div style="padding:3px 0">'+(f?f[1]:'·')+' '+esc(q)+'</div>';}).join('')+
+        (rv.content.pride?'<div style="margin-top:8px"><b>Fier·e de :</b> '+esc(rv.content.pride)+'</div>':'')+
+        (rv.content.goal?'<div style="margin-top:4px"><b>Objectif :</b> '+esc(rv.content.goal)+'</div>':'')+'</div>';
+    }
+    h+='</div>';
+  }
 
   var pend=S.logs.filter(function(l){return l.child_id===c.id});
   if(pend.length){ h+='<div class="sec"><h3>⏳ À valider</h3></div>'+pendingRows(c.id); }
@@ -1572,6 +1684,41 @@ function isDarkTheme(){
   return !!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);
 }
 function applyThemeMeta(){ var m=document.querySelector('meta[name="theme-color"]'); if(m) m.setAttribute('content',isDarkTheme()?'#141a2e':'#fff9ef'); }
+var REVIEW_QUESTIONS=[
+  'J’ai parlé gentiment aux autres',
+  'J’ai fait mes missions sans qu’on me le rappelle',
+  'J’ai aidé quelqu’un sans qu’on me le demande'
+];
+var REVIEW_FACES=[[3,'😊','Souvent'],[2,'😐','Parfois'],[1,'😕','Pas trop']];
+function reviewAvailable(){ var dw=dowOf(todayStr()); return !S.reviewOff&&(dw===6||dw===0); }
+function reviewCardHtml(){
+  if(!reviewAvailable()||ui.tab!=='missions') return '';
+  var done=!!S.myReview;
+  return '<div class="review-card"><span class="rc-ico">'+(done?'✅':'🌙')+'</span><div class="rc-t"><b>Mon bilan de la semaine</b><span class="sm">'+(done?'Bilan fait. Tu peux le modifier si tu veux.':'Un petit moment pour toi : comment s’est passée ta semaine ?')+'</span></div><button class="btn small'+(done?' ghost':'')+'" data-a="openReview">'+(done?'Modifier':'Je fais mon bilan')+'</button></div>';
+}
+function reviewModalHtml(){
+  var r=ui.review;
+  if(r.done){
+    var low=r.q.some(function(v){return v===1});
+    return '<div style="text-align:center"><div class="cel-big" style="font-size:56px">💛</div><h2 style="margin:6px 0">Merci d’avoir pris ce moment !</h2>'+
+      '<p class="muted" style="font-weight:700;margin:0 0 8px">'+(low?'Ce n’est pas grave : ce qui compte, c’est que tu y as réfléchi. Chaque semaine est une nouvelle chance.':'Bravo d’y avoir réfléchi. Chaque semaine est une nouvelle occasion de progresser.')+'</p>'+
+      (r.goal.trim()?'<div class="help-box">🎯 Ton objectif : « '+esc(r.goal.trim())+' »</div>':'')+'<p class="muted" style="font-size:13px;margin:6px 0 0">'+(r.shared?'Tes parents pourront lire ton bilan.':'Ton bilan reste privé : tes parents verront seulement que tu l’as fait.')+'</p>'+
+      '<button class="btn go wide" style="margin-top:8px" data-a="closeReview">Fermer</button></div>';
+  }
+  var n=r.q.filter(function(v){return v>0}).length;
+  var h='<div class="modal-head"><h2>🌙 Mon bilan</h2><button class="modal-x" data-a="closeReview" aria-label="Fermer">✕</button></div>'+
+    '<p class="muted" style="font-weight:700;font-size:14px;margin:0">Prends un moment pour toi. Il n’y a pas de bonne ou de mauvaise réponse, et rien ne change pour tes étoiles : c’est juste pour réfléchir. Tes réponses restent pour toi.</p>';
+  h+=REVIEW_QUESTIONS.map(function(q,i){
+    return '<div class="rv-q">'+esc(q)+'</div><div class="rv-faces">'+REVIEW_FACES.map(function(f){
+      return '<button type="button" class="face-btn'+(r.q[i]===f[0]?' sel':'')+'" data-a="pickReview" data-q="'+i+'" data-v="'+f[0]+'"><span class="f">'+f[1]+'</span><span class="l">'+f[2]+'</span></button>';
+    }).join('')+'</div>';
+  }).join('');
+  h+='<div class="rv-q">Ce dont je suis fier·e cette semaine <span class="muted" style="font-weight:700">(facultatif)</span></div><textarea class="inp" rows="2" data-field="revpride">'+esc(r.pride)+'</textarea>';
+  h+='<div class="rv-q">Un petit objectif pour la semaine prochaine <span class="muted" style="font-weight:700">(facultatif)</span></div><textarea class="inp" rows="2" data-field="revgoal">'+esc(r.goal)+'</textarea>';
+  h+='<div class="card" style="display:flex;align-items:center;gap:12px;padding:12px 14px;margin-top:14px"><div style="flex:1;min-width:0"><div style="font-weight:800">Partager avec mes parents</div><div class="muted" style="font-size:13px">Si tu ne partages pas, ils verront seulement que tu as fait ton bilan.</div></div><button class="switch'+(r.shared?' on':'')+'" data-a="toggleShareReview" role="switch" aria-checked="'+(r.shared?'true':'false')+'" aria-label="Partager mon bilan"></button></div>';
+  h+='<button class="btn go wide" style="margin-top:14px" data-a="saveReview"'+(n<REVIEW_QUESTIONS.length?' disabled':'')+'>Terminer mon bilan</button>';
+  return h;
+}
 function cancelReqBtn(id){
   return '<button class="btn ghost small" data-a="cancelRedemption" data-id="'+id+'">Annuler la demande</button>';
 }
@@ -1622,7 +1769,7 @@ function viewChild(){
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
     '<div class="muted" style="font-size:13px;margin-top:4px;font-weight:700">'+Math.max(0,50-prog)+' ⭐ pour le niveau suivant</div></div></section>'+
     '<div class="hero-top"><span class="stat">⭐ '+S.stars+'</span><span class="stat">🔥 '+streak+' jour'+(streak>1?'s':'')+'</span>'+
-    '<div class="bico-row">'+BADGE_DEFS.map(function(def){return '<span class="bico '+(got[def.id]?'on':'')+'" title="'+esc(def.name)+'">'+def.emoji+'</span>';}).join('')+'</div></div>'+body;
+    '<div class="bico-row">'+BADGE_DEFS.map(function(def){return '<span class="bico '+(got[def.id]?'on':'')+'" title="'+esc(def.name)+'">'+def.emoji+'</span>';}).join('')+'</div></div>'+reviewCardHtml()+body;
 }
 
 /* ---------- rendu ---------- */
@@ -1698,7 +1845,7 @@ async function refreshChild(){
     render();
   }catch(e){ console.error(e); }
 }
-document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') refreshChild(); });
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'){ refreshChild(); parentDayCheck(); } });
 
 function render(){
   var h='',nav='';
@@ -1721,6 +1868,8 @@ function render(){
   else if(ui.rewardMenu) modal='<div class="modal-backdrop" data-a="closeRewardMenu"><div class="modal" data-a="noop">'+rewardMenuContent()+'</div></div>';
   else if(ui.avatarMenu && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeAvatarMenu"><div class="modal" data-a="noop">'+avatarModalHtml()+'</div></div>';
   else if(ui.childMenu) modal='<div class="modal-backdrop" data-a="closeChildMenu"><div class="modal" data-a="noop">'+childMenuContent()+'</div></div>';
+  if(ui.dayCheck && ui.view==='parent' && !modal) modal='<div class="modal-backdrop"><div class="modal">'+dayCheckHtml()+'</div></div>';
+  if(ui.review && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeReview"><div class="modal" data-a="noop">'+reviewModalHtml()+'</div></div>';
   if(ui.detailsTask && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeDetails"><div class="modal" data-a="noop">'+detailsModalHtml()+'</div></div>';
   if(ui.celebrate && ui.view==='child') modal=celebrateHtml(ui.celebrate);
   var app=document.getElementById('app');
@@ -2008,6 +2157,53 @@ var A={
     }
   },
   logout:async function(){ await client.auth.signOut(); location.reload(); },
+  openReview:function(){
+    var m=S.myReview, a=m&&Array.isArray(m.answers)?m.answers:[];
+    ui.review={q:REVIEW_QUESTIONS.map(function(_,i){return a[i]||0}),pride:(m&&m.pride)||'',goal:(m&&m.goal)||'',shared:!!(m&&m.shared),done:false};
+    render();
+  },
+  closeReview:function(){ ui.review=null; render(); },
+  toggleShareReview:function(){ if(!ui.review) return; ui.review.shared=!ui.review.shared; render(); },
+  pickReview:function(d){
+    if(!ui.review) return;
+    ui.review.q[parseInt(d.q,10)]=parseInt(d.v,10);
+    document.querySelectorAll('.face-btn').forEach(function(b){ if(b.getAttribute('data-q')===d.q) b.classList.toggle('sel',b.getAttribute('data-v')===d.v); });
+    var n=ui.review.q.filter(function(v){return v>0}).length, sb=document.querySelector('[data-a="saveReview"]');
+    if(sb) sb.disabled=n<REVIEW_QUESTIONS.length;
+  },
+  saveReview:async function(d,btn){
+    var r=ui.review; if(!r) return;
+    if(btn) btn.disabled=true;
+    var row={family_id:S.profile.family_id,child_id:S.me.id,week:mondayOf(todayStr()),answers:r.q,pride:r.pride.trim()||null,goal:r.goal.trim()||null,shared:!!r.shared};
+    var {error}=await client.from('weekly_reviews').upsert(row,{onConflict:'child_id,week'});
+    if(error){ if(btn) btn.disabled=false; showAlert('❌ Impossible d’enregistrer ton bilan : '+error.message+'\n\nVérifie que la table SQL « weekly_reviews » a bien été créée dans Supabase.'); return; }
+    S.myReview={answers:r.q,pride:row.pride,goal:row.goal,shared:row.shared};
+    r.done=true; render();
+  },
+  toggleDayCheck:function(d){ if(!ui.dayCheck) return; ui.dayCheck.sel[d.k]=!ui.dayCheck.sel[d.k]; render(); },
+  selectAllDayCheck:function(){
+    if(!ui.dayCheck) return;
+    ui.dayCheck.items.forEach(function(it){ it.tasks.forEach(function(t){ ui.dayCheck.sel[it.child.id+'|'+t.id]=true; }); });
+    render();
+  },
+  confirmDayIncomplete:function(){
+    lsSet(dayCheckKey(),todayStr()); ui.dayCheck=null; render();
+    toast('📅 Journée d’hier confirmée comme incomplète');
+  },
+  validateDayCheck:async function(d,btn){
+    var dc=ui.dayCheck; if(!dc||!dayCheckCount()) return;
+    if(btn) btn.disabled=true;
+    var rows=[], kids={};
+    dc.items.forEach(function(it){ it.tasks.forEach(function(t){
+      if(dc.sel[it.child.id+'|'+t.id]){ rows.push({family_id:S.profile.family_id,task_id:t.id,child_id:it.child.id,title:t.title,points:t.points,status:'validated',date:dc.date,validated_at:new Date().toISOString()}); kids[it.child.id]=true; }
+    }); });
+    var {error}=await client.from('task_logs').insert(rows);
+    if(error){ if(btn) btn.disabled=false; showAlert('❌ '+error.message+'\n\nSi le message parle de « row-level security », la policy d’insertion des parents sur task_logs est manquante.'); return; }
+    for(var cid in kids){ await recalcBalance(cid); await retroBadges(cid,dc.date); await checkBadges(cid); }
+    lsSet(dayCheckKey(),todayStr()); ui.dayCheck=null;
+    toast('✅ '+rows.length+' mission'+(rows.length>1?'s':'')+' validée'+(rows.length>1?'s':'')+' pour hier');
+    await refreshParentScreen();
+  },
   toggleTheme:function(){
     var next=isDarkTheme()?'light':'dark';
     document.documentElement.setAttribute('data-theme',next); lsSet('mf_theme',next); applyThemeMeta(); render();
@@ -2539,6 +2735,8 @@ document.addEventListener('input',function(e){
   else if(f==='npoints') ui.newPoints=el.value;
   else if(f==='stitle'){ ui.newSTitle=el.value; if(!ui.newIconManual) ui.newIcon=autoIcon(el.value); refreshIconUI(el.value); }
   else if(f==='ndetails') ui.newDetails=el.value;
+  else if(f==='revpride'&&ui.review) ui.review.pride=el.value;
+  else if(f==='revgoal'&&ui.review) ui.review.goal=el.value;
   else if(f==='iconSearch'){ ui.iconSearch=el.value; var g=document.getElementById('ico-results'); if(g) g.innerHTML=iconResultsHtml(el.value); }
   else if(f==='spoints') ui.newSPoints=el.value;
   else if(f==='pauseFrom') ui.pauseFrom=el.value;
