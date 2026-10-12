@@ -1963,7 +1963,6 @@ function pUnlock(){
   if(full) h+='<p class="muted" style="margin:8px 0 0;font-size:13px;font-weight:700;text-align:center">Maximum de bonus atteint ('+ACC_MAX+').</p>';
   h+='<div class="sec"><h3>Vos bonus à débloquer</h3></div>';
   if(!(S.accessRules||[]).length) return h+'<div class="empty"><div class="big">🔓</div><p>Aucun bonus à débloquer pour l’instant.</p></div>';
-  if(!S.accessStatus) h+='<p class="muted" style="text-align:center;font-size:13px">Chargement…</p>';
   return h+S.accessRules.map(accessCardParent).join('');
 }
 function accChip(on,attrs,label){ return '<button type="button" class="chip '+(on?'sel':'')+'" '+attrs+'>'+label+'</button>'; }
@@ -2606,7 +2605,10 @@ var A={
     var page=tourPage(); if(!page||!TOURS[page]) return;
     tourReset([page]); tourStart(page);
   },
-  ptab:function(d){ ui.ptab=d.t; ui.expandChild=null; ui.newOpen=false; render(); },
+  ptab:async function(d){
+    ui.ptab=d.t; ui.expandChild=null; ui.newOpen=false; render();
+    if(d.t==='shop'&&ui.bonusTab==='unlock'){ await loadAccessAdmin(); render(); }
+  },
   tab:function(d){ ui.tab=d.t; render(); },
 
   toggleChild:function(d){ ui.expandChild = ui.expandChild===d.id ? null : d.id; render(); },
