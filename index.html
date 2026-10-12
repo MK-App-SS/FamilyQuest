@@ -93,6 +93,16 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .switch.on::after{transform:translateX(22px)}
 .theme-btn{font-size:20px;padding:6px 10px}
 .long-hint{font-size:12px;color:var(--muted);text-align:center;margin:0 0 10px;font-weight:700}
+.acc-card{margin-bottom:10px}
+.acc-card.open{border:2px solid var(--ok);background:var(--ok-soft)}
+.acc-line{font-size:14px;font-weight:700;margin-top:6px;padding-left:2px}
+.acc-line.ok{color:var(--muted);text-decoration:line-through}
+.acard{padding:0;margin-bottom:12px;overflow:hidden}
+.acard.off{opacity:.6}
+.acard-head{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer}
+.acc-child{display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--line)}
+.cond-card{background:var(--pri-soft);border-radius:16px;padding:10px 12px;margin-bottom:8px}
+.cond-tag{font-weight:900;font-size:12px;background:var(--pri);color:#fff;border-radius:8px;padding:4px 8px;flex:none}
 /* bilan de la semaine */
 .review-card{background:var(--pri-soft);border-radius:22px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px}
 .review-card .rc-ico{font-size:34px;flex:none}
@@ -567,7 +577,7 @@ function whoLabel(t){
   return names.join(' + ');
 }
 
-var ui={view:'loading', ptab:'today', tab:'missions', loginErr:null, loginBusy:false,
+var ui={view:'loading', ptab:'today', bonusTab:'unlock', tab:'missions', loginErr:null, loginBusy:false,
   mview:'daily', mfilter:'all', mFilterChild:'', newOpen:false, newFreq:'daily', newSlot:'none', newAssignAll:false, newPicked:[], newDays:[],
   newSMode:'race', newSPicked:[], newTitle:'', newPoints:'1', newSTitle:'', newSPoints:'5',
   expandChild:null,
@@ -648,6 +658,7 @@ async function loadParentData(){
   S.recentLogs=recLogs||[];
   var {data:recBadges}=await client.from('badges').select('child_id,reward,period').gte('period',addDays(todayStr(),-27));
   S.recentBadges=recBadges||[];
+  await loadAccessLight();
   var {data:logs}=await client.from('task_logs').select('*, profiles!task_logs_child_id_fkey(display_name)').eq('family_id',S.profile.family_id).eq('status','pending').order('created_at');
   S.logs=logs||[];
   var {data:todayLogs}=await client.from('task_logs').select('task_id,child_id,status').eq('family_id',S.profile.family_id).eq('date',todayStr());
@@ -693,6 +704,7 @@ async function loadChildData(){
     S.reviewOff=!!rvErr; S.myReview=rv||null;
   }catch(e){ S.reviewOff=true; S.myReview=null; }
   S.myStreak=await computeStreak(S.me.id);
+  await loadMyAccess();
   var {data:rewards}=await client.from('rewards').select('*').eq('family_id',S.profile.family_id).order('cost');
   S.rewards=rewards||[];
   var {data:myRedemptions}=await client.from('redemptions').select('*').eq('child_id',S.me.id).order('created_at',{ascending:false}).limit(15);
@@ -811,7 +823,7 @@ async function loadChildDetail(childId){
   S.detail={review:review, childId:childId, days:days, longest:longest, earned:earned, missionsCount:(allValidated||[]).length, rewardsGiven:(givenRedemptions||[]).length, badges:myBadges||[], feed:feed.slice(0,8), successRate:successRate, weekRate:weekRate};
 }
 
-async function refreshParentScreen(){ await loadChildren(); await loadParentData(); if(ui.view==='childDetail'&&ui.detailChild) await loadChildDetail(ui.detailChild); render(); }
+async function refreshParentScreen(){ await loadChildren(); await loadParentData(); if(ui.ptab==='shop'&&ui.bonusTab==='unlock') await loadAccessAdmin(); if(ui.view==='childDetail'&&ui.detailChild) await loadChildDetail(ui.detailChild); render(); }
 async function refreshChildScreen(){
   var {data:profile}=await client.from('profiles').select('star_balance, total_earned, avatar').eq('id',S.me.id).single();
   if(profile&&profile.avatar) S.profile.avatar=profile.avatar;
@@ -989,8 +1001,8 @@ function navHtml(items,cur,act){
     return '<button class="nb '+(cur===t[0]?'on':'')+'" data-a="'+act+'" data-t="'+t[0]+'"><span class="te">'+t[1]+(t[3]?'<span class="dot" style="position:absolute;margin-left:2px">'+t[3]+'</span>':'')+'</span>'+t[2]+'</button>';
   }).join('')+'</div></div>';
 }
-function parentNav(){ return navHtml([['today','🏠','Accueil',pendingCount()],['missions','📋','Missions'],['shop','🎁','Cadeaux',S.redemptions.length],['family','⚙️','Préférences']],ui.ptab,'ptab'); }
-function childNav(){ return navHtml([['missions','🎯','Missions'],['shop','🛍️','Boutique'],['trophies','🏆','Trophées']],ui.tab,'tab'); }
+function parentNav(){ return navHtml([['today','🏠','Accueil',pendingCount()],['missions','📋','Missions'],['shop','🎁','Bonus',S.redemptions.length],['family','⚙️','Préférences']],ui.ptab,'ptab'); }
+function childNav(){ var open=(S.myAccess||[]).filter(function(a){return a.state==='open'}).length; return navHtml([['missions','🎯','Missions'],['bonus','🔓','Bonus',open],['shop','🛍️','Boutique'],['trophies','🏆','Trophées']],ui.tab,'tab'); }
 
 function collapseEl(el){
   return new Promise(function(res){
@@ -1395,15 +1407,22 @@ function rewardStatsHtml(){
   }).join('');
   return '<div class="card" style="padding:12px 14px;margin-bottom:16px"><div style="font-weight:800;font-size:14px;margin-bottom:6px">📊 Pour t’aider à fixer les coûts</div>'+rows+'<p class="muted" style="font-size:12px;margin:8px 0 0">Le potentiel compte toutes les routines (quotidiennes ou de certains jours) et les badges accessibles avec elles. Les badges liés aux missions spéciales viennent en plus. La moyenne réelle (routines, missions spéciales et badges) est calculée sur les 4 dernières semaines.</p></div>';
 }
-function pShop(){
+function pBuy(){
   var full=S.rewards.length>=6;
-  var h='<p class="muted" style="margin:0 0 14px;font-size:14px">Vos enfants peuvent échanger leurs étoiles contre des récompenses.<br>À vous de définir le gain et le coût.<br>Vous pouvez proposer <b>6 cadeaux au maximum</b>.</p>';
-  h+='<button class="btn wide" data-a="openRewardForm"'+(full?' disabled':'')+'>＋ Ajouter un cadeau</button>';
-  if(full) h+='<p class="muted" style="margin:8px 0 0;font-size:13px;font-weight:700;text-align:center">Maximum de cadeaux atteint (6).</p>';
-  h+='<div class="sec"><h3>Vos cadeaux</h3></div>';
-  if(!S.rewards.length) return h+'<div class="empty"><div class="big">🎁</div><p>Aucun cadeau créé pour l’instant.</p></div>';
-  h+='<p class="long-hint">👆 Appui long sur un cadeau pour le modifier ou le supprimer</p>'+S.rewards.map(rewardCard).join('');
+  var h='<p class="muted" style="margin:0 0 14px;font-size:14px">Vos enfants peuvent échanger leurs étoiles contre des bonus.<br>À vous de définir le gain et le coût.<br>Vous pouvez proposer <b>6 bonus à acheter au maximum</b>.</p>';
+  h+='<button class="btn wide" data-a="openRewardForm"'+(full?' disabled':'')+'>＋ Ajouter un bonus</button>';
+  if(full) h+='<p class="muted" style="margin:8px 0 0;font-size:13px;font-weight:700;text-align:center">Maximum de bonus atteint (6).</p>';
+  h+='<div class="sec"><h3>Vos bonus à acheter</h3></div>';
+  if(!S.rewards.length) return h+'<div class="empty"><div class="big">🎁</div><p>Aucun bonus à acheter pour l’instant.</p></div>';
+  h+='<p class="long-hint">👆 Appui long sur un bonus pour le modifier ou le supprimer</p>'+S.rewards.map(rewardCard).join('');
   return h;
+}
+function pShop(){
+  var buy=ui.bonusTab==='buy';
+  var h='<div class="seg" role="tablist">'+[['unlock','🔓','À débloquer'],['buy','🛍️','À acheter']].map(function(t){
+    return '<button class="'+((buy?'buy':'unlock')===t[0]?'on':'')+'" data-a="bonusTab" data-v="'+t[0]+'">'+t[1]+' '+t[2]+'</button>';
+  }).join('')+'</div>';
+  return h+(buy?pBuy():pUnlock());
 }
 function missionHelpHtml(){
   return '<div class="modal-head"><h2>💡 Bien dimensionner les missions</h2><button class="modal-x" data-a="closeMissionHelp" aria-label="Fermer">✕</button></div>'+
@@ -1535,11 +1554,15 @@ function pActivity(){
   (S.todayGifts||[]).forEach(function(r){
     feed.push({icon:'🎁', label:(r.profiles?r.profiles.display_name+' · ':'')+(r.emoji?r.emoji+' ':'')+r.title, points:-r.cost, at:r.decided_at});
   });
+  (S.accessUnlocks||[]).filter(function(u){return u.kind==='earned'}).forEach(function(u){
+    var r=(S.accessRules||[]).filter(function(x){return x.id===u.rule_id})[0], c=S.children.filter(function(x){return x.id===u.child_id})[0];
+    if(r&&c) feed.push({icon:'🔓',label:c.display_name+' · a débloqué « '+r.title+' »',at:u.created_at});
+  });
   feed.sort(function(a,b){ return new Date(b.at)-new Date(a.at); });
   var h='<div class="sec"><h3>Activités récentes</h3></div>';
   if(!feed.length) return h+'<div class="card" style="text-align:center;color:var(--muted)">Pas encore d’activité aujourd’hui.<br><span style="font-size:12px">La liste repart à zéro chaque jour à minuit.</span></div>';
   return h+feed.map(function(f){
-    return '<div class="task"><span class="t-emoji">'+f.icon+'</span><span class="t-main"><span class="t-title">'+esc(f.label)+'</span></span><span class="pill '+(f.points>0?'ok':'')+'">'+(f.points>0?'+':'')+f.points+' ⭐</span></div>';
+    return '<div class="task"><span class="t-emoji">'+f.icon+'</span><span class="t-main"><span class="t-title">'+esc(f.label)+'</span></span>'+(typeof f.points==='number'?'<span class="pill '+(f.points>0?'ok':'')+'">'+(f.points>0?'+':'')+f.points+' ⭐</span>':'')+'</div>';
   }).join('');
 }
 
@@ -1549,9 +1572,9 @@ function viewParent(){
     : ui.ptab==='shop' ? pShop()
     : pFamily();
   if(ui.ptab!=='today'){
-    var title={missions:'Missions',shop:'Cadeaux',family:'Préférences'}[ui.ptab];
+    var title={missions:'Missions',shop:'Bonus',family:'Préférences'}[ui.ptab];
     var sub=ui.ptab==='missions'?'Créez, éditez et assignez vos missions':'';
-    var infoBtn=ui.ptab==='missions'?'<button class="info-btn" data-a="openMissionHelp" aria-label="Conseils sur les missions">💡</button>':(ui.ptab==='shop'?'<button class="info-btn" data-a="openRewardHelp" aria-label="Aide et conseils sur les cadeaux">💡</button>':'');
+    var infoBtn=ui.ptab==='missions'?'<button class="info-btn" data-a="openMissionHelp" aria-label="Conseils sur les missions">💡</button>':(ui.ptab==='shop'?'<button class="info-btn" data-a="'+(ui.bonusTab==='buy'?'openRewardHelp':'openAccessHelp')+'" aria-label="Aide et conseils sur les bonus">💡</button>':'');
     return '<header class="top ptop"><div><div class="logo">'+title+infoBtn+'</div>'+(sub?'<p class="wel-sub">'+esc(sub)+'</p>':'')+'</div><button class="ghost-link" data-a="logout">Déconnexion</button></header>'+body;
   }
   var scheduledCount=S.tasks.filter(function(t){return t.recurring && t.freq==='weekly' && isDueToday(t)}).length;
@@ -1719,6 +1742,287 @@ function reviewModalHtml(){
   h+='<button class="btn go wide" style="margin-top:14px" data-a="saveReview"'+(n<REVIEW_QUESTIONS.length?' disabled':'')+'>Terminer mon bilan</button>';
   return h;
 }
+/* ---------- Bonus à débloquer (accès sous conditions) ---------- */
+var ACC_SLOTS=[['morning','☀️ Matin'],['day','🌤️ Journée'],['evening','🌙 Soir'],['none','🕒 Peu importe']];
+var ACC_DAYS=[[1,'L'],[2,'M'],[3,'M'],[4,'J'],[5,'V'],[6,'S'],[0,'D']];
+var DAY_NAMES=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+var ACC_TYPES=[['routines','🔁 Routines faites'],['stars','⭐ Étoiles gagnées'],['specials','✨ Missions spéciales'],['streak','🔥 Série de jours'],['weekday','📅 Jours de la semaine'],['badge','🏅 Badge obtenu']];
+var ACC_MAX=6, ACC_MAX_CONDS=4;
+function accDefaultCond(type){
+  if(type==='routines') return {type:type,slots:[]};
+  if(type==='stars') return {type:type,period:'lastweek',min:70};
+  if(type==='specials') return {type:type,mode:'none_open',n:1};
+  if(type==='streak') return {type:type,min:3};
+  if(type==='weekday') return {type:type,days:[3]};
+  return {type:'badge',badge:BADGE_DEFS[0]?BADGE_DEFS[0].id:''};
+}
+function accSlotLabel(slots){
+  if(!slots||!slots.length) return 'du jour';
+  var m={morning:'du matin',day:'de la journée',evening:'du soir',none:'« peu importe »'};
+  return slots.map(function(s){return m[s]||s}).join(' + ');
+}
+function accPeriodLabel(p){ return p==='today'?'aujourd’hui':(p==='week'?'cette semaine':'la semaine passée'); }
+function accDaysLabel(days){ return ACC_DAYS.filter(function(d){return (days||[]).indexOf(d[0])>-1}).map(function(d){return DAY_NAMES[d[0]]}).join(', '); }
+// Description courte d'une condition (côté parent)
+function accCondLabel(c){
+  if(c.type==='routines') return 'Routines '+accSlotLabel(c.slots)+' faites';
+  if(c.type==='stars') return 'Au moins '+c.min+' ⭐ '+accPeriodLabel(c.period);
+  if(c.type==='specials') return c.mode==='min_week'?('Au moins '+c.n+' mission(s) spéciale(s) cette semaine'):'Aucune mission spéciale en cours';
+  if(c.type==='streak') return 'Série d’au moins '+c.min+' jour(s)';
+  if(c.type==='weekday') return 'Le '+accDaysLabel(c.days);
+  var d=badgeDef(c.badge); return 'Badge « '+(d?d.name:'?')+' »';
+}
+async function accessContext(childId){
+  var fam=S.profile.family_id, today=todayStr(), mon=mondayOf(today), prevMon=addDays(mon,-7);
+  var r=await Promise.all([
+    client.from('tasks').select('id,recurring,freq,days,slot,assign_all,points,created_at').eq('family_id',fam),
+    client.from('task_assignees').select('task_id').eq('child_id',childId),
+    client.from('task_logs').select('task_id,status,points,date').eq('child_id',childId).gte('date',prevMon),
+    client.from('badges').select('badge_id,period,reward').eq('child_id',childId).gte('period',prevMon),
+    client.from('pauses').select('child_id,from_date,to_date').eq('family_id',fam).or('child_id.eq.'+childId+',child_id.is.null'),
+    computeStreak(childId)
+  ]);
+  var ids=(r[1].data||[]).map(function(a){return a.task_id});
+  var mine=(r[0].data||[]).filter(function(t){return t.assign_all||ids.indexOf(t.id)>-1});
+  var specials=mine.filter(function(t){return !t.recurring}), spLogs=[];
+  if(specials.length){
+    var q=await client.from('task_logs').select('task_id,status,date,archived').eq('child_id',childId).in('task_id',specials.map(function(t){return t.id}));
+    spLogs=(q.data||[]).filter(function(l){return !l.archived});
+  }
+  return {today:today,dow:dowOf(today),mon:mon,prevMon:prevMon,routines:mine.filter(function(t){return t.recurring}),specials:specials,spLogs:spLogs,
+          logs:r[2].data||[],badges:r[3].data||[],pauses:r[4].data||[],streak:r[5]||0};
+}
+function accPausedOn(ctx,d){ return ctx.pauses.some(function(p){return p.from_date<=d&&(!p.to_date||p.to_date>=d)}); }
+function accStarsIn(ctx,from,to){
+  var n=0;
+  ctx.logs.forEach(function(l){ if(l.status==='validated'&&l.date>=from&&l.date<=to) n+=l.points||0; });
+  ctx.badges.forEach(function(b){ if(b.period>=from&&b.period<=to) n+=b.reward||0; });
+  return n;
+}
+function accDone(l){ return l.status==='validated'||l.status==='pending'; }
+// Évalue une condition : {ok, text, calendar}
+function accEvalCond(c,ctx){
+  var today=ctx.today;
+  if(c.type==='routines'){
+    var slots=c.slots||[], lab=accSlotLabel(slots);
+    var due=accPausedOn(ctx,today)?[]:ctx.routines.filter(function(t){
+      return isDueOn(t,today)&&(!t.created_at||t.created_at.slice(0,10)<=today)&&(!slots.length||slots.indexOf(t.slot||'none')>-1);
+    });
+    var rem=due.filter(function(t){return !ctx.logs.some(function(l){return l.task_id===t.id&&l.date===today&&accDone(l)})});
+    return rem.length?{ok:false,text:'Il te reste '+rem.length+' routine'+(rem.length>1?'s':'')+' '+lab}:{ok:true,text:'Routines '+lab+' faites'};
+  }
+  if(c.type==='stars'){
+    var from,to;
+    if(c.period==='today'){ from=to=today; }
+    else if(c.period==='week'){ from=ctx.mon; to=today; }
+    else { from=ctx.prevMon; to=addDays(ctx.mon,-1); }
+    var n=accStarsIn(ctx,from,to), min=c.min;
+    if(c.period!=='today'){
+      var wk=c.period==='week'?ctx.mon:ctx.prevMon, paused=0;
+      for(var i=0;i<7;i++){ if(accPausedOn(ctx,addDays(wk,i))) paused++; }
+      min=paused>=7?0:Math.ceil(c.min*(7-paused)/7);
+    }
+    var per=accPeriodLabel(c.period);
+    if(n>=min) return {ok:true,text:n+' ⭐ gagnées '+per+' (objectif : '+min+')'};
+    return {ok:false,text:c.period==='lastweek'?('Il fallait '+min+' ⭐ la semaine passée (tu en as eu '+n+')'):('Encore '+(min-n)+' ⭐ à gagner '+per)};
+  }
+  if(c.type==='specials'){
+    if(c.mode==='min_week'){
+      var ids={}; ctx.specials.forEach(function(t){ids[t.id]=1});
+      var cnt=ctx.logs.filter(function(l){return ids[l.task_id]&&l.date>=ctx.mon&&accDone(l)}).length+
+              ctx.spLogs.filter(function(l){return l.date>=ctx.mon&&accDone(l)&&!ctx.logs.some(function(x){return x.task_id===l.task_id&&x.date===l.date})}).length;
+      return cnt>=c.n?{ok:true,text:cnt+' mission(s) spéciale(s) cette semaine'}:{ok:false,text:'Encore '+(c.n-cnt)+' mission(s) spéciale(s) cette semaine'};
+    }
+    var open=ctx.specials.filter(function(t){return !ctx.spLogs.some(function(l){return l.task_id===t.id&&accDone(l)})});
+    return open.length?{ok:false,text:'Termine ta mission spéciale en cours'+(open.length>1?' ('+open.length+')':'')}:{ok:true,text:'Aucune mission spéciale en cours'};
+  }
+  if(c.type==='streak'){
+    return ctx.streak>=c.min?{ok:true,text:'Série de '+ctx.streak+' jour'+(ctx.streak>1?'s':'')}:{ok:false,text:'Série de '+ctx.streak+' jour'+(ctx.streak>1?'s':'')+' (objectif : '+c.min+')'};
+  }
+  if(c.type==='weekday'){
+    return (c.days||[]).indexOf(ctx.dow)>-1?{ok:true,calendar:true,text:'C’est le bon jour !'}:{ok:false,calendar:true,text:'Disponible le '+accDaysLabel(c.days)};
+  }
+  var def=badgeDef(c.badge);
+  if(!def) return {ok:true,text:'Badge indisponible'};
+  var has=ctx.badges.some(function(b){return b.badge_id===def.id&&((def.scope==='day'&&b.period===today)||(def.scope==='week'&&b.period===ctx.mon))});
+  return has?{ok:true,text:'Badge « '+def.name+' » obtenu'}:{ok:false,text:'Obtiens le badge « '+def.name+' »'};
+}
+function accRuleState(rule,ctx,row){
+  var conds=(rule.conditions||[]).map(function(c){ var e=accEvalCond(c,ctx); e.cond=c; return e; });
+  var allOk=conds.every(function(c){return c.ok});
+  var missing=conds.filter(function(c){return !c.ok&&!c.calendar}).length;
+  var calFail=conds.some(function(c){return !c.ok&&c.calendar});
+  var state,via=null;
+  if(row&&row.kind==='blocked') state='blocked';
+  else if(row){ state='open'; via=row.kind; }
+  else if(allOk){ state='open'; via='auto'; }
+  else if(missing===0&&calFail) state='notToday';
+  else state='locked';
+  return {state:state,via:via,conds:conds,missing:missing,note:row?row.note:null};
+}
+function accTargets(rule){
+  return S.children.filter(function(c){return !rule.child_ids||!rule.child_ids.length||rule.child_ids.indexOf(c.id)>-1});
+}
+// ----- côté enfant
+async function loadMyAccess(){
+  S.myAccess=[]; S.accessOff=false;
+  try{
+    var today=todayStr();
+    var {data:rules,error}=await client.from('access_rules').select('*').eq('family_id',S.profile.family_id).eq('active',true).order('created_at');
+    if(error){ S.accessOff=true; return; }
+    rules=(rules||[]).filter(function(r){return !r.child_ids||!r.child_ids.length||r.child_ids.indexOf(S.me.id)>-1});
+    if(!rules.length) return;
+    var {data:ul}=await client.from('access_unlocks').select('*').eq('child_id',S.me.id).eq('date',today);
+    var ctx=await accessContext(S.me.id), newly=[];
+    for(var i=0;i<rules.length;i++){
+      var r=rules[i], row=(ul||[]).filter(function(u){return u.rule_id===r.id})[0]||null;
+      var st=accRuleState(r,ctx,row); st.rule=r;
+      if(st.state==='open'&&!row){
+        var {error:ie}=await client.from('access_unlocks').insert({family_id:S.profile.family_id,rule_id:r.id,child_id:S.me.id,date:today,kind:'earned'});
+        if(!ie) newly.push({title:r.title,icon:r.icon});
+      }
+      S.myAccess.push(st);
+    }
+    if(newly.length) ui.accessUnlocked=(ui.accessUnlocked||[]).concat(newly);
+  }catch(e){ console.error('access',e); S.accessOff=true; }
+}
+function childBonus(){
+  var h='<div class="vhead"><h2>Mes bonus</h2></div><p class="muted" style="margin:-4px 0 14px;font-size:14px">Des bonus à débloquer en remplissant toutes les conditions. Pas besoin de dépenser tes étoiles !</p>';
+  if(S.accessOff||!(S.myAccess&&S.myAccess.length)) return h+'<div class="empty"><div class="big">🔓</div><p>Pas de bonus à débloquer pour l’instant.<br>Demande à tes parents !</p></div>';
+  return h+accessCardHtml();
+}
+function accessCardHtml(){
+  if(S.accessOff||!(S.myAccess&&S.myAccess.length)) return '';
+  var h='';
+  h+=S.myAccess.map(function(st){
+    var r=st.rule, pill, sub='';
+    if(st.state==='open'){ pill='<span class="pill ok">✅ Débloqué !</span>'; sub='Tu peux en profiter aujourd’hui.'; }
+    else if(st.state==='blocked'){ pill='<span class="pill wait">⏸️ Pas aujourd’hui</span>'; sub=st.note?esc(st.note):'Tes parents ont mis ce bonus en pause aujourd’hui.'; }
+    else if(st.state==='notToday'){ pill='<span class="pill wait">⏳ Pas aujourd’hui</span>'; }
+    else { pill='<span class="pill wait">🔒 Plus que '+st.missing+'</span>'; }
+    var lines=(st.state==='open'||st.state==='blocked')?'':st.conds.map(function(c){
+      return '<div class="acc-line'+(c.ok?' ok':'')+'">'+(c.ok?'✅':'⬜')+' '+esc(c.text)+'</div>';
+    }).join('');
+    return '<div class="card acc-card'+(st.state==='open'?' open':'')+'"><div style="display:flex;align-items:center;gap:12px"><span class="t-emoji" style="width:48px;height:48px;font-size:26px">'+iconImg(r.icon||autoIcon(r.title),'🎁')+'</span><div style="flex:1;min-width:0"><div class="t-title">'+esc(r.title)+'</div>'+(sub?'<div class="muted" style="font-size:13px;font-weight:700">'+sub+'</div>':'')+'</div>'+pill+'</div>'+lines+'</div>';
+  }).join('');
+  return h;
+}
+function accessUnlockedHtml(){
+  var list=ui.accessUnlocked||[];
+  var colors=['#FF6B5E','#FFD166','#22B26B','#6C5CE7','#4FC3F7'], conf='';
+  for(var i=0;i<24;i++) conf+='<i style="left:'+Math.round(Math.random()*100)+'%;background:'+colors[i%colors.length]+';animation-duration:'+(2.4+Math.random()*2.4).toFixed(1)+'s;animation-delay:-'+(Math.random()*4).toFixed(1)+'s"></i>';
+  return '<div class="cel-back"><div class="cel-conf">'+conf+'</div><div class="cel" data-a="noop"><div class="cel-big">🔓</div><h2>Bonus débloqué !</h2><div class="cel-sub">Bravo, tu as rempli toutes les conditions</div>'+
+    list.map(function(a,i){return '<div class="cel-row" style="animation-delay:'+(0.4+i*0.18).toFixed(2)+'s"><span class="e" style="width:32px;height:32px;display:inline-grid;place-items:center">'+iconImg(a.icon||autoIcon(a.title),'🎁')+'</span><span class="t">'+esc(a.title)+'</span></div>';}).join('')+
+    '<button class="btn go wide" data-a="closeAccessUnlocked">Super !</button></div></div>';
+}
+// ----- côté parent
+async function loadAccessLight(){
+  try{
+    var {data:rules,error}=await client.from('access_rules').select('*').eq('family_id',S.profile.family_id).order('created_at');
+    if(error){ S.accessOff=true; S.accessRules=[]; S.accessUnlocks=[]; return; }
+    S.accessOff=false; S.accessRules=rules||[];
+    var {data:ul}=await client.from('access_unlocks').select('*').eq('family_id',S.profile.family_id).eq('date',todayStr());
+    S.accessUnlocks=ul||[];
+  }catch(e){ S.accessOff=true; S.accessRules=[]; S.accessUnlocks=[]; }
+}
+async function loadAccessAdmin(){
+  await loadAccessLight();
+  S.accessStatus={};
+  if(S.accessOff) return;
+  var ctxs={};
+  await Promise.all(S.children.map(async function(c){ ctxs[c.id]=await accessContext(c.id); }));
+  S.accessRules.forEach(function(r){
+    S.accessStatus[r.id]={};
+    accTargets(r).forEach(function(c){
+      var row=S.accessUnlocks.filter(function(u){return u.rule_id===r.id&&u.child_id===c.id})[0]||null;
+      S.accessStatus[r.id][c.id]=accRuleState(r,ctxs[c.id],row);
+    });
+  });
+}
+function accessCardParent(r){
+  var targets=accTargets(r), stat=(S.accessStatus||{})[r.id]||{};
+  var h='<div class="card acard'+(r.active?'':' off')+'"><div class="acard-head" data-a="editAccess" data-id="'+r.id+'"><span class="t-emoji" style="width:52px;height:52px;font-size:28px">'+iconImg(r.icon||autoIcon(r.title),'🎁')+'</span><div style="flex:1;min-width:0"><div class="t-title">'+esc(r.title)+'</div><div class="muted" style="font-size:12px;font-weight:700">'+(r.conditions||[]).map(accCondLabel).map(esc).join(' · ')+'</div></div>'+(r.active?'<span class="muted" style="font-size:18px">✏️</span>':'<span class="pill wait">Suspendu</span>')+'</div>';
+  if(r.active){
+    h+=targets.map(function(c){
+      var st=stat[c.id];
+      if(!st) return '<div class="acc-child muted">'+c.avatar+' '+esc(c.display_name)+' · …</div>';
+      var txt,btn;
+      if(st.state==='blocked'){ txt='⏸️ Suspendu aujourd’hui'; btn='<button class="btn ghost small" data-a="accClear" data-r="'+r.id+'" data-c="'+c.id+'">Rétablir</button>'; }
+      else if(st.state==='open'){ txt=(st.via==='granted'?'🎁 Accordé par toi':'✅ Débloqué'); btn='<button class="btn ghost small" data-a="accBlock" data-r="'+r.id+'" data-c="'+c.id+'">Suspendre</button>'; }
+      else { txt=(st.state==='notToday'?'⏳ Pas aujourd’hui':'🔒 '+st.missing+' condition'+(st.missing>1?'s':'')+' restante'+(st.missing>1?'s':'')); btn='<button class="btn ghost small" data-a="accGrant" data-r="'+r.id+'" data-c="'+c.id+'">Accorder</button>'; }
+      return '<div class="acc-child"><span style="font-size:22px">'+c.avatar+'</span><div style="flex:1;min-width:0"><b>'+esc(c.display_name)+'</b><div class="muted" style="font-size:12px">'+txt+'</div></div>'+btn+'</div>';
+    }).join('');
+  }
+  return h+'</div>';
+}
+function pUnlock(){
+  var full=(S.accessRules||[]).length>=ACC_MAX;
+  var h='<p class="muted" style="margin:0 0 14px;font-size:14px">Des accès que l’enfant débloque quand <b>toutes les conditions</b> que tu fixes sont remplies (par exemple jouer à la console le mercredi). Tu peux en créer <b>'+ACC_MAX+' au maximum</b>.</p>';
+  if(S.accessOff) return h+'<div class="empty"><div class="big">🛠️</div><p>Cette fonction n’est pas encore activée : la base de données doit être mise à jour.</p></div>';
+  h+='<button class="btn wide" data-a="openAccessForm"'+(full?' disabled':'')+'>＋ Ajouter un bonus</button>';
+  if(full) h+='<p class="muted" style="margin:8px 0 0;font-size:13px;font-weight:700;text-align:center">Maximum de bonus atteint ('+ACC_MAX+').</p>';
+  h+='<div class="sec"><h3>Vos bonus à débloquer</h3></div>';
+  if(!(S.accessRules||[]).length) return h+'<div class="empty"><div class="big">🔓</div><p>Aucun bonus à débloquer pour l’instant.</p></div>';
+  if(!S.accessStatus) h+='<p class="muted" style="text-align:center;font-size:13px">Chargement…</p>';
+  return h+S.accessRules.map(accessCardParent).join('');
+}
+function accChip(on,attrs,label){ return '<button type="button" class="chip '+(on?'sel':'')+'" '+attrs+'>'+label+'</button>'; }
+function accCondEditor(c,i){
+  var f=ui.accessForm, h='<div class="cond-card"><div style="display:flex;align-items:center;gap:8px"><span class="cond-tag">'+(i===0?'SI':'ET')+'</span><select class="inp" data-field="accType" data-i="'+i+'" style="flex:1;margin:0">'+ACC_TYPES.map(function(t){return '<option value="'+t[0]+'"'+(t[0]===c.type?' selected':'')+'>'+t[1]+'</option>';}).join('')+'</select><button type="button" class="chip" data-a="accRemove" data-i="'+i+'" aria-label="Retirer">✕</button></div>';
+  if(c.type==='routines'){
+    h+='<div class="chiprow" style="margin-top:8px">'+ACC_SLOTS.map(function(s){return accChip((c.slots||[]).indexOf(s[0])>-1,'data-a="accToggle" data-i="'+i+'" data-k="slots" data-v="'+s[0]+'"',s[1]);}).join('')+'</div><p class="muted" style="font-size:12px;margin:6px 0 0">Rien de coché = toutes les routines du jour.</p>';
+  } else if(c.type==='stars'){
+    h+='<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><span>Au moins</span><input class="inp" type="number" min="1" data-field="accN" data-i="'+i+'" data-k="min" value="'+esc(c.min)+'" style="width:84px;margin:0"><span>⭐</span><select class="inp" data-field="accPeriod" data-i="'+i+'" style="flex:1;margin:0">'+[['today','aujourd’hui'],['week','cette semaine'],['lastweek','la semaine passée']].map(function(p){return '<option value="'+p[0]+'"'+(p[0]===c.period?' selected':'')+'>'+p[1]+'</option>';}).join('')+'</select></div>'+(c.period!=='today'?'<p class="muted" style="font-size:12px;margin:6px 0 0">Les jours de pause réduisent l’objectif en proportion.</p>':'');
+  } else if(c.type==='specials'){
+    h+='<select class="inp" data-field="accMode" data-i="'+i+'" style="margin-top:8px">'+[['none_open','Aucune mission spéciale en cours'],['min_week','Au moins N missions spéciales cette semaine']].map(function(p){return '<option value="'+p[0]+'"'+(p[0]===c.mode?' selected':'')+'>'+p[1]+'</option>';}).join('')+'</select>'+(c.mode==='min_week'?'<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><span>N =</span><input class="inp" type="number" min="1" data-field="accN" data-i="'+i+'" data-k="n" value="'+esc(c.n)+'" style="width:84px;margin:0"></div>':'');
+  } else if(c.type==='streak'){
+    h+='<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><span>Au moins</span><input class="inp" type="number" min="1" data-field="accN" data-i="'+i+'" data-k="min" value="'+esc(c.min)+'" style="width:84px;margin:0"><span>jour(s) de suite</span></div>';
+  } else if(c.type==='weekday'){
+    h+='<div class="chiprow" style="margin-top:8px">'+ACC_DAYS.map(function(d){return accChip((c.days||[]).indexOf(d[0])>-1,'data-a="accToggle" data-i="'+i+'" data-k="days" data-v="'+d[0]+'" title="'+DAY_NAMES[d[0]]+'"',d[1]);}).join('')+'</div>';
+  } else {
+    h+='<select class="inp" data-field="accBadge" data-i="'+i+'" style="margin-top:8px">'+BADGE_DEFS.map(function(b){return '<option value="'+b.id+'"'+(b.id===c.badge?' selected':'')+'>'+b.emoji+' '+esc(b.name)+' ('+(b.scope==='day'?'du jour':'de la semaine')+')</option>';}).join('')+'</select>';
+  }
+  return h+'</div>';
+}
+function accessFormHtml(){
+  var f=ui.accessForm, edit=!!f.id;
+  var h='<div class="modal-head"><h2>'+(edit?'Modifier le bonus':'Nouveau bonus')+'</h2><button class="modal-x" data-a="closeAccessForm" aria-label="Fermer">✕</button></div>';
+  h+='<label class="lbl">Ce que l’enfant pourra faire</label><input class="inp" data-field="accTitle" placeholder="Ex : Jouer à la Switch" value="'+esc(f.title)+'">'+iconBlockHtml(f.title);
+  h+='<label class="lbl">Pour qui ?</label><div class="chiprow">'+accChip(!f.childIds.length,'data-a="accToggle" data-k="all"','👨‍👩‍👧 Tous')+S.children.map(function(c){return accChip(f.childIds.indexOf(c.id)>-1,'data-a="accToggle" data-k="child" data-v="'+c.id+'"',c.avatar+' '+esc(c.display_name));}).join('')+'</div>';
+  h+='<label class="lbl" style="margin-top:14px">Conditions <span class="muted" style="font-weight:700">(toutes doivent être remplies)</span></label>';
+  h+=f.conds.map(accCondEditor).join('');
+  h+=f.conds.length<ACC_MAX_CONDS?'<button type="button" class="chip" style="margin-top:6px" data-a="accAdd">＋ Ajouter une condition</button>':'<p class="muted" style="font-size:12px;margin:6px 0 0">Maximum '+ACC_MAX_CONDS+' conditions : plus, ce serait difficile à comprendre pour l’enfant.</p>';
+  h+='<div class="help-box" style="margin-top:12px">ALORS : l’enfant peut <b>'+esc(f.title||'…')+'</b>. L’accès reste acquis jusqu’à minuit une fois débloqué.</div>';
+  if(edit) h+='<div style="display:flex;align-items:center;gap:12px;margin-top:8px"><div style="flex:1"><b>Bonus actif</b><div class="muted" style="font-size:12px">Désactive-le pour le suspendre sans le supprimer.</div></div><button class="switch'+(f.active?' on':'')+'" data-a="accActive" role="switch" aria-checked="'+(f.active?'true':'false')+'" aria-label="Bonus actif"></button></div>';
+  if(ui.formErr) h+='<p class="err" style="margin-top:10px">'+esc(ui.formErr)+'</p>';
+  h+='<div class="dlg-btns" style="margin-top:14px"><button class="btn ghost" data-a="closeAccessForm">Annuler</button><button class="btn go" data-a="saveAccess">Enregistrer</button></div>';
+  if(edit) h+='<button class="btn ghost wide" style="margin-top:10px;color:var(--bad)" data-a="deleteAccess">🗑️ Supprimer ce bonus</button>';
+  return h;
+}
+function accessHelpHtml(){
+  return '<div class="modal-head"><h2>💡 Bonus à débloquer</h2><button class="modal-x" data-a="closeAccessHelp" aria-label="Fermer">✕</button></div>'+
+    '<div style="font-size:14px;line-height:1.5">'+
+      '<p style="margin:0 0 8px">Un bonus à débloquer est un <b>accès</b> (console, écran, sortie…) que l’enfant obtient quand <b>toutes les conditions</b> que tu as choisies sont remplies. Il ne dépense pas d’étoiles.</p>'+
+      '<div class="help-box"><b>Exemple :</b> SI toutes les routines sont faites ET si la semaine passée a rapporté au moins 70 ⭐ ET s’il n’y a plus de mission spéciale en cours ET si nous sommes mercredi, ALORS il peut jouer à la Switch.</div>'+
+      '<div style="font-weight:800;margin-top:12px">Comment ça marche</div>'+
+      '<div>• L’enfant voit sur son accueil ce qu’il lui reste à faire, de façon positive.</div>'+
+      '<div>• Dès que tout est rempli, il est prévenu et tu vois « 🔓 débloqué » sur ton accueil.</div>'+
+      '<div>• Une fois débloqué, l’accès reste acquis jusqu’à minuit.</div>'+
+      '<div>• Les routines « envoyées » par l’enfant comptent comme faites, sans attendre ta validation.</div>'+
+      '<div>• Les jours de pause réduisent en proportion les objectifs d’étoiles.</div>'+
+      '<div>• Tu peux toujours <b>accorder</b> ou <b>suspendre</b> un bonus pour aujourd’hui.</div>'+
+      '<div style="font-weight:800;margin-top:12px">Conseils</div>'+
+      '<div>• Peu de bonus, bien choisis : 3 à 4 conditions maximum chacun.</div>'+
+      '<div>• L’appli informe : c’est toi qui autorises vraiment l’usage. L’usage n’est pas suivi, c’est la confiance.</div>'+
+    '</div><div style="margin-top:14px"><button class="btn wide" data-a="closeAccessHelp">Compris</button></div>';
+}
+
+async function accOverride(ruleId,childId,kind,note){
+  var {error}=await client.from('access_unlocks').upsert({family_id:S.profile.family_id,rule_id:ruleId,child_id:childId,date:todayStr(),kind:kind,note:note},{onConflict:'rule_id,child_id,date'});
+  if(error){ showAlert('❌ '+error.message); return; }
+  toast(kind==='granted'?'🎁 Bonus accordé pour aujourd’hui':'⏸️ Bonus suspendu pour aujourd’hui');
+  await refreshParentScreen();
+}
 function cancelReqBtn(id){
   return '<button class="btn ghost small" data-a="cancelRedemption" data-id="'+id+'">Annuler la demande</button>';
 }
@@ -1757,6 +2061,7 @@ function childTrophies(){
 
 function viewChild(){
   var body = ui.tab==='missions' ? childMissions()
+    : ui.tab==='bonus' ? childBonus()
     : ui.tab==='shop' ? childShop()
     : childTrophies();
   var lvl=levelFor(S.earned||S.stars), base=(lvl-1)*50, prog=Math.max(0,(S.earned||S.stars)-base), pct=Math.min(100,Math.round(prog/50*100));
@@ -1859,6 +2164,8 @@ function render(){
   var modal='';
   if(ui.newOpen) modal='<div class="modal-backdrop" data-a="closeForm"><div class="modal" data-a="noop">'+mform()+'</div></div>';
   else if(ui.rFormOpen) modal='<div class="modal-backdrop" data-a="closeRewardForm"><div class="modal" data-a="noop">'+rform()+'</div></div>';
+  else if(ui.accessForm) modal='<div class="modal-backdrop" data-a="closeAccessForm"><div class="modal" data-a="noop">'+accessFormHtml()+'</div></div>';
+  else if(ui.accessHelp) modal='<div class="modal-backdrop" data-a="closeAccessHelp"><div class="modal" data-a="noop">'+accessHelpHtml()+'</div></div>';
   else if(ui.missionHelp) modal='<div class="modal-backdrop" data-a="closeMissionHelp"><div class="modal" data-a="noop">'+missionHelpHtml()+'</div></div>';
   else if(ui.rewardHelp) modal='<div class="modal-backdrop" data-a="closeRewardHelp"><div class="modal" data-a="noop">'+rewardHelpHtml()+'</div></div>';
   else if(ui.validateModal) modal='<div class="modal-backdrop" data-a="closeValidateModal"><div class="modal" data-a="noop">'+validateModalContent(ui.validateModal)+'</div></div>';
@@ -1871,6 +2178,7 @@ function render(){
   if(ui.dayCheck && ui.view==='parent' && !modal) modal='<div class="modal-backdrop"><div class="modal">'+dayCheckHtml()+'</div></div>';
   if(ui.review && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeReview"><div class="modal" data-a="noop">'+reviewModalHtml()+'</div></div>';
   if(ui.detailsTask && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeDetails"><div class="modal" data-a="noop">'+detailsModalHtml()+'</div></div>';
+  if(ui.accessUnlocked && ui.accessUnlocked.length && ui.view==='child') modal=accessUnlockedHtml();
   if(ui.celebrate && ui.view==='child') modal=celebrateHtml(ui.celebrate);
   var app=document.getElementById('app');
   var hadModal=!!app.querySelector('.modal-backdrop');
@@ -1923,7 +2231,7 @@ var TOURS={
     {title:'Bienvenue dans Mission Famille 👋',text:'Un petit tour rapide pour tout comprendre. Tu pourras le revoir à tout moment dans Préférences.'},
     {sel:'.kid',title:'La carte de chaque enfant',text:'Solde ⭐, série 🔥, badges du jour et progression. Touche la carte pour ouvrir sa fiche détaillée.'},
     {sel:'.ntf',title:'Les notifications',text:'🔔 = missions à valider, 🎁 = demandes de cadeaux. Touche-les pour valider en un geste.'},
-    {sel:'.nav-in',title:'Le menu du bas',text:'Accueil · Missions (routines et missions spéciales) · Cadeaux · Préférences (famille, pauses, ajustements, badges).'}
+    {sel:'.nav-in',title:'Le menu du bas',text:'Accueil · Missions (routines et missions spéciales) · Bonus · Préférences (famille, pauses, ajustements, badges).'}
   ],
   parent_missions:[
     {sel:'.seg',title:'Routines et missions spéciales',text:'Les routines reviennent tous les jours ou certains jours. Les missions spéciales sont des coups de main ponctuels, à faire une fois.'},
@@ -1932,9 +2240,9 @@ var TOURS={
     {sel:'.mcard',title:'Une mission',text:'Appui long pour l’assigner, la modifier ou la supprimer. Les avatars à droite montrent qui doit la faire.'}
   ],
   parent_shop:[
-    {sel:'[data-a="openRewardForm"]',title:'Ajouter un cadeau',text:'Jusqu’à 6 cadeaux. Tu fixes librement le coût en étoiles.'},
-    {sel:'[data-a="openRewardHelp"]',title:'Aide et conseils',text:'Touche 💡 à côté du titre : les étoiles que chaque enfant gagne par jour et par semaine, pour fixer des coûts réalistes.'},
-    {sel:'.mcard',title:'Un cadeau',text:'Appui long pour le modifier ou le supprimer. Les demandes des enfants arrivent via le 🎁 de l’accueil.'}
+    {sel:'.seg',title:'Deux types de bonus',text:'« À débloquer » : des accès que l’enfant obtient quand les conditions sont remplies. « À acheter » : il les paie avec ses étoiles.'},
+    {sel:'[data-a="openAccessForm"],[data-a="openRewardForm"]',title:'Ajouter un bonus',text:'À débloquer : tu fixes les conditions (routines, étoiles, jour…). À acheter : tu fixes le coût en étoiles.'},
+    {sel:'.info-btn',title:'Aide et conseils',text:'Touche 💡 à côté du titre pour comprendre comment ça marche et fixer des valeurs réalistes.'}
   ],
   parent_family:[
     {sel:'.seg',title:'Quatre rubriques',text:'Famille (enfants et parents) · Pauses (vacances, maladie) · Ajustements (bonus ou retrait d’étoiles) · Badges (le catalogue).'},
@@ -1951,7 +2259,10 @@ var TOURS={
     {sel:'.hero',title:'Ton niveau',text:'Plus tu gagnes d’étoiles, plus ton niveau monte. Il ne redescend jamais, même si tu fais des achats ! Touche la roue dentée ⚙️ pour changer d’avatar.'},
     {sel:'.hero-top',title:'Tes étoiles et tes badges',text:'⭐ = ce que tu peux dépenser. 🔥 = jours parfaits d’affilée. Les badges se regagnent chaque jour ou chaque semaine.'},
     {sel:'.ktask .btn.go',title:'Quand c’est fait…',text:'Touche « C’est fait ! ». Tes parents vérifient, et tu reçois tes étoiles.'},
-    {sel:'.nav-in',title:'Boutique et Trophées',text:'Échange tes étoiles contre des cadeaux dans la Boutique. Les Trophées arrivent bientôt !'}
+    {sel:'.nav-in',title:'Boutique et Trophées',text:'Bonus : des accès à débloquer en remplissant des conditions. Boutique : échange tes étoiles contre des cadeaux. Les Trophées arrivent bientôt !'}
+  ],
+  child_bonus:[
+    {sel:'.acc-card',title:'Tes bonus',text:'Chaque bonus montre ce qu’il te reste à faire pour le débloquer. Quand tout est coché ✅, il est à toi pour la journée !'}
   ],
   child_shop:[
     {sel:'.task',title:'Les cadeaux',text:'Quand tu as assez d’étoiles, touche « Demander ». Tes parents répondent. Tu peux annuler tant qu’ils n’ont pas répondu.'}
@@ -2179,6 +2490,84 @@ var A={
     if(error){ if(btn) btn.disabled=false; showAlert('❌ Impossible d’enregistrer ton bilan : '+error.message+'\n\nVérifie que la table SQL « weekly_reviews » a bien été créée dans Supabase.'); return; }
     S.myReview={answers:r.q,pride:row.pride,goal:row.goal,shared:row.shared};
     r.done=true; render();
+  },
+  bonusTab:async function(d){
+    ui.bonusTab=d.v; ui.accessForm=null; render();
+    if(d.v==='unlock'){ await loadAccessAdmin(); render(); }
+  },
+  openAccessHelp:function(){ ui.accessHelp=true; render(); },
+  closeAccessHelp:function(){ ui.accessHelp=false; render(); },
+  closeAccessUnlocked:function(){ ui.accessUnlocked=null; render(); },
+  openAccessForm:function(){
+    ui.formErr=null; ui.newIcon=null; ui.newIconManual=false; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank';
+    ui.accessForm={id:null,title:'',childIds:[],conds:[accDefaultCond('routines')],active:true}; render();
+  },
+  editAccess:function(d){
+    var r=(S.accessRules||[]).filter(function(x){return x.id===d.id})[0]; if(!r) return;
+    ui.formErr=null; ui.newIcon=r.icon||autoIcon(r.title)||null; ui.newIconManual=!!r.icon; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank';
+    ui.accessForm={id:r.id,title:r.title,childIds:(r.child_ids||[]).slice(),conds:JSON.parse(JSON.stringify(r.conditions||[])),active:r.active!==false}; render();
+  },
+  closeAccessForm:function(){ ui.accessForm=null; ui.iconPicker=false; ui.formErr=null; render(); },
+  accAdd:function(){ var f=ui.accessForm; if(f&&f.conds.length<ACC_MAX_CONDS) f.conds.push(accDefaultCond('routines')); render(); },
+  accRemove:function(d){ ui.accessForm.conds.splice(parseInt(d.i,10),1); render(); },
+  accActive:function(){ ui.accessForm.active=!ui.accessForm.active; render(); },
+  accToggle:function(d){
+    var f=ui.accessForm;
+    if(d.k==='all') f.childIds=[];
+    else if(d.k==='child'){ var i=f.childIds.indexOf(d.v); if(i>-1) f.childIds.splice(i,1); else f.childIds.push(d.v); }
+    else { var c=f.conds[parseInt(d.i,10)]; if(!c) return; var arr=c[d.k]||(c[d.k]=[]), v=(d.k==='days')?parseInt(d.v,10):d.v, j=arr.indexOf(v); if(j>-1) arr.splice(j,1); else arr.push(v); }
+    render();
+  },
+  accSet:function(i,field,val){
+    var f=ui.accessForm; if(!f) return; var idx=parseInt(i,10), c=f.conds[idx]; if(!c) return;
+    if(field==='accType') f.conds[idx]=accDefaultCond(val);
+    else if(field==='accPeriod') c.period=val;
+    else if(field==='accMode') c.mode=val;
+    else if(field==='accBadge') c.badge=val;
+    render();
+  },
+  saveAccess:async function(){
+    var f=ui.accessForm; if(!f) return;
+    var title=(f.title||'').trim();
+    if(!title){ ui.formErr='Donne un nom au bonus.'; render(); return; }
+    if(!f.conds.length){ ui.formErr='Ajoute au moins une condition.'; render(); return; }
+    var conds=[];
+    for(var i=0;i<f.conds.length;i++){
+      var c=JSON.parse(JSON.stringify(f.conds[i]));
+      if(c.type==='stars'){ c.min=parseInt(c.min,10); if(!(c.min>=1)){ ui.formErr='Indique un nombre d’étoiles d’au moins 1.'; render(); return; } }
+      if(c.type==='streak'){ c.min=parseInt(c.min,10); if(!(c.min>=1)){ ui.formErr='Indique une série d’au moins 1 jour.'; render(); return; } }
+      if(c.type==='specials'&&c.mode==='min_week'){ c.n=parseInt(c.n,10); if(!(c.n>=1)){ ui.formErr='Indique un nombre de missions spéciales d’au moins 1.'; render(); return; } }
+      if(c.type==='weekday'&&!(c.days||[]).length){ ui.formErr='Choisis au moins un jour de la semaine.'; render(); return; }
+      conds.push(c);
+    }
+    if(!f.id&&(S.accessRules||[]).length>=ACC_MAX){ ui.formErr='Maximum '+ACC_MAX+' bonus à débloquer.'; render(); return; }
+    var row={title:title,icon:ui.newIcon||null,child_ids:f.childIds,conditions:conds,active:f.active};
+    var res=f.id?await client.from('access_rules').update(row).eq('id',f.id).select():await client.from('access_rules').insert(Object.assign({family_id:S.profile.family_id},row)).select();
+    if(res.error||!res.data||!res.data.length){ ui.formErr=res.error?res.error.message:'Enregistrement impossible (droits manquants ?)'; render(); return; }
+    ui.accessForm=null; ui.iconPicker=false; ui.formErr=null;
+    toast(f.id?'✅ Bonus modifié':'✅ Bonus créé');
+    await refreshParentScreen();
+  },
+  deleteAccess:async function(){
+    var f=ui.accessForm; if(!f||!f.id) return;
+    if(!(await askConfirm({icon:'🗑️',title:'Supprimer ce bonus ?',message:'« '+f.title+' » sera supprimé définitivement.',okLabel:'Supprimer',danger:true}))) return;
+    var {error}=await client.from('access_rules').delete().eq('id',f.id);
+    if(error){ showAlert('❌ '+error.message); return; }
+    ui.accessForm=null; toast('Bonus supprimé');
+    await refreshParentScreen();
+  },
+  accGrant:async function(d){
+    var note=await askPrompt({icon:'🎁',title:'Accorder pour aujourd’hui',label:'Un petit mot pour l’enfant (facultatif)',okLabel:'Accorder'});
+    if(note===null) return; await accOverride(d.r,d.c,'granted',note.trim()||null);
+  },
+  accBlock:async function(d){
+    var note=await askPrompt({icon:'⏸️',title:'Suspendre pour aujourd’hui',label:'Un petit mot pour l’enfant (facultatif)',placeholder:'Ex : on en reparle demain',okLabel:'Suspendre',danger:true});
+    if(note===null) return; await accOverride(d.r,d.c,'blocked',note.trim()||null);
+  },
+  accClear:async function(d){
+    var {error}=await client.from('access_unlocks').delete().eq('rule_id',d.r).eq('child_id',d.c).eq('date',todayStr());
+    if(error){ showAlert('❌ '+error.message); return; }
+    await refreshParentScreen();
   },
   toggleDayCheck:function(d){ if(!ui.dayCheck) return; ui.dayCheck.sel[d.k]=!ui.dayCheck.sel[d.k]; render(); },
   selectAllDayCheck:function(){
@@ -2735,6 +3124,8 @@ document.addEventListener('input',function(e){
   else if(f==='npoints') ui.newPoints=el.value;
   else if(f==='stitle'){ ui.newSTitle=el.value; if(!ui.newIconManual) ui.newIcon=autoIcon(el.value); refreshIconUI(el.value); }
   else if(f==='ndetails') ui.newDetails=el.value;
+  else if(f==='accTitle'&&ui.accessForm){ ui.accessForm.title=el.value; if(!ui.newIconManual) ui.newIcon=autoIcon(el.value); refreshIconUI(el.value); }
+  else if(f==='accN'&&ui.accessForm){ var _c=ui.accessForm.conds[parseInt(el.dataset.i,10)]; if(_c) _c[el.dataset.k]=el.value; }
   else if(f==='revpride'&&ui.review) ui.review.pride=el.value;
   else if(f==='revgoal'&&ui.review) ui.review.goal=el.value;
   else if(f==='iconSearch'){ ui.iconSearch=el.value; var g=document.getElementById('ico-results'); if(g) g.innerHTML=iconResultsHtml(el.value); }
@@ -2753,6 +3144,7 @@ document.addEventListener('input',function(e){
 document.addEventListener('change',function(e){
   var el=e.target, f=el.dataset && el.dataset.field;
   if(f==='iconFile'){ var fl=el.files&&el.files[0]; el.value=''; A.uploadIcon(fl); return; }
+  if(f&&f.indexOf('acc')===0&&el.tagName==='SELECT'&&el.dataset.i!=null){ A.accSet(el.dataset.i,f,el.value); return; }
   if(!f || el.tagName!=='SELECT') return;
   if(f==='pauseChild') ui.pauseChild=el.value;
   else if(f==='adjChild') ui.adjChild=el.value;
