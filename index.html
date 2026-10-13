@@ -103,6 +103,46 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .acc-child{display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--line)}
 .cond-card{background:var(--pri-soft);border-radius:16px;padding:10px 12px;margin-bottom:8px}
 .cond-tag{font-weight:900;font-size:12px;background:var(--pri);color:#fff;border-radius:8px;padding:4px 8px;flex:none}
+/* assistant */
+.ast{display:flex;gap:10px;align-items:flex-end;margin:0 0 14px}
+.ast-mascot{position:relative;width:76px;height:76px;flex:none;border:0;background:none;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ast-mascot::after{content:'';position:absolute;left:16%;bottom:-3px;width:68%;height:9px;border-radius:50%;background:rgba(0,0,0,.16);filter:blur(2px);animation:astShadow 5s ease-in-out infinite}
+.ast-body{position:absolute;inset:0;display:grid;place-items:center;transform-origin:50% 90%;animation:astIdle 5s ease-in-out infinite}
+.ast-body .ico-img{width:100%;height:100%}
+.ast-badge{position:absolute;top:-6px;right:-4px;font-size:22px;line-height:1;animation:astBadge 1.4s ease-in-out infinite;pointer-events:none}
+.m-happy .ast-body{animation:astHappy .9s ease-in-out infinite}
+.m-happy::after{animation:astShadowJump .9s ease-in-out infinite}
+.m-excited .ast-body{animation:astExcited .55s ease-in-out infinite}
+.m-excited::after{animation:astShadowJump .55s ease-in-out infinite}
+.m-surprise .ast-body{animation:astSurprise .55s ease-out,astIdle 5s ease-in-out .55s infinite}
+.m-wave .ast-body{animation:astWave 1.2s ease-in-out 2,astIdle 5s ease-in-out 2.4s infinite}
+.m-sleepy .ast-body{animation:astSleepy 4s ease-in-out infinite;filter:saturate(.8) brightness(.92)}
+.m-sleepy::after{animation:astShadow 4s ease-in-out infinite}
+.m-sleepy .ast-badge{animation:astZzz 2.4s ease-in-out infinite}
+.fx-jump .ast-body{animation:astJump .65s cubic-bezier(.3,1.4,.5,1)!important}
+.fx-spin .ast-body{animation:astSpin .8s ease-in-out!important}
+.fx-wiggle .ast-body{animation:astWiggle .7s ease-in-out!important}
+.ast-p{position:absolute;left:50%;top:40%;font-size:18px;pointer-events:none;z-index:5;animation:astP 1s ease-out forwards}
+.ast-bubble{position:relative;flex:1;min-width:0;background:var(--card);border:2px solid var(--line);border-radius:20px 20px 20px 6px;padding:10px 34px 12px 14px;box-shadow:var(--shadow);animation:astPop .4s cubic-bezier(.2,1.3,.4,1) both}
+.ast-name{font-family:'Baloo 2','Nunito',sans-serif;font-weight:800;font-size:13px;color:var(--pri)}
+.ast-text{font-weight:700;font-size:15px;line-height:1.4;transition:opacity .2s}
+.ast-x{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;border:0;background:var(--pri-soft);color:var(--muted);font-weight:800;cursor:pointer;line-height:1;padding:0}
+@keyframes astIdle{0%,100%{transform:translateY(0) rotate(0) scale(1,1)}12%{transform:translateY(-4px) rotate(-2deg) scale(1,1)}24%{transform:translateY(0) rotate(0) scale(1,1)}46%{transform:scale(1.03,.95)}50%{transform:scale(1,1)}68%{transform:translateY(-3px) rotate(3deg)}84%{transform:translateY(0) rotate(0)}}
+@keyframes astShadow{0%,100%{transform:scaleX(1);opacity:1}12%{transform:scaleX(.88);opacity:.8}68%{transform:scaleX(.9);opacity:.85}}
+@keyframes astHappy{0%,100%{transform:translateY(0) scale(1.05,.92)}45%{transform:translateY(-16px) scale(.95,1.06) rotate(-4deg)}70%{transform:translateY(-6px) scale(1,1) rotate(3deg)}}
+@keyframes astExcited{0%,100%{transform:translateY(0) scale(1.04,.94)}50%{transform:translateY(-9px) scale(.97,1.04)}}
+@keyframes astShadowJump{0%,100%{transform:scaleX(1.05);opacity:1}50%{transform:scaleX(.6);opacity:.55}}
+@keyframes astSurprise{0%{transform:scale(1)}40%{transform:scale(1.28) translateY(-6px)}70%{transform:scale(.94)}100%{transform:scale(1)}}
+@keyframes astWave{0%,100%{transform:rotate(0)}20%{transform:rotate(-14deg)}40%{transform:rotate(12deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(6deg)}}
+@keyframes astSleepy{0%,100%{transform:rotate(-6deg) translateY(2px) scale(1,.97)}50%{transform:rotate(4deg) translateY(0) scale(1,1.01)}}
+@keyframes astBadge{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.12)}}
+@keyframes astZzz{0%{opacity:0;transform:translate(0,6px) scale(.7)}30%{opacity:1}100%{opacity:0;transform:translate(8px,-16px) scale(1.15)}}
+@keyframes astJump{0%{transform:scale(1.1,.85)}40%{transform:translateY(-26px) scale(.92,1.1)}70%{transform:translateY(0) scale(1.1,.88)}100%{transform:none}}
+@keyframes astSpin{0%{transform:rotate(0) scale(1)}50%{transform:rotate(180deg) scale(1.2) translateY(-8px)}100%{transform:rotate(360deg) scale(1)}}
+@keyframes astWiggle{0%,100%{transform:rotate(0)}15%{transform:rotate(-16deg)}35%{transform:rotate(14deg)}55%{transform:rotate(-10deg)}75%{transform:rotate(7deg)}}
+@keyframes astP{0%{opacity:0;transform:translate(-50%,0) scale(.5)}15%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),var(--dy)) scale(1.1)}}
+@keyframes astPop{from{opacity:0;transform:translateX(-12px) scale(.95)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.ast-body,.ast-mascot::after,.ast-badge,.ast-bubble,.fx-jump .ast-body,.fx-spin .ast-body,.fx-wiggle .ast-body{animation:none!important}.ast-p{display:none}}
 /* bilan de la semaine */
 .review-card{background:var(--pri-soft);border-radius:22px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px}
 .review-card .rc-ico{font-size:34px;flex:none}
@@ -413,7 +453,7 @@ function myAvatar(){ return (S.profile&&S.profile.avatar)||avatarFor(S.me.id); }
 function avatarModalHtml(){
   var cur=ui.avatarPick||myAvatar();
   var h='<div class="modal-head"><h2>Mon profil</h2><button class="modal-x" data-a="closeAvatarMenu" aria-label="Fermer">✕</button></div>';
-  h+='<div class="av-prev" id="av-prev">'+cur+'</div><p class="muted" style="text-align:center;margin:0 0 4px;font-weight:700">Choisis ton avatar !</p>';
+  h+='<div class="av-prev" id="av-prev">'+cur+'</div><p class="muted" style="text-align:center;margin:0 0 4px;font-weight:700">Choisis ton avatar !</p><button class="btn ghost wide" style="margin:6px 0" data-a="openMascot">🤖 Mon assistant</button>';
   h+=AVATAR_GROUPS.map(function(g){
     return '<div class="av-cat">'+g[0]+'</div><div class="av-grid">'+g[1].map(function(a){
       return '<button type="button" class="av-opt'+(a===cur?' sel':'')+'" data-a="pickAvatar" data-v="'+a+'">'+a+'</button>';
@@ -825,8 +865,8 @@ async function loadChildDetail(childId){
 
 async function refreshParentScreen(){ await loadChildren(); await loadParentData(); if(ui.ptab==='shop'&&ui.bonusTab==='unlock') await loadAccessAdmin(); if(ui.view==='childDetail'&&ui.detailChild) await loadChildDetail(ui.detailChild); render(); }
 async function refreshChildScreen(){
-  var {data:profile}=await client.from('profiles').select('star_balance, total_earned, avatar').eq('id',S.me.id).single();
-  if(profile&&profile.avatar) S.profile.avatar=profile.avatar;
+  var {data:profile}=await client.from('profiles').select('*').eq('id',S.me.id).single();
+  if(profile){ if(profile.avatar) S.profile.avatar=profile.avatar; S.profile.mascot=profile.mascot||null; S.profile.mascot_name=profile.mascot_name||null; }
   S.stars=profile?profile.star_balance||0:S.stars;
   if(profile) S.earned=Math.max(profile.total_earned||0,S.stars);
   await loadChildData(); render();
@@ -2022,6 +2062,150 @@ async function accOverride(ruleId,childId,kind,note){
   toast(kind==='granted'?'🎁 Bonus accordé pour aujourd’hui':'⏸️ Bonus suspendu pour aujourd’hui');
   await refreshParentScreen();
 }
+/* ---------- Assistant de l'enfant (messages à règles, sans IA) ---------- */
+var MASCOTS=[
+  ['1f98a','Renard','Roux'],['1f43c','Panda','Bambou'],['1f981','Lion','Léo'],['1f916','Robot','Robo'],
+  ['1f984','Licorne','Étoile'],['1f409','Dragon','Draco'],['1f989','Chouette','Hulotte'],['1f996','Dinosaure','Rex'],
+  ['1f431','Chat','Moustache'],['1f436','Chien','Biscuit'],['1f47d','Extraterrestre','Zorg'],['1f438','Grenouille','Gribouille'],
+  ['1f427','Pingouin','Pingo'],['1f430','Lapin','Câlin']
+];
+function mascotOf(file){ return MASCOTS.filter(function(m){return m[0]===file})[0]||null; }
+function mascotImg(file){ return iconImg('e:'+(file||'1f916'),'🤖'); }
+function astDay(){ return Math.floor(Date.now()/864e5); }
+function astHash(str){ var h=0; for(var i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))|0; return Math.abs(h); }
+function astKey(n){ return 'mf_ast_'+n+'_'+(S.me?S.me.id:'x'); }
+function astJson(k,def){ try{ var v=JSON.parse(lsGet(k)); return v==null?def:v; }catch(e){ return def; } }
+function astDismissedToday(){ var d=astJson(astKey('dis'),{d:'',ids:[]}); return d.d===todayStr()?d.ids:[]; }
+var _astVisit=null;
+function astPrevVisit(){
+  if(_astVisit===null){ _astVisit={prev:lsGet(astKey('visit'))}; lsSet(astKey('visit'),todayStr()); }
+  return _astVisit.prev;
+}
+function astKnown(){ return astJson(astKey('known'),null); }
+function astCurrentIds(){
+  return {r:(S.rewards||[]).map(function(x){return x.id}),a:(S.myAccess||[]).map(function(x){return x.rule.id}),s:activeSpecials().map(function(x){return x.id})};
+}
+function astSay(id,variants,vars){
+  var v=variants[(astDay()+astHash(id))%variants.length];
+  Object.keys(vars||{}).forEach(function(k){ v=v.split('{'+k+'}').join(vars[k]); });
+  return v;
+}
+// Renvoie le message le plus utile du moment, ou null.
+function astPick(){
+  var pn=(S.profile&&S.profile.display_name)||'', msgs=[];
+  var hour=new Date().getHours(), dow=dowOf(todayStr());
+  var paused=!!S.myPause;
+  var due=paused?[]:S.tasks.filter(function(t){return isDueToday(t)});
+  var total=due.length;
+  var doneOf=function(t){ var l=S.myLogsToday.filter(function(x){return x.task_id===t.id})[0]; return l&&(l.status==='pending'||l.status==='validated'); };
+  var left=due.filter(function(t){return !doneOf(t)}), remaining=left.length;
+  var streak=S.myStreak||0, earned=S.earned||S.stars||0;
+  var vars={prenom:pn};
+  // 1. nouveautés (messages persistants jusqu'à fermeture)
+  var known=astKnown(), cur=astCurrentIds();
+  if(!known){ lsSet(astKey('known'),JSON.stringify(cur)); known=cur; }
+  var newA=cur.a.filter(function(x){return known.a.indexOf(x)<0}), newR=cur.r.filter(function(x){return known.r.indexOf(x)<0}), newS=cur.s.filter(function(x){return known.s.indexOf(x)<0});
+  if(newA.length) msgs.push({id:'newBonus',text:astSay('newBonus',['Tes parents ont ajouté un nouveau bonus à débloquer ! Va voir ce qu’il faut faire 🔓','Il y a un nouveau bonus pour toi ! Regarde comment le débloquer.'],vars),cta:{a:'tab',t:'bonus',label:'Voir les bonus'}});
+  if(newR.length) msgs.push({id:'newReward',text:astSay('newReward',['Du nouveau dans la boutique ! Tes parents ont ajouté un cadeau 🎁','Un nouveau cadeau t’attend dans la boutique !'],vars),cta:{a:'tab',t:'shop',label:'Voir la boutique'}});
+  if(newS.length) msgs.push({id:'newSpecial',text:astSay('newSpecial',['Une nouvelle mission spéciale vient d’arriver ✨','Tes parents t’ont préparé une mission spéciale !'],vars)});
+  // 2. bilan de fin de semaine
+  if(!S.reviewOff&&!S.myReview&&(dow===6||dow===0)) msgs.push({id:'review',text:astSay('review',['C’est la fin de la semaine ! Prends un petit moment pour faire ton bilan 🌙','Si tu veux, c’est le bon moment pour ton bilan de la semaine 🌙'],vars),cta:{a:'openReview',label:'Faire mon bilan'}});
+  // 3. journée parfaite
+  if(total>0&&remaining===1) msgs.push({id:'perfect1',text:astSay('perfect1',['Plus qu’une mission pour réussir ta journée parfaite !','Encore une seule mission et ta journée est parfaite. Tu y es presque !','Courage {prenom}, plus qu’une mission pour une journée parfaite !'],vars)});
+  if(total>0&&remaining===0) msgs.push({id:'allDone',text:astSay('allDone',['Bravo {prenom} ! Toutes tes missions du jour sont faites 🎉','Journée parfaite ! Tu peux être fier·e de toi 🌟','Tout est fait pour aujourd’hui. Quel champion·ne !'],vars)});
+  // 4. bonus presque débloqué
+  var closeA=(S.myAccess||[]).filter(function(a){return a.state==='locked'&&a.missing===1})[0];
+  if(closeA) msgs.push({id:'accessClose',text:astSay('accessClose',['Plus qu’une condition pour débloquer « '+closeA.rule.title+' » !','Tu y es presque : encore une chose pour débloquer « '+closeA.rule.title+' » !'],vars),cta:{a:'tab',t:'bonus',label:'Voir le bonus'}});
+  // 5. cadeaux
+  var pend=(S.myRedemptions||[]).filter(function(r){return r.status==='pending'}).map(function(r){return r.reward_id});
+  var cand=(S.rewards||[]).filter(function(r){return pend.indexOf(r.id)<0&&!rewardLock(r)}).sort(function(a,b){return a.cost-b.cost});
+  var afford=cand.filter(function(r){return S.stars>=r.cost}), nearR=cand.filter(function(r){return S.stars<r.cost&&r.cost-S.stars<=5})[0];
+  if(afford.length) msgs.push({id:'rewardAfford',text:astSay('rewardAfford',['Tu as assez d’étoiles pour un cadeau ! Va jeter un œil à la boutique 🛍️','Tes étoiles te permettent de choisir un cadeau. Regarde la boutique !'],vars),cta:{a:'tab',t:'shop',label:'Aller à la boutique'}});
+  else if(nearR) msgs.push({id:'rewardNear',text:astSay('rewardNear',['Plus que '+(nearR.cost-S.stars)+' ⭐ pour « '+nearR.title+' » !','Encore '+(nearR.cost-S.stars)+' ⭐ et « '+nearR.title+' » est à toi !'],vars)});
+  // 6. niveau
+  var lvl=levelFor(earned), toNext=lvl*50-earned;
+  if(toNext>0&&toNext<=5) msgs.push({id:'levelClose',text:astSay('levelClose',['Plus que '+toNext+' ⭐ pour passer au niveau '+(lvl+1)+' !','Le niveau '+(lvl+1)+' est tout proche : encore '+toNext+' ⭐ !'],vars)});
+  // 7. série
+  if(streak>=2&&remaining>0&&hour>=17) msgs.push({id:'streakRisk',text:astSay('streakRisk',['Ta série de '+streak+' jours est en jeu ! Il reste des missions aujourd’hui 🔥','Ne laisse pas filer ta belle série de '+streak+' jours ! 🔥'],vars)});
+  if([3,7,14,30,50,100].indexOf(streak)>-1&&remaining===0) msgs.push({id:'streakMile',text:astSay('streakMile',['Waouh, '+streak+' jours d’affilée ! Quelle régularité 🔥','Série de '+streak+' jours : tu es incroyable !'],vars)});
+  // 8. missions spéciales
+  var spPend=(S.specialLogs||[]).filter(function(l){return l.child_id===S.me.id&&l.status==='pending'}).map(function(l){return l.task_id});
+  var sp=activeSpecials().filter(function(t){return spPend.indexOf(t.id)<0})[0];
+  if(sp) msgs.push({id:'special',text:astSay('special',['Une mission spéciale t’attend : « '+sp.title+' » (+'+sp.points+' ⭐) ✨','Si tu as un moment, la mission spéciale « '+sp.title+' » rapporte '+sp.points+' ⭐ !'],vars)});
+  // 9. presque fini / moments de la journée
+  if(total>0&&remaining===2) msgs.push({id:'perfect2',text:astSay('perfect2',['Plus que 2 missions, tu gères !','Encore 2 missions et c’est bon. Allez !'],vars)});
+  if(hour>=18&&left.some(function(t){return t.slot==='evening'})) msgs.push({id:'evening',text:astSay('evening',['N’oublie pas tes missions du soir 🌙','Il reste des missions pour ce soir. Courage !'],vars)});
+  if(hour<11&&left.some(function(t){return t.slot==='morning'})) msgs.push({id:'morning',text:astSay('morning',['Bonjour {prenom} ! Prêt·e pour tes missions du matin ? ☀️','Belle journée en vue ! Commence par tes missions du matin ☀️'],vars)});
+  // 10. retour après absence
+  var prev=astPrevVisit();
+  if(prev&&Math.round((new Date(todayStr())-new Date(prev))/864e5)>=3) msgs.push({id:'comeback',text:astSay('comeback',['Content de te revoir {prenom} ! Tu m’as manqué 💛','Te revoilà ! On repart du bon pied ?'],vars)});
+  // 11. simple bonjour
+  msgs.push({id:'hello',text:astSay('hello',['Coucou {prenom} ! Je suis là si tu as besoin de moi 😊','Salut {prenom} ! Prêt·e pour aujourd’hui ?'],vars)});
+  var dis=astDismissedToday();
+  return msgs.filter(function(m){ return m.id.indexOf('new')===0||dis.indexOf(m.id)<0; })[0]||null;
+}
+// Humeur (animation) associée à un message
+function astMood(id,hour){
+  if(['allDone','streakMile','levelClose'].indexOf(id)>-1) return {m:'happy',b:'🎉'};
+  if(['perfect1','perfect2','accessClose','rewardNear','rewardAfford','streakRisk','special'].indexOf(id)>-1) return {m:'excited',b:'⭐'};
+  if(['newBonus','newReward','newSpecial'].indexOf(id)>-1) return {m:'surprise',b:'❗'};
+  if(id==='review'||id==='evening'||(id==='hello'&&(hour>=20||hour<6))) return {m:'sleepy',b:'💤'};
+  if(['morning','hello','comeback','onboard'].indexOf(id)>-1) return {m:'wave',b:id==='comeback'?'💛':'👋'};
+  return {m:'idle',b:''};
+}
+function astBurst(host,list){
+  if(!host) return;
+  list.forEach(function(e,i){
+    var sp=document.createElement('span'); sp.className='ast-p'; sp.textContent=e;
+    var ang=(-60-Math.random()*60)*Math.PI/180+(i%2?0.9:-0.9);
+    sp.style.setProperty('--dx',Math.round(Math.cos(ang)*(30+Math.random()*26))+'px'); sp.style.setProperty('--dy',Math.round(-26-Math.random()*40)+'px');
+    sp.style.animationDelay=(i*60)+'ms'; host.appendChild(sp); setTimeout(function(){sp.remove()},1300);
+  });
+}
+function astReactOnce(host,kind){
+  if(!host) return;
+  var cls=kind==='spin'?'fx-spin':(kind==='wiggle'?'fx-wiggle':'fx-jump');
+  host.classList.remove('fx-jump','fx-spin','fx-wiggle'); void host.offsetWidth; host.classList.add(cls);
+  setTimeout(function(){ host.classList.remove(cls); },900);
+}
+var AST_QUIPS=['Hihi, ça chatouille ! 😄','Je suis là, avec toi ! 💛','On y va ? 💪','Tu es génial·e ! ✨','Coucou ! 👋','Allez, on continue ! 🚀','Chut… je réfléchis 🤔','Tu me fais rire ! 😆'];
+function astAfterRender(){
+  var host=document.querySelector('.ast-mascot'); if(!host){ ui._astFx=null; return; }
+  var mid=host.getAttribute('data-mid'), mood=host.getAttribute('data-mood');
+  if(ui._astFx){
+    var k=ui._astFx; ui._astFx=null;
+    if(k==='cheer'){ astReactOnce(host,'jump'); astBurst(host,['⭐','✨','⭐','🎉']); }
+    else { astReactOnce(host,'wiggle'); astBurst(host,['💛','✨']); }
+  } else if(ui._astLast!==mid){
+    if(mood==='happy'){ astBurst(host,['🎉','✨','⭐','✨']); }
+    else if(mood==='surprise'){ astBurst(host,['✨','🎁']); }
+  }
+  ui._astLast=mid;
+}
+function assistantHtml(){
+  if(ui.tab!=='missions') return '';
+  var file=S.profile&&S.profile.mascot, name=(S.profile&&S.profile.mascot_name)||'';
+  var m, mf=file, nm=name;
+  if(!file){
+    var dis=astDismissedToday(); if(dis.indexOf('onboard')>-1) return '';
+    m={id:'onboard',text:'Salut '+esc((S.profile&&S.profile.display_name)||'')+' ! Je peux devenir ton assistant : choisis un compagnon et donne-lui un nom !',cta:{a:'openMascot',label:'Choisir mon assistant'}};
+    mf='1f916'; nm='Ton assistant';
+  } else { m=astPick(); if(!m) return ''; }
+  var cta=m.cta?'<button class="btn small" style="margin-top:8px" data-a="'+m.cta.a+'"'+(m.cta.t?' data-t="'+m.cta.t+'"':'')+'>'+esc(m.cta.label)+'</button>':'';
+  var mo=astMood(m.id,new Date().getHours());
+  return '<div class="ast"><button type="button" class="ast-mascot m-'+mo.m+'" data-a="astPoke" data-mid="'+m.id+'" data-mood="'+mo.m+'" aria-label="Jouer avec mon assistant"><span class="ast-body">'+mascotImg(mf)+'</span>'+(mo.b?'<span class="ast-badge">'+mo.b+'</span>':'')+'</button><div class="ast-bubble"><button class="ast-x" data-a="astDismiss" data-id="'+m.id+'" aria-label="Fermer">✕</button>'+
+    (nm?'<div class="ast-name">'+esc(nm)+'</div>':'')+'<div class="ast-text">'+(file?esc(m.text):m.text)+'</div>'+cta+'</div></div>';
+}
+function mascotModalHtml(){
+  var mm=ui.mascotMenu, cur=mascotOf(mm.pick);
+  var h='<div class="modal-head"><h2>Mon assistant</h2><button class="modal-x" data-a="closeMascot" aria-label="Fermer">✕</button></div>';
+  h+='<div class="av-prev" id="ms-prev" style="width:110px;height:110px;border-radius:30px">'+mascotImg(mm.pick)+'</div><p class="muted" style="text-align:center;margin:0 0 6px;font-weight:700">Choisis ton compagnon, puis donne-lui un nom !</p>';
+  h+='<div class="av-grid">'+MASCOTS.map(function(m){return '<button type="button" class="av-opt'+(m[0]===mm.pick?' sel':'')+'" data-a="pickMascot" data-v="'+m[0]+'" title="'+esc(m[1])+'" style="padding:6px">'+mascotImg(m[0])+'</button>';}).join('')+'</div>';
+  h+='<label class="lbl" style="margin-top:14px">Son nom</label><input class="inp" id="ms-name" data-field="mascotName" maxlength="14" placeholder="'+esc(cur?cur[2]:'Mon assistant')+'" value="'+esc(mm.name)+'">';
+  h+='<div class="dlg-btns" style="margin-top:14px"><button class="btn ghost" data-a="closeMascot">Annuler</button><button class="btn go" data-a="saveMascot">Enregistrer</button></div>';
+  return h;
+}
+
 function cancelReqBtn(id){
   return '<button class="btn ghost small" data-a="cancelRedemption" data-id="'+id+'">Annuler la demande</button>';
 }
@@ -2073,7 +2257,7 @@ function viewChild(){
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
     '<div class="muted" style="font-size:13px;margin-top:4px;font-weight:700">'+Math.max(0,50-prog)+' ⭐ pour le niveau suivant</div></div></section>'+
     '<div class="hero-top"><span class="stat">⭐ '+S.stars+'</span><span class="stat">🔥 '+streak+' jour'+(streak>1?'s':'')+'</span>'+
-    '<div class="bico-row">'+BADGE_DEFS.map(function(def){return '<span class="bico '+(got[def.id]?'on':'')+'" title="'+esc(def.name)+'">'+def.emoji+'</span>';}).join('')+'</div></div>'+reviewCardHtml()+body;
+    '<div class="bico-row">'+BADGE_DEFS.map(function(def){return '<span class="bico '+(got[def.id]?'on':'')+'" title="'+esc(def.name)+'">'+def.emoji+'</span>';}).join('')+'</div></div>'+assistantHtml()+reviewCardHtml()+body;
 }
 
 /* ---------- rendu ---------- */
@@ -2141,8 +2325,8 @@ async function refreshChild(){
   if(ui.view!=='child'||ui.celebrate||Date.now()-_lastChildRefresh<15000) return;
   _lastChildRefresh=Date.now();
   try{
-    var {data:pr}=await client.from('profiles').select('star_balance, total_earned, avatar').eq('id',S.me.id).single();
-    if(pr&&pr.avatar) S.profile.avatar=pr.avatar;
+    var {data:pr}=await client.from('profiles').select('*').eq('id',S.me.id).single();
+    if(pr){ if(pr.avatar) S.profile.avatar=pr.avatar; S.profile.mascot=pr.mascot||null; S.profile.mascot_name=pr.mascot_name||null; }
     if(pr){ S.profile.star_balance=pr.star_balance||0; S.stars=pr.star_balance||0; S.earned=Math.max(pr.total_earned||0,S.stars); }
     await loadChildData();
     await checkCelebration();
@@ -2175,6 +2359,7 @@ function render(){
   else if(ui.avatarMenu && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeAvatarMenu"><div class="modal" data-a="noop">'+avatarModalHtml()+'</div></div>';
   else if(ui.childMenu) modal='<div class="modal-backdrop" data-a="closeChildMenu"><div class="modal" data-a="noop">'+childMenuContent()+'</div></div>';
   if(ui.dayCheck && ui.view==='parent' && !modal) modal='<div class="modal-backdrop"><div class="modal">'+dayCheckHtml()+'</div></div>';
+  if(ui.mascotMenu && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeMascot"><div class="modal" data-a="noop">'+mascotModalHtml()+'</div></div>';
   if(ui.review && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeReview"><div class="modal" data-a="noop">'+reviewModalHtml()+'</div></div>';
   if(ui.detailsTask && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeDetails"><div class="modal" data-a="noop">'+detailsModalHtml()+'</div></div>';
   if(ui.accessUnlocked && ui.accessUnlocked.length && ui.view==='child') modal=accessUnlockedHtml();
@@ -2220,6 +2405,7 @@ function render(){
     var _nm=app.querySelector('.modal'); if(_nm&&_ps) _nm.scrollTop=_ps;
     [].slice.call(app.querySelectorAll('.ico-grid')).forEach(function(g,i){ if(_pg[i]) g.scrollTop=_pg[i]; });
   }
+  astAfterRender();
   if(_tour) tourPlace();
   tourCheck();
 }
@@ -2256,6 +2442,7 @@ var TOURS={
   child_missions:[
     {title:'Salut ! 👋',text:'Fais tes missions, gagne des ⭐, monte de niveau et débloque des badges. Je t’explique en 5 secondes !'},
     {sel:'.hero',title:'Ton niveau',text:'Plus tu gagnes d’étoiles, plus ton niveau monte. Il ne redescend jamais, même si tu fais des achats ! Touche la roue dentée ⚙️ pour changer d’avatar.'},
+    {sel:'.ast',title:'Ton assistant',text:'Il te donne des conseils au bon moment. Touche ✕ pour fermer un message. Tu peux changer de compagnon et de nom avec la roue dentée ⚙️.'},
     {sel:'.hero-top',title:'Tes étoiles et tes badges',text:'⭐ = ce que tu peux dépenser. 🔥 = jours parfaits d’affilée. Les badges se regagnent chaque jour ou chaque semaine.'},
     {sel:'.ktask .btn.go',title:'Quand c’est fait…',text:'Touche « C’est fait ! ». Tes parents vérifient, et tu reçois tes étoiles.'},
     {sel:'.nav-in',title:'Boutique et Trophées',text:'Bonus : des accès à débloquer en remplissant des conditions. Boutique : échange tes étoiles contre des cadeaux. Les Trophées arrivent bientôt !'}
@@ -2568,6 +2755,54 @@ var A={
     if(error){ showAlert('❌ '+error.message); return; }
     await refreshParentScreen();
   },
+  astPoke:function(d,el){
+    var host=el&&el.closest?el.closest('.ast-mascot'):document.querySelector('.ast-mascot'); if(!host) return;
+    ui._pokes=(ui._pokes||0)+1;
+    var kinds=['jump','spin','wiggle'], k=kinds[Math.floor(Math.random()*kinds.length)];
+    astReactOnce(host,k);
+    astBurst(host,[['💛','✨','⭐','💫'][Math.floor(Math.random()*4)],'✨']);
+    var tx=document.querySelector('.ast-text');
+    if(tx&&!ui._quip){
+      ui._quip=true; var keep=tx.innerHTML;
+      tx.style.opacity=0;
+      setTimeout(function(){ tx.textContent=AST_QUIPS[Math.floor(Math.random()*AST_QUIPS.length)]; tx.style.opacity=1; },180);
+      setTimeout(function(){ if(document.body.contains(tx)){ tx.style.opacity=0; setTimeout(function(){ tx.innerHTML=keep; tx.style.opacity=1; ui._quip=false; },200); } else ui._quip=false; },3200);
+    }
+  },
+  astDismiss:function(d){
+    var id=d.id;
+    if(id.indexOf('new')===0){
+      var k=astKnown()||{r:[],a:[],s:[]}, cur=astCurrentIds(), key={newBonus:'a',newReward:'r',newSpecial:'s'}[id];
+      if(key) k[key]=cur[key];
+      lsSet(astKey('known'),JSON.stringify(k));
+    } else {
+      var c=astJson(astKey('dis'),{d:'',ids:[]}); if(c.d!==todayStr()) c={d:todayStr(),ids:[]};
+      if(c.ids.indexOf(id)<0) c.ids.push(id);
+      lsSet(astKey('dis'),JSON.stringify(c));
+    }
+    render();
+  },
+  openMascot:function(){
+    ui.avatarMenu=false; ui.avatarPick=null;
+    ui.mascotMenu={pick:(S.profile&&S.profile.mascot)||'1f98a',name:(S.profile&&S.profile.mascot_name)||''}; render();
+  },
+  closeMascot:function(){ ui.mascotMenu=null; render(); },
+  pickMascot:function(d){
+    if(!ui.mascotMenu) return; ui.mascotMenu.pick=d.v;
+    document.querySelectorAll('[data-a="pickMascot"]').forEach(function(b){ b.classList.toggle('sel',b.getAttribute('data-v')===d.v); });
+    var pv=document.getElementById('ms-prev'); if(pv){ pv.innerHTML='<span class="ast-body" style="position:static;animation:none;width:100%;height:100%;display:grid;place-items:center">'+mascotImg(d.v)+'</span>'; astReactOnce(pv,'jump'); }
+    var inp=document.getElementById('ms-name'), m=mascotOf(d.v); if(inp&&m) inp.placeholder=m[2];
+  },
+  saveMascot:async function(d,btn){
+    var mm=ui.mascotMenu; if(!mm) return;
+    var m=mascotOf(mm.pick), name=(mm.name||'').trim()||(m?m[2]:'Assistant');
+    if(btn) btn.disabled=true;
+    var {error}=await client.rpc('set_my_mascot',{p_mascot:mm.pick,p_name:name});
+    if(error){ if(btn) btn.disabled=false; showAlert('❌ Impossible d’enregistrer ton assistant : '+error.message+'\n\nVérifie que la fonction SQL « set_my_mascot » a bien été créée dans Supabase.'); return; }
+    S.profile.mascot=mm.pick; S.profile.mascot_name=name; ui.mascotMenu=null; ui._astFx='wave'; ui._astLast=null;
+    toast('🤖 '+name+' est ton assistant !');
+    render();
+  },
   toggleDayCheck:function(d){ if(!ui.dayCheck) return; ui.dayCheck.sel[d.k]=!ui.dayCheck.sel[d.k]; render(); },
   selectAllDayCheck:function(){
     if(!ui.dayCheck) return;
@@ -2846,6 +3081,7 @@ var A={
     });
     if(error){ showAlert('❌ '+error.message); return; }
     if(KID_TASKS[d.id]) chkClear(KID_TASKS[d.id]);
+    ui._astFx='cheer';
     toast('⏳ Envoyé à tes parents pour validation');
     await refreshChildScreen();
   },
@@ -2859,6 +3095,7 @@ var A={
     });
     if(error){ showAlert('❌ '+error.message); return; }
     if(KID_TASKS[d.id]) chkClear(KID_TASKS[d.id]);
+    ui._astFx='cheer';
     toast('⏳ Envoyé à tes parents pour validation');
     await refreshChildScreen();
   },
@@ -3128,6 +3365,7 @@ document.addEventListener('input',function(e){
   else if(f==='ndetails') ui.newDetails=el.value;
   else if(f==='accTitle'&&ui.accessForm){ ui.accessForm.title=el.value; if(!ui.newIconManual) ui.newIcon=autoIcon(el.value); refreshIconUI(el.value); }
   else if(f==='accN'&&ui.accessForm){ var _c=ui.accessForm.conds[parseInt(el.dataset.i,10)]; if(_c) _c[el.dataset.k]=el.value; }
+  else if(f==='mascotName'&&ui.mascotMenu) ui.mascotMenu.name=el.value;
   else if(f==='revpride'&&ui.review) ui.review.pride=el.value;
   else if(f==='revgoal'&&ui.review) ui.review.goal=el.value;
   else if(f==='iconSearch'){ ui.iconSearch=el.value; var g=document.getElementById('ico-results'); if(g) g.innerHTML=iconResultsHtml(el.value); }
