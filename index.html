@@ -114,6 +114,25 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .mv-slot model-viewer{position:absolute;inset:0;width:100%;height:100%;background:transparent;--poster-color:transparent;pointer-events:none}
 .cel-mascot.is3d{width:160px;height:160px}
 .cel-mascot.is3d .cel-mbody{animation:none!important}
+.hero-name{display:flex;align-items:center;flex-wrap:wrap;gap:0 4px}
+.acc-row{display:inline-flex;gap:4px;align-items:center;vertical-align:middle;margin-left:6px}
+.acc-link{display:inline-flex;cursor:pointer}
+.acc-ico{display:inline-grid;place-items:center;border-radius:50%;background:var(--pri-soft);filter:grayscale(1);opacity:.42;transition:filter .3s,opacity .3s,background .3s;flex:none;overflow:hidden}
+.acc-ico .ico-img{width:78%;height:78%}
+.acc-ico .ico-img.ico-photo{width:100%;height:100%}
+.acc-ico.on{filter:none;opacity:1;background:var(--acc);box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.ktask.sp .t-title{font-size:17px;line-height:1.2;overflow-wrap:anywhere}
+.ktask.sp .t-meta{font-size:12px}
+.ktask.sp .t-rule{display:block;font-size:11.5px;color:var(--muted);font-weight:700;margin-top:1px;line-height:1.25}
+.ktask.sp .btn.go{padding:10px 14px;font-size:15px;min-height:44px}
+.ktask.sp .t-main{min-width:0}
+.pet-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pet-opt{display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--pri-soft);border:3px solid transparent;border-radius:18px;padding:8px 4px;cursor:pointer;font-family:inherit;color:var(--ink);transition:transform .12s}
+.pet-opt:active{transform:scale(.95)}
+.pet-opt.sel{border-color:var(--pri);background:var(--card);transform:scale(1.04)}
+.pet-img{width:52px;height:52px;display:grid;place-items:center}
+.pet-img .ico-img{width:100%;height:100%}
+.pet-name{font-size:12px;font-weight:800}
 /* assistant */
 .ast{display:flex;gap:10px;align-items:flex-end;margin:0 0 14px}
 .ast-mascot{position:relative;width:76px;height:76px;flex:none;border:0;background:none;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -1171,7 +1190,7 @@ function pToday(){
     var pendGifts=S.redemptions.filter(function(r){return r.child_id===c.id}).length;
     var notifs=(pend?'<span class="ntf" data-a="openValidateModal" data-id="'+c.id+'" title="'+pend+' mission(s) à valider">🔔<span class="dot">'+pend+'</span></span>':'')+
       (pendGifts?'<span class="ntf" data-a="openValidateModal" data-id="'+c.id+'" title="'+pendGifts+' demande(s) de cadeau">🎁<span class="dot">'+pendGifts+'</span></span>':'');
-    var head='<div class="kid" data-a="openChildDetail" data-id="'+c.id+'"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+' '+notifs+'</span>'+
+    var head='<div class="kid" data-a="openChildDetail" data-id="'+c.id+'"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+accIconsHtml(parentAccItems(c.id),20,false)+' '+notifs+'</span>'+
       '<span class="t-meta">Niv. '+c.level+' · ⭐ <span class="num" data-n="'+c.stars+'">'+c.stars+'</span> · 🔥 '+c.streak+'</span></span>'+
       '<span class="pill">'+st.done+' / '+st.total+' faites</span><span class="chev">›</span></div>';
     var bar='<div class="bar" style="margin-top:10px"><i style="width:'+(st.total?Math.round(st.done/st.total*100):0)+'%"></i></div>';
@@ -1525,7 +1544,7 @@ function viewChildDetail(){
   var base=(c.level-1)*50, progress=Math.max(0,c.earned-base), pct=Math.min(100,Math.round(progress/50*100)), remaining=Math.max(0,50-progress);
 
   var h='<header class="top"><button class="ghost-link" data-a="backToParent">← Retour</button></header>';
-  h+='<section class="hero"><div class="hero-av">'+c.avatar+'</div><div class="hero-main"><div class="hero-name">'+esc(c.display_name)+'</div>'+
+  h+='<section class="hero"><div class="hero-av">'+c.avatar+'</div><div class="hero-main"><div class="hero-name"><span>'+esc(c.display_name)+'</span>'+accIconsHtml(parentAccItems(c.id),26,false)+'</div>'+
     '<div class="hero-lvl">Niveau '+c.level+'</div>'+
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
     '<div class="muted" style="font-size:12px;margin-top:4px">'+remaining+' ⭐ pour le niveau suivant</div>'+
@@ -1675,7 +1694,7 @@ function specialCardKid(t){
     if(log.comment) note='<span class="t-comment">💬 « '+esc(log.comment)+' »</span>';
   }
   else right='<span class="pill ok">✅ Validé</span>';
-  return '<div class="task ktask '+st+'"><span class="t-emoji">'+taskIco(t,'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+note+detailsBtn(t,st)+'</span>'+right+'</div>';
+  return '<div class="task ktask sp '+st+'"><span class="t-emoji">'+taskIco(t,'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐</span><span class="t-rule">'+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+note+detailsBtn(t,st)+'</span>'+right+'</div>';
 }
 function activeSpecials(){
   return (S.mySpecials||[]).filter(function(t){
@@ -2093,12 +2112,12 @@ async function accOverride(ruleId,childId,kind,note){
   toast(kind==='granted'?'🎁 Bonus accordé pour aujourd’hui':'⏸️ Bonus suspendu pour aujourd’hui');
   await refreshParentScreen();
 }
-/* ---------- Mascotte 3D (model-viewer) : seul le Robot a un modèle animé pour l'instant ---------- */
-var MASCOT_3D={'1f916':{glb:'Robot.glb',target:'0m 2.25m 0m',orbit:'0deg 84deg 9.5m',fov:'30deg'}};
+/* ---------- Assistants 3D (model-viewer) : 9 animaux, animations Idle / Walk / Run / Jump / Trick ---------- */
 var MV_URL='https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js';
-var MV_DUR={Happy:800,Bravo:1700};   // durées (ms) des animations ponctuelles
-var _mv={el:null,ready:null,ok:false,failed:false,cur:'Idle',timer:null};
-function mascot3d(file){ return !_mv.failed&&MASCOT_3D[file]?MASCOT_3D[file]:null; }
+// Durées (ms) des séquences : Walk et Run sont de longues boucles, on n'en joue qu'un extrait
+var MV_MS={Walk:4000,Run:2200,Trick:1700,Jump:1000};
+var _mv={el:null,ready:null,ok:false,failed:false,cur:'Idle',timer:null,party:false,src:null};
+function mascot3d(id){ return !_mv.failed?mascotOf(id):null; }
 function mvSupported(){ try{ var c=document.createElement('canvas'); return !!(c.getContext('webgl')||c.getContext('experimental-webgl')); }catch(e){ return false; } }
 function mvLoad(){
   if(_mv.ready) return _mv.ready;
@@ -2113,60 +2132,77 @@ function mvLoad(){
   });
   return _mv.ready;
 }
-function mvEl(cfg){
+function mvEl(){
   if(_mv.el) return _mv.el;
   var el=document.createElement('model-viewer');
-  el.setAttribute('src',cfg.glb); el.setAttribute('alt','Assistant 3D');
-  el.setAttribute('autoplay',''); el.setAttribute('animation-name','Idle'); el.setAttribute('animation-crossfade-duration','250');
-  el.setAttribute('camera-orbit',cfg.orbit); el.setAttribute('camera-target',cfg.target); el.setAttribute('field-of-view',cfg.fov);
-  el.setAttribute('min-camera-orbit','auto auto 9.5m'); el.setAttribute('max-camera-orbit','auto auto 9.5m');
-  el.setAttribute('interaction-prompt','none'); el.setAttribute('disable-zoom',''); el.setAttribute('disable-pan',''); el.setAttribute('disable-tap','');
-  el.setAttribute('shadow-intensity','0'); el.setAttribute('exposure','1.15'); el.setAttribute('environment-image','neutral');
+  el.setAttribute('alt','Assistant 3D'); el.setAttribute('autoplay',''); el.setAttribute('animation-name','Idle'); el.setAttribute('animation-crossfade-duration','250');
+  el.setAttribute('field-of-view','30deg'); el.setAttribute('interaction-prompt','none');
+  el.setAttribute('disable-zoom',''); el.setAttribute('disable-pan',''); el.setAttribute('disable-tap','');
+  el.setAttribute('shadow-intensity','0'); el.setAttribute('exposure','1.1'); el.setAttribute('environment-image','neutral');
   el.addEventListener('error',function(){ _mv.failed=true; mvDetach(); document.querySelectorAll('.mv-slot').forEach(function(s){ s.classList.remove('on'); }); });
   el.addEventListener('load',function(){ mvApply(); });
   _mv.el=el; return el;
 }
+// Charge le modèle voulu et règle la caméra (une seule fois par modèle)
+function mvSetModel(m){
+  var el=_mv.el; if(!el||_mv.src===m[3]) return;
+  _mv.src=m[3]; var r=PET_R[m[3]]||3;
+  el.setAttribute('camera-orbit','20deg 80deg '+r+'m'); el.setAttribute('min-camera-orbit','auto auto '+r+'m'); el.setAttribute('max-camera-orbit','auto auto '+r+'m');
+  el.setAttribute('src','assistants/'+m[3]+'.glb');
+}
 function mvDetach(){ if(_mv.el&&_mv.el.parentNode) _mv.el.parentNode.removeChild(_mv.el); }
-// Applique l'animation voulue (_mv.cur) à l'élément
 function mvApply(){
   var el=_mv.el; if(!el) return;
   try{ if(el.animationName!==_mv.cur) el.animationName=_mv.cur; if(typeof el.play==='function') el.play(); }catch(e){}
 }
-function mvSet(name){ _mv.cur=name; clearTimeout(_mv.timer); mvApply(); }
-// Animation ponctuelle puis retour au calme (Idle)
+// Animation ponctuelle (durée MV_MS) puis retour à Idle
 function mvOnce(name,back){
   _mv.cur=name; clearTimeout(_mv.timer); mvApply();
-  _mv.timer=setTimeout(function(){ _mv.cur=back||'Idle'; mvApply(); },MV_DUR[name]||1200);
+  _mv.timer=setTimeout(function(){ _mv.cur=back||'Idle'; mvApply(); },MV_MS[name]||1500);
 }
-// Place le modèle 3D dans l'emplacement le plus haut de la page (fenêtre de fête > accueil)
+// Fenêtre de fête : Run puis Jump en boucle
+function mvParty(){
+  _mv.party=true; _mv.cur='Run'; clearTimeout(_mv.timer); mvApply();
+  _mv.timer=setTimeout(function(){ _mv.cur='Jump'; mvApply(); },MV_MS.Run);
+}
+// Place le modèle 3D dans l'emplacement le plus haut de la page (fenêtre > accueil)
 function mvMount(){
   var slots=document.querySelectorAll('.mv-slot');
-  if(!slots.length){ mvDetach(); return false; }
-  var slot=slots[slots.length-1], file=slot.getAttribute('data-f'), cfg=MASCOT_3D[file];
-  if(!cfg||_mv.failed) return false;
+  if(!slots.length){ mvDetach(); if(_mv.party){ _mv.party=false; _mv.cur='Idle'; clearTimeout(_mv.timer); } return false; }
+  var slot=slots[slots.length-1], m=mascot3d(slot.getAttribute('data-f'));
+  if(!m) return false;
   var inModal=!!slot.closest('.cel-mascot');
-  if(inModal&&_mv.cur!=='Dance'){ _mv.cur='Dance'; clearTimeout(_mv.timer); }
-  else if(!inModal&&_mv.cur==='Dance'){ _mv.cur='Idle'; }
+  if(inModal&&!_mv.party) mvParty();
+  else if(!inModal&&_mv.party){ _mv.party=false; _mv.cur='Idle'; clearTimeout(_mv.timer); }
   if(_mv.ok){
-    var el=mvEl(cfg); if(el.parentNode!==slot) slot.appendChild(el);
+    var el=mvEl(); mvSetModel(m); if(el.parentNode!==slot) slot.appendChild(el);
     slot.classList.add('on'); mvApply(); return true;
   }
   mvLoad().then(function(ok){ if(ok) mvMount(); });
   return false;
 }
-function mascotInner(file){
-  return mascot3d(file)?'<span class="mv-slot" data-f="'+file+'">'+mascotImg(file)+'</span>':mascotImg(file);
+function mascotInner(id){
+  return mascot3d(id)?'<span class="mv-slot" data-f="'+id+'">'+mascotImg(id)+'</span>':mascotImg(id);
 }
 
 /* ---------- Assistant de l'enfant (messages à règles, sans IA) ---------- */
 var MASCOTS=[
-  ['1f98a','Renard','Roux'],['1f43c','Panda','Bambou'],['1f981','Lion','Léo'],['1f916','Robot','Robo'],
-  ['1f984','Licorne','Étoile'],['1f409','Dragon','Draco'],['1f989','Chouette','Hulotte'],['1f996','Dinosaure','Rex'],
-  ['1f431','Chat','Moustache'],['1f436','Chien','Biscuit'],['1f47d','Extraterrestre','Zorg'],['1f438','Grenouille','Gribouille'],
-  ['1f427','Pingouin','Pingo'],['1f430','Lapin','Câlin']
+  ['butterfly','Papillon','Lilou','Butterfly','1f98b'],
+  ['crab','Crabe','Pinchi','Crab','1f980'],
+  ['duck','Canard','Coincoin','Duck','1f986'],
+  ['hamster','Hamster','Noisette','Hamster','1f439'],
+  ['ladybug','Coccinelle','Pois','Ladybug','1f41e'],
+  ['rabbit','Lapin','Pompon','Rabbit','1f430'],
+  ['seastar','Étoile de mer','Stella','SeaStar','2b50'],
+  ['squirrel','Écureuil','Gland','Squirrel','1f43f-fe0f'],
+  ['toucan','Toucan','Tico','Toucan','1f99c']
 ];
-function mascotOf(file){ return MASCOTS.filter(function(m){return m[0]===file})[0]||null; }
-function mascotImg(file){ return iconImg('e:'+(file||'1f916'),'🤖'); }
+// Distance de caméra (en mètres) qui cadre chaque modèle, saut compris
+var PET_R={Butterfly:2.52,Crab:2.46,Duck:3.0,Hamster:2.8,Ladybug:2.28,Rabbit:3.52,SeaStar:3.22,Squirrel:3.07,Toucan:2.97};
+function mascotOf(id){ return MASCOTS.filter(function(m){return m[0]===id})[0]||null; }
+function validMascot(id){ return mascotOf(id)?id:null; }
+// Image 2D de repli (et miniature du choix) : l'emoji 3D de l'animal
+function mascotImg(id){ var m=mascotOf(id); return iconImg('e:'+(m?m[4]:'1f916'),'🤖'); }
 function astDay(){ return Math.floor(Date.now()/864e5); }
 function astHash(str){ var h=0; for(var i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))|0; return Math.abs(h); }
 function astKey(n){ return 'mf_ast_'+n+'_'+(S.me?S.me.id:'x'); }
@@ -2268,7 +2304,7 @@ function astReactOnce(host,kind){
 }
 var AST_QUIPS=['Hihi, ça chatouille ! 😄','Je suis là, avec toi ! 💛','On y va ? 💪','Tu es génial·e ! ✨','Coucou ! 👋','Allez, on continue ! 🚀','Chut… je réfléchis 🤔','Tu me fais rire ! 😆'];
 function celMascotHtml(badge){
-  var f=S.profile&&S.profile.mascot; if(!f) return '';
+  var f=validMascot(S.profile&&S.profile.mascot); if(!f) return '';
   return '<div class="cel-mascot'+(mascot3d(f)?' is3d':'')+'"><span class="cel-mbody">'+mascotInner(f)+'</span>'+(badge?'<span class="ast-badge">'+badge+'</span>':'')+'</div>';
 }
 function celebrateFx(obj){
@@ -2280,20 +2316,20 @@ function astAfterRender(){
   mvMount();
   var host=document.querySelector('.ast-mascot'); if(!host){ ui._astFx=null; return; }
   var mid=host.getAttribute('data-mid'), mood=host.getAttribute('data-mood');
-  var is3=host.classList.contains('is3d')&&_mv.cur!=='Dance';
+  var is3=host.classList.contains('is3d')&&!_mv.party;
   if(ui._astFx){
     var k=ui._astFx; ui._astFx=null;
-    if(is3){ mvOnce('Happy'); astBurst(host,[k==='cheer'?'⭐':'💛']); }
+    if(is3){ mvOnce('Trick'); astBurst(host,[k==='cheer'?'⭐':'💛']); }
     else if(k==='cheer'){ astReactOnce(host,'hop'); astBurst(host,['⭐']); }
     else { astReactOnce(host,'wiggle'); astBurst(host,['💛']); }
   } else if(is3&&ui._astLast!==mid){
-    if(mood==='happy') mvOnce('Bravo'); else if(mood==='excited'||mood==='surprise') mvOnce('Happy');
+    mvOnce('Walk');
   }
   ui._astLast=mid;
 }
 function assistantHtml(){
   if(ui.tab!=='missions') return '';
-  var file=S.profile&&S.profile.mascot, name=(S.profile&&S.profile.mascot_name)||'';
+  var file=validMascot(S.profile&&S.profile.mascot), name=file?((S.profile&&S.profile.mascot_name)||''):'';
   var m, mf=file, nm=name;
   var vn=!file?astNoteMsg():null;
   if(vn){ m=vn; mf='1f916'; nm='Ton assistant'; }
@@ -2310,8 +2346,8 @@ function assistantHtml(){
 function mascotModalHtml(){
   var mm=ui.mascotMenu, cur=mascotOf(mm.pick);
   var h='<div class="modal-head"><h2>Mon assistant</h2><button class="modal-x" data-a="closeMascot" aria-label="Fermer">✕</button></div>';
-  h+='<div class="av-prev" id="ms-prev" style="width:110px;height:110px;border-radius:30px">'+mascotImg(mm.pick)+'</div><p class="muted" style="text-align:center;margin:0 0 6px;font-weight:700">Choisis ton compagnon, puis donne-lui un nom !</p>';
-  h+='<div class="av-grid">'+MASCOTS.map(function(m){return '<button type="button" class="av-opt'+(m[0]===mm.pick?' sel':'')+'" data-a="pickMascot" data-v="'+m[0]+'" title="'+esc(m[1])+'" style="padding:6px">'+mascotImg(m[0])+'</button>';}).join('')+'</div>';
+  h+='<div class="av-prev" id="ms-prev" style="width:150px;height:150px;border-radius:36px">'+mascotInner(mm.pick)+'</div><p class="muted" style="text-align:center;margin:0 0 8px;font-weight:700">Choisis ton compagnon, puis donne-lui un nom !</p>';
+  h+='<div class="pet-grid">'+MASCOTS.map(function(m){return '<button type="button" class="pet-opt'+(m[0]===mm.pick?' sel':'')+'" data-a="pickMascot" data-v="'+m[0]+'"><span class="pet-img">'+mascotImg(m[0])+'</span><span class="pet-name">'+esc(m[1])+'</span></button>';}).join('')+'</div>';
   h+='<label class="lbl" style="margin-top:14px">Son nom</label><input class="inp" id="ms-name" data-field="mascotName" maxlength="14" placeholder="'+esc(cur?cur[2]:'Mon assistant')+'" value="'+esc(mm.name)+'">';
   h+='<div class="dlg-btns" style="margin-top:14px"><button class="btn ghost" data-a="closeMascot">Annuler</button><button class="btn go" data-a="saveMascot">Enregistrer</button></div>';
   return h;
@@ -2384,6 +2420,24 @@ function astNoteMsg(){
   return {id:'vigil',text:n.message,label:'💬 De la part de tes parents',cta:{a:'astNoteOk',label:'Compris 👍'}};
 }
 
+function accIconsHtml(items,size,kid){
+  if(!items.length) return '';
+  var max=kid?6:4, shown=items.slice(0,max), extra=items.length-shown.length;
+  var h='<span class="acc-row">'+shown.map(function(it){
+    return '<span class="acc-ico'+(it.on?' on':'')+'" style="width:'+size+'px;height:'+size+'px" title="'+esc(it.title)+(it.on?' · débloqué':' · pas encore débloqué')+'">'+iconImg(it.icon||autoIcon(it.title),'🎁')+'</span>';
+  }).join('')+(extra>0?'<span class="muted" style="font-size:11px;font-weight:800">+'+extra+'</span>':'')+'</span>';
+  return kid?'<span class="acc-link" data-a="tab" data-t="bonus">'+h+'</span>':h;
+}
+function kidAccItems(){
+  if(S.accessOff) return [];
+  return (S.myAccess||[]).map(function(st){ return {title:st.rule.title,icon:st.rule.icon,on:st.state==='open'}; });
+}
+function parentAccItems(childId){
+  if(S.accessOff) return [];
+  return (S.accessRules||[]).filter(function(r){ return r.active!==false&&(!r.child_ids||!r.child_ids.length||r.child_ids.indexOf(childId)>-1); }).map(function(r){
+    return {title:r.title,icon:r.icon,on:(S.accessUnlocks||[]).some(function(u){return u.rule_id===r.id&&u.child_id===childId&&(u.kind==='earned'||u.kind==='granted');})};
+  });
+}
 function cancelReqBtn(id){
   return '<button class="btn ghost small" data-a="cancelRedemption" data-id="'+id+'">Annuler la demande</button>';
 }
@@ -2430,7 +2484,7 @@ function viewChild(){
   var got=currentBadgeIds();
   return '<header class="top"><button class="ghost-link" data-a="replayTour">💡 Aide</button><span style="display:flex;align-items:center;gap:4px"><button class="ghost-link theme-btn" data-a="toggleTheme" aria-label="'+(isDarkTheme()?'Passer en mode clair':'Passer en mode sombre')+'">'+(isDarkTheme()?'☀️':'🌙')+'</button><button class="ghost-link" data-a="logout">Déconnexion</button></span></header>'+
     '<section class="hero"><div class="hero-av">'+myAvatar()+'<button class="av-gear" data-a="openAvatarMenu" aria-label="Personnaliser mon profil">⚙️</button></div><div class="hero-main">'+
-    '<div class="hero-name">Salut '+esc(S.profile.display_name)+' !</div>'+
+    '<div class="hero-name"><span>Salut '+esc(S.profile.display_name)+' !</span>'+accIconsHtml(kidAccItems(),28,true)+'</div>'+
     '<div class="hero-lvl">Niveau '+lvl+' · '+levelTitle(lvl)+'</div>'+
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
     '<div class="muted" style="font-size:13px;margin-top:4px;font-weight:700">'+Math.max(0,50-prog)+' ⭐ pour le niveau suivant</div></div></section>'+
@@ -2973,7 +3027,7 @@ var A={
     var host=el&&el.closest?el.closest('.ast-mascot'):document.querySelector('.ast-mascot'); if(!host) return;
     ui._pokes=(ui._pokes||0)+1;
     var kinds=['hop','spin','wiggle'], k=kinds[Math.floor(Math.random()*kinds.length)];
-    if(host.classList.contains('is3d')) mvOnce(Math.random()<0.5?'Happy':'Bravo'); else astReactOnce(host,k);
+    if(host.classList.contains('is3d')) mvOnce('Jump'); else astReactOnce(host,k);
     astBurst(host,[['💛','✨','⭐','💫'][Math.floor(Math.random()*4)],'✨']);
     var tx=document.querySelector('.ast-text');
     if(tx&&!ui._quip){
@@ -2999,14 +3053,21 @@ var A={
   },
   openMascot:function(){
     ui.avatarMenu=false; ui.avatarPick=null;
-    ui.mascotMenu={pick:(S.profile&&S.profile.mascot)||'1f98a',name:(S.profile&&S.profile.mascot_name)||''}; render();
+    var cm=validMascot(S.profile&&S.profile.mascot);
+    ui.mascotMenu={pick:cm||'duck',name:cm?((S.profile&&S.profile.mascot_name)||''):''}; render();
   },
   closeMascot:function(){ ui.mascotMenu=null; render(); },
   pickMascot:function(d){
     if(!ui.mascotMenu) return; ui.mascotMenu.pick=d.v;
     document.querySelectorAll('[data-a="pickMascot"]').forEach(function(b){ b.classList.toggle('sel',b.getAttribute('data-v')===d.v); });
-    var pv=document.getElementById('ms-prev'); if(pv){ pv.innerHTML='<span class="ast-body" style="position:static;animation:none;width:100%;height:100%;display:grid;place-items:center">'+mascotImg(d.v)+'</span>'; astReactOnce(pv,'jump'); }
+    var pv=document.getElementById('ms-prev');
+    if(pv){
+      var sl=pv.querySelector('.mv-slot');
+      if(sl){ sl.setAttribute('data-f',d.v); var im=sl.querySelector('.ico-img'); if(im) im.outerHTML=mascotImg(d.v); }
+      else pv.innerHTML=mascotImg(d.v);
+    }
     var inp=document.getElementById('ms-name'), m=mascotOf(d.v); if(inp&&m) inp.placeholder=m[2];
+    mvMount(); mvOnce('Trick');
   },
   saveMascot:async function(d,btn){
     var mm=ui.mascotMenu; if(!mm) return;
