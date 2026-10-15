@@ -107,6 +107,13 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .vig-op.sel{border-color:var(--pri);background:var(--card)}
 .vig-pt{background:var(--acc);color:#17233c;border-radius:6px;padding:0 4px}
 .vig-tip{color:#b7791f;font-weight:700}
+.ast-mascot.is3d{width:96px;height:96px}
+.ast-mascot.is3d .ast-body{animation:none!important;filter:none}
+.mv-slot{position:relative;width:100%;height:100%;display:grid;place-items:center}
+.mv-slot.on>.ico-img{display:none}
+.mv-slot model-viewer{position:absolute;inset:0;width:100%;height:100%;background:transparent;--poster-color:transparent;pointer-events:none}
+.cel-mascot.is3d{width:160px;height:160px}
+.cel-mascot.is3d .cel-mbody{animation:none!important}
 /* assistant */
 .ast{display:flex;gap:10px;align-items:flex-end;margin:0 0 14px}
 .ast-mascot{position:relative;width:76px;height:76px;flex:none;border:0;background:none;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -2086,6 +2093,71 @@ async function accOverride(ruleId,childId,kind,note){
   toast(kind==='granted'?'🎁 Bonus accordé pour aujourd’hui':'⏸️ Bonus suspendu pour aujourd’hui');
   await refreshParentScreen();
 }
+/* ---------- Mascotte 3D (model-viewer) : seul le Robot a un modèle animé pour l'instant ---------- */
+var MASCOT_3D={'1f916':{glb:'Robot.glb',target:'0m 2.25m 0m',orbit:'0deg 84deg 9.5m',fov:'30deg'}};
+var MV_URL='https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js';
+var MV_DUR={Happy:800,Bravo:1700};   // durées (ms) des animations ponctuelles
+var _mv={el:null,ready:null,ok:false,failed:false,cur:'Idle',timer:null};
+function mascot3d(file){ return !_mv.failed&&MASCOT_3D[file]?MASCOT_3D[file]:null; }
+function mvSupported(){ try{ var c=document.createElement('canvas'); return !!(c.getContext('webgl')||c.getContext('experimental-webgl')); }catch(e){ return false; } }
+function mvLoad(){
+  if(_mv.ready) return _mv.ready;
+  _mv.ready=new Promise(function(res){
+    if(!mvSupported()){ _mv.failed=true; return res(false); }
+    if(window.customElements&&customElements.get('model-viewer')){ _mv.ok=true; return res(true); }
+    var s=document.createElement('script'); s.type='module'; s.src=MV_URL;
+    s.onload=function(){ customElements.whenDefined('model-viewer').then(function(){ _mv.ok=true; res(true); }); };
+    s.onerror=function(){ _mv.failed=true; res(false); };
+    document.head.appendChild(s);
+    setTimeout(function(){ if(!_mv.ok){ _mv.failed=true; res(false); } },15000);
+  });
+  return _mv.ready;
+}
+function mvEl(cfg){
+  if(_mv.el) return _mv.el;
+  var el=document.createElement('model-viewer');
+  el.setAttribute('src',cfg.glb); el.setAttribute('alt','Assistant 3D');
+  el.setAttribute('autoplay',''); el.setAttribute('animation-name','Idle'); el.setAttribute('animation-crossfade-duration','250');
+  el.setAttribute('camera-orbit',cfg.orbit); el.setAttribute('camera-target',cfg.target); el.setAttribute('field-of-view',cfg.fov);
+  el.setAttribute('min-camera-orbit','auto auto 9.5m'); el.setAttribute('max-camera-orbit','auto auto 9.5m');
+  el.setAttribute('interaction-prompt','none'); el.setAttribute('disable-zoom',''); el.setAttribute('disable-pan',''); el.setAttribute('disable-tap','');
+  el.setAttribute('shadow-intensity','0'); el.setAttribute('exposure','1.15'); el.setAttribute('environment-image','neutral');
+  el.addEventListener('error',function(){ _mv.failed=true; mvDetach(); document.querySelectorAll('.mv-slot').forEach(function(s){ s.classList.remove('on'); }); });
+  el.addEventListener('load',function(){ mvApply(); });
+  _mv.el=el; return el;
+}
+function mvDetach(){ if(_mv.el&&_mv.el.parentNode) _mv.el.parentNode.removeChild(_mv.el); }
+// Applique l'animation voulue (_mv.cur) à l'élément
+function mvApply(){
+  var el=_mv.el; if(!el) return;
+  try{ if(el.animationName!==_mv.cur) el.animationName=_mv.cur; if(typeof el.play==='function') el.play(); }catch(e){}
+}
+function mvSet(name){ _mv.cur=name; clearTimeout(_mv.timer); mvApply(); }
+// Animation ponctuelle puis retour au calme (Idle)
+function mvOnce(name,back){
+  _mv.cur=name; clearTimeout(_mv.timer); mvApply();
+  _mv.timer=setTimeout(function(){ _mv.cur=back||'Idle'; mvApply(); },MV_DUR[name]||1200);
+}
+// Place le modèle 3D dans l'emplacement le plus haut de la page (fenêtre de fête > accueil)
+function mvMount(){
+  var slots=document.querySelectorAll('.mv-slot');
+  if(!slots.length){ mvDetach(); return false; }
+  var slot=slots[slots.length-1], file=slot.getAttribute('data-f'), cfg=MASCOT_3D[file];
+  if(!cfg||_mv.failed) return false;
+  var inModal=!!slot.closest('.cel-mascot');
+  if(inModal&&_mv.cur!=='Dance'){ _mv.cur='Dance'; clearTimeout(_mv.timer); }
+  else if(!inModal&&_mv.cur==='Dance'){ _mv.cur='Idle'; }
+  if(_mv.ok){
+    var el=mvEl(cfg); if(el.parentNode!==slot) slot.appendChild(el);
+    slot.classList.add('on'); mvApply(); return true;
+  }
+  mvLoad().then(function(ok){ if(ok) mvMount(); });
+  return false;
+}
+function mascotInner(file){
+  return mascot3d(file)?'<span class="mv-slot" data-f="'+file+'">'+mascotImg(file)+'</span>':mascotImg(file);
+}
+
 /* ---------- Assistant de l'enfant (messages à règles, sans IA) ---------- */
 var MASCOTS=[
   ['1f98a','Renard','Roux'],['1f43c','Panda','Bambou'],['1f981','Lion','Léo'],['1f916','Robot','Robo'],
@@ -2197,7 +2269,7 @@ function astReactOnce(host,kind){
 var AST_QUIPS=['Hihi, ça chatouille ! 😄','Je suis là, avec toi ! 💛','On y va ? 💪','Tu es génial·e ! ✨','Coucou ! 👋','Allez, on continue ! 🚀','Chut… je réfléchis 🤔','Tu me fais rire ! 😆'];
 function celMascotHtml(badge){
   var f=S.profile&&S.profile.mascot; if(!f) return '';
-  return '<div class="cel-mascot"><span class="cel-mbody">'+mascotImg(f)+'</span>'+(badge?'<span class="ast-badge">'+badge+'</span>':'')+'</div>';
+  return '<div class="cel-mascot'+(mascot3d(f)?' is3d':'')+'"><span class="cel-mbody">'+mascotInner(f)+'</span>'+(badge?'<span class="ast-badge">'+badge+'</span>':'')+'</div>';
 }
 function celebrateFx(obj){
   var host=document.querySelector('.cel-mascot'); if(!host||!obj||obj._fx) return;
@@ -2205,12 +2277,17 @@ function celebrateFx(obj){
   [0,650,1300].forEach(function(t){ setTimeout(function(){ if(document.body.contains(host)) astBurst(host,['🎉','✨','⭐','🎊','✨']); },t); });
 }
 function astAfterRender(){
+  mvMount();
   var host=document.querySelector('.ast-mascot'); if(!host){ ui._astFx=null; return; }
   var mid=host.getAttribute('data-mid'), mood=host.getAttribute('data-mood');
+  var is3=host.classList.contains('is3d')&&_mv.cur!=='Dance';
   if(ui._astFx){
     var k=ui._astFx; ui._astFx=null;
-    if(k==='cheer'){ astReactOnce(host,'hop'); astBurst(host,['⭐']); }
+    if(is3){ mvOnce('Happy'); astBurst(host,[k==='cheer'?'⭐':'💛']); }
+    else if(k==='cheer'){ astReactOnce(host,'hop'); astBurst(host,['⭐']); }
     else { astReactOnce(host,'wiggle'); astBurst(host,['💛']); }
+  } else if(is3&&ui._astLast!==mid){
+    if(mood==='happy') mvOnce('Bravo'); else if(mood==='excited'||mood==='surprise') mvOnce('Happy');
   }
   ui._astLast=mid;
 }
@@ -2227,7 +2304,7 @@ function assistantHtml(){
   } else { m=astPick(); if(!m) return ''; }
   var cta=m.cta?'<button class="btn small" style="margin-top:8px" data-a="'+m.cta.a+'"'+(m.cta.t?' data-t="'+m.cta.t+'"':'')+'>'+esc(m.cta.label)+'</button>':'';
   var mo=astMood(m.id,new Date().getHours());
-  return '<div class="ast"><button type="button" class="ast-mascot m-'+mo.m+'" data-a="astPoke" data-mid="'+m.id+'" data-mood="'+mo.m+'" aria-label="Jouer avec mon assistant"><span class="ast-body">'+mascotImg(mf)+'</span>'+(mo.b?'<span class="ast-badge">'+mo.b+'</span>':'')+'</button><div class="ast-bubble"><button class="ast-x" data-a="astDismiss" data-id="'+m.id+'" aria-label="Fermer">✕</button>'+
+  return '<div class="ast"><button type="button" class="ast-mascot m-'+mo.m+(mascot3d(mf)?' is3d':'')+'" data-a="astPoke" data-mid="'+m.id+'" data-mood="'+mo.m+'" aria-label="Jouer avec mon assistant"><span class="ast-body">'+mascotInner(mf)+'</span>'+(mo.b?'<span class="ast-badge">'+mo.b+'</span>':'')+'</button><div class="ast-bubble"><button class="ast-x" data-a="astDismiss" data-id="'+m.id+'" aria-label="Fermer">✕</button>'+
     (nm?'<div class="ast-name">'+esc(nm)+'</div>':'')+(m.label?'<div class="muted" style="font-size:12px;font-weight:800;margin-bottom:2px">'+m.label+'</div>':'')+'<div class="ast-text">'+((file||vn)?esc(m.text):m.text)+'</div>'+cta+'</div></div>';
 }
 function mascotModalHtml(){
@@ -2478,6 +2555,7 @@ function render(){
   if(modal && !hadModal) modal=modal.replace('class="modal-backdrop','class="modal-backdrop enter');
   var viewKey=[ui.view,ui.ptab,ui.tab,ui.fview,ui.mview,ui.detailChild].join('|');
   var changed=viewKey!==render._k; render._k=viewKey;
+  mvDetach();
   if(_oldBack && !modal && !ui.celebrate){
     var _g=_oldBack.cloneNode(true); _g.classList.add('ghost-out'); _g.classList.remove('enter');
     [].slice.call(_g.querySelectorAll('[data-a]')).forEach(function(n){n.removeAttribute('data-a')}); _g.removeAttribute('data-a');
@@ -2895,7 +2973,7 @@ var A={
     var host=el&&el.closest?el.closest('.ast-mascot'):document.querySelector('.ast-mascot'); if(!host) return;
     ui._pokes=(ui._pokes||0)+1;
     var kinds=['hop','spin','wiggle'], k=kinds[Math.floor(Math.random()*kinds.length)];
-    astReactOnce(host,k);
+    if(host.classList.contains('is3d')) mvOnce(Math.random()<0.5?'Happy':'Bravo'); else astReactOnce(host,k);
     astBurst(host,[['💛','✨','⭐','💫'][Math.floor(Math.random()*4)],'✨']);
     var tx=document.querySelector('.ast-text');
     if(tx&&!ui._quip){
