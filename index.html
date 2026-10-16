@@ -894,6 +894,7 @@ async function loadChildDetail(childId){
   (givenRedemptions||[]).slice(0,6).forEach(function(r){ feed.push({type:'reward', label:(r.emoji?r.emoji+' ':'')+r.title, points:-r.cost, at:r.decided_at}); });
   feed.sort(function(a,b){ return new Date(b.at)-new Date(a.at); });
 
+  var corrData=await loadCorrData(childId);
   var rvWeek=(function(){ var dw=dowOf(todayStr()); return (dw===6||dw===0)?mondayOf(todayStr()):addDays(mondayOf(todayStr()),-7); })();
   var review={week:rvWeek,off:false,done:false,shared:false,content:null};
   try{
@@ -908,7 +909,7 @@ async function loadChildDetail(childId){
       }
     }
   }catch(e){ review.off=true; }
-  S.detail={review:review, childId:childId, days:days, longest:longest, earned:earned, missionsCount:(allValidated||[]).length, rewardsGiven:(givenRedemptions||[]).length, badges:myBadges||[], feed:feed.slice(0,8), successRate:successRate, weekRate:weekRate};
+  S.detail={review:review, editable:corrData.editable, corrections:corrData.corrections, corrOff:corrData.off, childId:childId, days:days, longest:longest, earned:earned, missionsCount:(allValidated||[]).length, rewardsGiven:(givenRedemptions||[]).length, badges:myBadges||[], feed:feed.slice(0,8), successRate:successRate, weekRate:weekRate};
 }
 
 async function refreshParentScreen(){ await loadChildren(); await loadParentData(); if(ui.ptab==='shop'&&ui.bonusTab==='unlock') await loadAccessAdmin(); if(ui.view==='childDetail'&&ui.detailChild) await loadChildDetail(ui.detailChild); render(); }
@@ -1583,6 +1584,8 @@ function viewChildDetail(){
     h+='</div>';
   }
 
+  h+=correctionsHtml(c,d);
+
   var pend=S.logs.filter(function(l){return l.child_id===c.id});
   if(pend.length){ h+='<div class="sec"><h3>⏳ À valider</h3></div>'+pendingRows(c.id); }
 
@@ -2116,19 +2119,34 @@ async function accOverride(ruleId,childId,kind,note){
 var MV_URL='https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js';
 // Durées (ms) des séquences : Walk et Run sont de longues boucles, on n'en joue qu'un extrait
 var MV_MS={Walk:4000,Run:2200,Trick:1700,Jump:1000};
-var _mv={el:null,ready:null,ok:false,failed:false,cur:'Idle',timer:null,party:false,src:null};
+var _mv={el:null,ready:null,ok:false,failed:false,cur:'Idle',timer:null,party:false,src:null,why:'',loaded:false,anims:[]};
+// Diagnostic : cause de l'échec du 3D, affichée dans la fenêtre « Mon assistant »
+function mvDiagText(){
+  if(_mv.failed) return '⚠️ 3D indisponible : '+_mv.why;
+  if(_mv.loaded){
+    var need=['Idle','Walk','Run','Jump','Trick'], miss=need.filter(function(n){return _mv.anims.indexOf(n)<0;});
+    return '✅ 3D actif ('+_mv.src+'.glb)'+(miss.length?' · animations manquantes : '+miss.join(', '):' · animations OK');
+  }
+  return '⏳ 3D en cours de chargement…';
+}
+function mvDiagShow(){ var d=document.getElementById('mv-diag'); if(d) d.textContent=mvDiagText(); }
+function mvFail(why){
+  _mv.failed=true; _mv.why=why; mvDetach();
+  document.querySelectorAll('.mv-slot').forEach(function(sl){ sl.classList.remove('on'); });
+  mvDiagShow();
+}
 function mascot3d(id){ return !_mv.failed?mascotOf(id):null; }
 function mvSupported(){ try{ var c=document.createElement('canvas'); return !!(c.getContext('webgl')||c.getContext('experimental-webgl')); }catch(e){ return false; } }
 function mvLoad(){
   if(_mv.ready) return _mv.ready;
   _mv.ready=new Promise(function(res){
-    if(!mvSupported()){ _mv.failed=true; return res(false); }
+    if(!mvSupported()){ mvFail('WebGL n’est pas disponible sur cet appareil ou ce navigateur.'); return res(false); }
     if(window.customElements&&customElements.get('model-viewer')){ _mv.ok=true; return res(true); }
     var s=document.createElement('script'); s.type='module'; s.src=MV_URL;
     s.onload=function(){ customElements.whenDefined('model-viewer').then(function(){ _mv.ok=true; res(true); }); };
-    s.onerror=function(){ _mv.failed=true; res(false); };
+    s.onerror=function(){ mvFail('le script model-viewer n’a pas pu être chargé (réseau coupé ou site ajax.googleapis.com bloqué).'); res(false); };
     document.head.appendChild(s);
-    setTimeout(function(){ if(!_mv.ok){ _mv.failed=true; res(false); } },15000);
+    setTimeout(function(){ if(!_mv.ok&&!_mv.failed){ mvFail('le script model-viewer met plus de 15 s à se charger.'); res(false); } },15000);
   });
   return _mv.ready;
 }
@@ -2139,14 +2157,23 @@ function mvEl(){
   el.setAttribute('field-of-view','30deg'); el.setAttribute('interaction-prompt','none');
   el.setAttribute('disable-zoom',''); el.setAttribute('disable-pan',''); el.setAttribute('disable-tap','');
   el.setAttribute('shadow-intensity','0'); el.setAttribute('exposure','1.1'); el.setAttribute('environment-image','neutral');
-  el.addEventListener('error',function(){ _mv.failed=true; mvDetach(); document.querySelectorAll('.mv-slot').forEach(function(s){ s.classList.remove('on'); }); });
-  el.addEventListener('load',function(){ mvApply(); });
+  el.addEventListener('error',function(ev){
+    var f='assistants/'+_mv.src+'.glb', det=ev&&ev.detail&&ev.detail.sourceError&&ev.detail.sourceError.message?ev.detail.sourceError.message:'';
+    mvFail('le modèle '+f+' n’a pas pu être lu. Vérification en cours…');
+    try{
+      fetch(f,{method:'HEAD'}).then(function(r){
+        _mv.why=r.ok?('le fichier '+f+' existe (HTTP '+r.status+') mais model-viewer ne sait pas le lire'+(det?' : '+det:'')+'.'):('le fichier '+f+' est introuvable (HTTP '+r.status+') : vérifie le dossier assistants/ et la majuscule du nom.');
+        mvDiagShow();
+      }).catch(function(){ _mv.why='le fichier '+f+' n’a pas pu être téléchargé (réseau ?)'+(det?' : '+det:'')+'.'; mvDiagShow(); });
+    }catch(e){}
+  });
+  el.addEventListener('load',function(){ _mv.loaded=true; try{ _mv.anims=(el.availableAnimations||[]).slice(); }catch(e){ _mv.anims=[]; } mvApply(); mvDiagShow(); });
   _mv.el=el; return el;
 }
 // Charge le modèle voulu et règle la caméra (une seule fois par modèle)
 function mvSetModel(m){
   var el=_mv.el; if(!el||_mv.src===m[3]) return;
-  _mv.src=m[3]; var r=PET_R[m[3]]||3;
+  _mv.src=m[3]; _mv.loaded=false; mvDiagShow(); var r=PET_R[m[3]]||3;
   el.setAttribute('camera-orbit','20deg 80deg '+r+'m'); el.setAttribute('min-camera-orbit','auto auto '+r+'m'); el.setAttribute('max-camera-orbit','auto auto '+r+'m');
   el.setAttribute('src','assistants/'+m[3]+'.glb');
 }
@@ -2348,6 +2375,7 @@ function mascotModalHtml(){
   var h='<div class="modal-head"><h2>Mon assistant</h2><button class="modal-x" data-a="closeMascot" aria-label="Fermer">✕</button></div>';
   h+='<div class="av-prev" id="ms-prev" style="width:150px;height:150px;border-radius:36px">'+mascotInner(mm.pick)+'</div><p class="muted" style="text-align:center;margin:0 0 8px;font-weight:700">Choisis ton compagnon, puis donne-lui un nom !</p>';
   h+='<div class="pet-grid">'+MASCOTS.map(function(m){return '<button type="button" class="pet-opt'+(m[0]===mm.pick?' sel':'')+'" data-a="pickMascot" data-v="'+m[0]+'"><span class="pet-img">'+mascotImg(m[0])+'</span><span class="pet-name">'+esc(m[1])+'</span></button>';}).join('')+'</div>';
+  h+='<div id="mv-diag" class="muted" style="font-size:12px;margin-top:10px;text-align:center;word-break:break-word">'+esc(mvDiagText())+'</div>';
   h+='<label class="lbl" style="margin-top:14px">Son nom</label><input class="inp" id="ms-name" data-field="mascotName" maxlength="14" placeholder="'+esc(cur?cur[2]:'Mon assistant')+'" value="'+esc(mm.name)+'">';
   h+='<div class="dlg-btns" style="margin-top:14px"><button class="btn ghost" data-a="closeMascot">Annuler</button><button class="btn go" data-a="saveMascot">Enregistrer</button></div>';
   return h;
@@ -2438,6 +2466,92 @@ function parentAccItems(childId){
     return {title:r.title,icon:r.icon,on:(S.accessUnlocks||[]).some(function(u){return u.rule_id===r.id&&u.child_id===childId&&(u.kind==='earned'||u.kind==='granted');})};
   });
 }
+/* ---------- Corrections d'une validation (jusqu'à J+1) ---------- */
+function corrFrom(){ return addDays(todayStr(),-1); }
+function corrDayLabel(date){ var t=todayStr(); return date===t?'Aujourd’hui':(date===addDays(t,-1)?'Hier':date); }
+async function loadCorrData(childId){
+  var out={editable:[],corrections:[],off:false};
+  try{
+    var from=corrFrom();
+    var {data:lg}=await client.from('task_logs').select('id,task_id,title,points,date,validated_at').eq('child_id',childId).eq('status','validated').gte('date',from).order('date',{ascending:false});
+    out.editable=lg||[];
+    var {data:cr,error}=await client.from('log_corrections').select('*').eq('child_id',childId).eq('restored',false).gte('log_date',from).order('created_at',{ascending:false});
+    if(error) out.off=true; else out.corrections=cr||[];
+  }catch(e){ out.off=true; }
+  return out;
+}
+function correctionsHtml(c,d){
+  var ed=d.editable||[], cr=d.corrections||[];
+  if(!ed.length&&!cr.length) return '';
+  var h='<div class="sec"><h3>✏️ Corriger une validation</h3></div><p class="help-hint" style="margin-top:0">Tu peux revenir sur les missions d’hier et d’aujourd’hui. Étoiles, série, badges et statistiques sont recalculés.</p>';
+  h+=ed.map(function(l){
+    return '<div class="task"><span class="t-emoji">✅</span><span class="t-main"><span class="t-title">'+esc(l.title||'Mission')+'</span><span class="t-meta">'+corrDayLabel(l.date)+' · +'+(l.points||0)+' ⭐</span></span><button class="btn ghost small" data-a="openCorr" data-id="'+l.id+'">Modifier</button></div>';
+  }).join('');
+  h+=cr.map(function(x){
+    return '<div class="task pending"><span class="t-emoji">↩️</span><span class="t-main"><span class="t-title">'+esc(x.title)+'</span><span class="t-meta">Retirée'+(x.comment?' · « '+esc(x.comment)+' »':'')+'</span></span><button class="btn ghost small" data-a="restoreCorr" data-id="'+x.id+'">Rétablir</button></div>';
+  }).join('');
+  return h;
+}
+function corrModalHtml(){
+  var v=ui.corr, c=S.children.filter(function(x){return x.id===v.childId})[0], nm=c?esc(c.display_name):'l’enfant';
+  var h='<div class="modal-head"><h2>✏️ Modifier la validation</h2><button class="modal-x" data-a="closeCorr" aria-label="Fermer">✕</button></div>';
+  h+='<div class="help-box"><b>'+esc(v.title)+'</b><br>'+corrDayLabel(v.date)+' · +'+v.points+' ⭐ pour '+nm+'</div>';
+  h+='<p style="font-size:14px;margin:6px 0">La mission sera retirée, comme si elle n’avait pas été faite : <b>−'+v.points+' ⭐</b>. La série, les badges et les statistiques de '+nm+' seront recalculés.</p>';
+  h+='<label class="lbl">Un petit mot pour '+nm+' <span class="muted" style="font-weight:700">(facultatif)</span></label><textarea class="inp" rows="3" maxlength="160" data-field="corrComment" placeholder="Ex : Ton linge n’était pas au sale…">'+esc(v.comment||'')+'</textarea><p class="muted" style="font-size:12px;margin:4px 0 0">Il verra ce message à sa prochaine ouverture de l’appli.</p>';
+  h+='<div class="dlg-btns" style="margin-top:14px"><button class="btn ghost" data-a="closeCorr">Annuler</button><button class="btn danger" data-a="saveCorr">Retirer la validation</button></div>';
+  return h;
+}
+// Retire un badge (et sa récompense en étoiles). Renvoie false si la suppression est refusée.
+async function revokeBadgeRow(childId,row){
+  var def=badgeDef(row.badge_id);
+  var {data:dd,error}=await client.from('badges').delete().eq('id',row.id).select();
+  if(error||!dd||!dd.length) return false;
+  if(!row.reward) return true;
+  var reason=def?def.emoji+' '+def.name:row.badge_id;
+  var {data:adj}=await client.from('adjustments').select('id,created_at').eq('child_id',childId).eq('reason',reason).eq('points',row.reward);
+  var t0=new Date(row.created_at).getTime(), best=null;
+  (adj||[]).forEach(function(a){ var dt=Math.abs(new Date(a.created_at).getTime()-t0); if(dt<120000&&(!best||dt<best.dt)) best={id:a.id,dt:dt}; });
+  if(best) await client.from('adjustments').delete().eq('id',best.id);
+  else await client.from('adjustments').insert({family_id:S.profile.family_id,child_id:childId,points:-row.reward,reason:'↩️ Badge retiré : '+(def?def.name:row.badge_id)});
+  return true;
+}
+// Recalcule les badges du jour concerné et de sa semaine : retire ceux qui ne sont plus mérités, attribue ceux qui le deviennent. Renvoie le nombre d'échecs de suppression.
+async function reconcileBadges(childId,dateStr){
+  var W=mondayOf(dateStr), weekEnd=addDays(W,6), ended=todayStr()>weekEnd, failed=0;
+  var {data:wl}=await client.from('task_logs').select('task_id,date,points').eq('child_id',childId).eq('status','validated').gte('date',W).lte('date',weekEnd);
+  var logs=wl||[];
+  var vOn=function(d){ return logs.filter(function(l){return l.date===d}); };
+  var isSp=function(l){ var t=S.tasks.filter(function(x){return x.id===l.task_id})[0]; return !!(t&&!t.recurring); };
+  var strict=function(d){
+    var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,childId)&&isDueOn(t,d)&&(!t.created_at||t.created_at.slice(0,10)<=d)});
+    if(!due.length) return 'none';
+    var v=vOn(d); return due.every(function(t){return v.some(function(l){return l.task_id===t.id})})?'ok':'miss';
+  };
+  var exp={}; // clé "id|scope|period" -> récompense
+  var add=function(id,scope,period,rw){ exp[id+'|'+scope+'|'+period]=rw; };
+  if(vOn(dateStr).length>=1) add('kickoff','day',dateStr,1);
+  if(strict(dateStr)==='ok') add('perfectday','day',dateStr,1);
+  if(vOn(dateStr).some(isSp)) add('helpinghand','day',dateStr,1);
+  var days=weekDatesFull(W);
+  if(logs.filter(isSp).length>=3) add('bonushunter','week',W,1);
+  if(logs.reduce(function(t,l){return t+(l.points||0)},0)>=40) add('steadyeffort','week',W,1);
+  if(ended){
+    var any=false,bad=false; days.forEach(function(d){ var k=strict(d); if(k==='ok') any=true; else if(k==='miss') bad=true; });
+    if(any&&!bad) add('perfectweek','week',W,5);
+    if(days.every(function(d){return vOn(d).length>=5})) add('ironregular','week',W,1);
+  }
+  var DAYB=['kickoff','perfectday','helpinghand'], WEEKB=['bonushunter','steadyeffort','perfectweek','ironregular'];
+  var {data:ex}=await client.from('badges').select('*').eq('child_id',childId).in('period',[dateStr,W]);
+  for(var i=0;i<(ex||[]).length;i++){
+    var r=ex[i], key=r.badge_id+'|'+r.scope+'|'+r.period;
+    var evaluated=(r.scope==='day'&&r.period===dateStr&&DAYB.indexOf(r.badge_id)>-1)||(r.scope==='week'&&r.period===W&&WEEKB.indexOf(r.badge_id)>-1);
+    if(evaluated&&!(key in exp)){ if(!(await revokeBadgeRow(childId,r))) failed++; }
+  }
+  var keys=Object.keys(exp);
+  for(var j=0;j<keys.length;j++){ var p=keys[j].split('|'); await awardBadge(childId,p[0],p[1],p[2],exp[keys[j]]); }
+  return failed;
+}
+
 function cancelReqBtn(id){
   return '<button class="btn ghost small" data-a="cancelRedemption" data-id="'+id+'">Annuler la demande</button>';
 }
@@ -2503,12 +2617,14 @@ async function checkCelebration(){
     var lvl=levelFor(S.earned||S.stars);
     if(lvl<lastLvl){ lsSet(kLvl,lvl); lastLvl=lvl; lsSet(kLast,new Date().toISOString()); last=lsGet(kLast); }
     if(!last){ lsSet(kLast,new Date().toISOString()); lsSet(kLvl,lvl); return; }
-    var [rl,rr,rb,ra]=await Promise.all([
+    var [rl,rr,rb,ra,rc]=await Promise.all([
       client.from('task_logs').select('title,points,validated_at').eq('child_id',me).eq('status','validated').gt('validated_at',last).order('validated_at'),
       client.from('redemptions').select('title,emoji,cost,status,decided_at').eq('child_id',me).in('status',['given','refused']).gt('decided_at',last).order('decided_at'),
       client.from('badges').select('id,badge_id,reward,created_at').eq('child_id',me).gt('created_at',last).order('created_at'),
-      client.from('adjustments').select('points,reason,created_at').eq('child_id',me).gt('created_at',last).order('created_at')
+      client.from('adjustments').select('points,reason,created_at').eq('child_id',me).gt('created_at',last).order('created_at'),
+      client.from('log_corrections').select('title,points,comment,created_at,restored').eq('child_id',me).gt('created_at',last).order('created_at')
     ]);
+    var corr=((rc&&rc.data)||[]).filter(function(x){return !x.restored});
     var missions=rl.data||[], gifts=(rr.data||[]).filter(function(r){return r.status==='given'}), refused=(rr.data||[]).filter(function(r){return r.status==='refused'});
     var badges=(rb.data||[]).filter(function(b){return badgeDef(b.badge_id)});
     var bonus=(ra.data||[]).filter(function(a){
@@ -2516,7 +2632,7 @@ async function checkCelebration(){
       return !BADGE_DEFS.some(function(b){return r===b.emoji+' '+b.name||r===b.id});
     });
     var levelUp=lvl>lastLvl&&lastLvl>0;
-    if(!missions.length&&!gifts.length&&!refused.length&&!badges.length&&!bonus.length&&!levelUp){
+    if(!missions.length&&!gifts.length&&!refused.length&&!badges.length&&!bonus.length&&!levelUp&&!corr.length){
       if(lvl>lastLvl) lsSet(kLvl,lvl);
       return;
     }
@@ -2524,15 +2640,21 @@ async function checkCelebration(){
     missions.forEach(function(m){stars+=m.points||0});
     badges.forEach(function(b){stars+=b.reward||0});
     bonus.forEach(function(a){stars+=a.points||0});
-    var stamps=[].concat(missions.map(function(x){return x.validated_at}),(rr.data||[]).map(function(x){return x.decided_at}),badges.map(function(x){return x.created_at}),bonus.map(function(x){return x.created_at})).filter(Boolean).sort();
+    var stamps=[].concat(missions.map(function(x){return x.validated_at}),(rr.data||[]).map(function(x){return x.decided_at}),badges.map(function(x){return x.created_at}),bonus.map(function(x){return x.created_at}),corr.map(function(x){return x.created_at})).filter(Boolean).sort();
     var colors=['#FF6B5E','#FFD166','#22B26B','#6C5CE7','#4FC3F7'], conf='';
     for(var i=0;i<28;i++) conf+='<i style="left:'+Math.round(Math.random()*100)+'%;background:'+colors[i%colors.length]+';animation-duration:'+(2.4+Math.random()*2.4).toFixed(1)+'s;animation-delay:-'+(Math.random()*4).toFixed(1)+'s"></i>';
-    ui.celebrate={missions:missions,gifts:gifts,refused:refused,badges:badges,bonus:bonus,stars:stars,levelUp:levelUp?{lvl:lvl,title:levelTitle(lvl)}:null,lvl:lvl,stamp:stamps.length?stamps[stamps.length-1]:last,conf:conf};
+    var notice=corr.length>0&&!missions.length&&!gifts.length&&!badges.length&&!levelUp&&!bonus.some(function(a){return a.points>0});
+    ui.celebrate={corr:corr,notice:notice,missions:missions,gifts:gifts,refused:refused,badges:badges,bonus:bonus,stars:stars,levelUp:levelUp?{lvl:lvl,title:levelTitle(lvl)}:null,lvl:lvl,stamp:stamps.length?stamps[stamps.length-1]:last,conf:conf};
   }catch(e){ console.error('celebration error',e); }
 }
 function celebrateHtml(c){
   var d=0;
   function row(e,t,p,soft){ d+=0.18; return '<div class="cel-row'+(soft?' soft':'')+'" style="animation-delay:'+(0.5+d).toFixed(2)+'s"><span class="e">'+e+'</span><span class="t">'+t+'</span>'+(p?'<span class="p">'+p+'</span>':'')+'</div>'; }
+  var corrRows=(c.corr||[]).map(function(x){return row('↩️',esc(x.title)+(x.comment?'<span class="sub">« '+esc(x.comment)+' »</span>':''),'−'+(x.points||0)+' ⭐',true);}).join('');
+  if(c.notice){
+    return '<div class="cel-back"><div class="cel" data-a="noop"><div class="cel-big" style="animation:none">💬</div><h2>Un message de tes parents</h2><div class="cel-sub">Une validation a été modifiée</div>'+corrRows+
+      '<p class="muted" style="font-size:13px;font-weight:700;margin:10px 0 0">Ce n’est pas grave : tu pourras te rattraper dès aujourd’hui 💛</p><button class="btn go wide" data-a="closeCelebrate">J’ai compris</button></div></div>';
+  }
   var h='<div class="cel-back"><div class="cel-conf">'+c.conf+'</div><div class="cel" data-a="noop">';
   h+=(celMascotHtml(c.levelUp?'🚀':(c.badges.length?'🏅':'🎉'))||'<div class="cel-big">'+(c.levelUp?'🚀':(c.badges.length?'🏅':'🎉'))+'</div>')+'<h2>Bravo '+esc(S.profile.display_name)+' !</h2><div class="cel-sub">Voilà ce qui s’est passé pendant ton absence</div>';
   if(c.levelUp) h+='<div class="cel-lvl">⬆️ Niveau '+c.levelUp.lvl+' · '+esc(c.levelUp.title)+' !</div>';
@@ -2541,6 +2663,7 @@ function celebrateHtml(c){
   if(c.bonus.length){ h+='<div class="cel-sec">Bonus</div>'+c.bonus.map(function(a){return row(a.points>=0?'✨':'⭐',esc(a.reason||'Ajustement'),(a.points>=0?'+':'')+a.points+' ⭐');}).join(''); }
   if(c.gifts.length){ h+='<div class="cel-sec">Cadeaux accordés</div>'+c.gifts.map(function(g){return row(g.emoji||'🎁',esc(g.title)+' est à toi !','');}).join(''); }
   if(c.refused.length){ h+='<div class="cel-sec">Demandes</div>'+c.refused.map(function(g){return row('💬','Pas cette fois pour « '+esc(g.title)+' »','',true);}).join(''); }
+  if(corrRows) h+='<div class="cel-sec">Modifié par tes parents</div>'+corrRows;
   if(c.stars>0) h+='<div class="cel-total">+<span data-count="'+c.stars+'">0</span> ⭐</div>';
   h+='<button class="btn go wide" data-a="closeCelebrate">Super !</button></div></div>';
   return h;
@@ -2579,6 +2702,7 @@ function render(){
   var modal='';
   if(ui.newOpen) modal='<div class="modal-backdrop" data-a="closeForm"><div class="modal" data-a="noop">'+mform()+'</div></div>';
   else if(ui.rFormOpen) modal='<div class="modal-backdrop" data-a="closeRewardForm"><div class="modal" data-a="noop">'+rform()+'</div></div>';
+  else if(ui.corr) modal='<div class="modal-backdrop" data-a="closeCorr"><div class="modal" data-a="noop">'+corrModalHtml()+'</div></div>';
   else if(ui.vig) modal='<div class="modal-backdrop" data-a="closeVig"><div class="modal" data-a="noop">'+vigModalHtml()+'</div></div>';
   else if(ui.accessForm) modal='<div class="modal-backdrop" data-a="closeAccessForm"><div class="modal" data-a="noop">'+accessFormHtml()+'</div></div>';
   else if(ui.accessHelp) modal='<div class="modal-backdrop" data-a="closeAccessHelp"><div class="modal" data-a="noop">'+accessHelpHtml()+'</div></div>';
@@ -2988,6 +3112,49 @@ var A={
   accClear:async function(d){
     var {error}=await client.from('access_unlocks').delete().eq('rule_id',d.r).eq('child_id',d.c).eq('date',todayStr());
     if(error){ showAlert('❌ '+error.message); return; }
+    await refreshParentScreen();
+  },
+  openCorr:function(d){
+    var l=((S.detail&&S.detail.editable)||[]).filter(function(x){return x.id===d.id})[0]; if(!l) return;
+    ui.corr={logId:l.id,taskId:l.task_id,childId:S.detail.childId,title:l.title||'Mission',points:l.points||0,date:l.date,validatedAt:l.validated_at,comment:''}; render();
+  },
+  closeCorr:function(){ ui.corr=null; render(); },
+  saveCorr:async function(d,btn){
+    var v=ui.corr; if(!v) return;
+    if(v.date<corrFrom()){ showAlert('⚠️ Cette validation est trop ancienne pour être modifiée : la correction est possible jusqu’au lendemain.'); return; }
+    if(btn) btn.disabled=true;
+    var comment=(v.comment||'').trim()||null;
+    var {data:tr,error:e1}=await client.from('log_corrections').insert({family_id:S.profile.family_id,child_id:v.childId,task_id:v.taskId,title:v.title,points:v.points,log_date:v.date,validated_at:v.validatedAt,comment:comment}).select('id').single();
+    if(e1||!tr){ if(btn) btn.disabled=false; showAlert('❌ '+(e1?e1.message:'Enregistrement impossible')+'\n\nVérifie que la table « log_corrections » a bien été créée dans Supabase.'); return; }
+    var {data:del,error:e2}=await client.from('task_logs').delete().eq('id',v.logId).select();
+    if(e2||!del||!del.length){
+      await client.from('log_corrections').delete().eq('id',tr.id);
+      if(btn) btn.disabled=false; showAlert('❌ Impossible de retirer la validation'+(e2?' : '+e2.message:'')+'\n\nIl manque sans doute le droit de suppression des parents sur « task_logs » (voir le SQL fourni).'); return;
+    }
+    var t=S.tasks.filter(function(x){return x.id===v.taskId})[0];
+    if(t&&!t.recurring&&!t.assign_all) await client.from('task_assignees').insert({task_id:t.id,child_id:v.childId});
+    var failed=await reconcileBadges(v.childId,v.date);
+    await recalcBalance(v.childId);
+    ui.corr=null;
+    toast('✏️ Validation retirée · tout est recalculé');
+    if(failed) showAlert('⚠️ '+failed+' badge(s) n’ont pas pu être retirés (droit de suppression des parents sur « badges » manquant : voir le SQL fourni).');
+    await refreshParentScreen();
+  },
+  restoreCorr:async function(d){
+    var x=((S.detail&&S.detail.corrections)||[]).filter(function(c){return c.id===d.id})[0]; if(!x) return;
+    if(x.log_date<corrFrom()){ showAlert('⚠️ Cette correction est trop ancienne pour être annulée.'); return; }
+    if(!(await askConfirm({icon:'↩️',title:'Rétablir la validation ?',message:'« '+x.title+' » sera de nouveau validée (+'+x.points+' ⭐).',okLabel:'Rétablir'}))) return;
+    var {data:ex}=await client.from('task_logs').select('id').eq('child_id',x.child_id).eq('task_id',x.task_id).eq('date',x.log_date).eq('status','validated');
+    if(!ex||!ex.length){
+      var {error}=await client.from('task_logs').insert({family_id:S.profile.family_id,task_id:x.task_id,child_id:x.child_id,title:x.title,points:x.points,status:'validated',date:x.log_date,validated_at:x.validated_at||new Date().toISOString()});
+      if(error){ showAlert('❌ '+error.message); return; }
+    }
+    var t=S.tasks.filter(function(y){return y.id===x.task_id})[0];
+    if(t&&!t.recurring&&!t.assign_all) await client.from('task_assignees').delete().eq('task_id',t.id).eq('child_id',x.child_id);
+    await client.from('log_corrections').update({restored:true}).eq('id',x.id);
+    await reconcileBadges(x.child_id,x.log_date);
+    await recalcBalance(x.child_id);
+    toast('↩️ Validation rétablie');
     await refreshParentScreen();
   },
   openVig:function(d){
@@ -3641,6 +3808,7 @@ document.addEventListener('input',function(e){
   else if(f==='ndetails') ui.newDetails=el.value;
   else if(f==='accTitle'&&ui.accessForm){ ui.accessForm.title=el.value; if(!ui.newIconManual) ui.newIcon=autoIcon(el.value); refreshIconUI(el.value); }
   else if(f==='accN'&&ui.accessForm){ var _c=ui.accessForm.conds[parseInt(el.dataset.i,10)]; if(_c) _c[el.dataset.k]=el.value; }
+  else if(f==='corrComment'&&ui.corr) ui.corr.comment=el.value;
   else if(f==='vigPoint'&&ui.vig){
     ui.vig.point=el.value;
     var _pv=document.getElementById('vig-prev'); if(_pv) _pv.innerHTML=vigPreviewInner();
