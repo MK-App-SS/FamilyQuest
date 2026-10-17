@@ -313,6 +313,14 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .hero-av{position:relative}
 .av-gear{position:absolute;right:-4px;bottom:-4px;width:30px;height:30px;border-radius:50%;background:var(--card);border:2px solid var(--line);font-size:15px;line-height:1;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.18);padding:0}
 .av-gear:active{transform:scale(.9)}
+.pxav{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.2em;border-radius:22%}
+.av .pxav,.hero-av .pxav,.av-prev .pxav{width:100%;height:100%;border-radius:50%;vertical-align:top}
+.px-grid{display:flex;flex-wrap:wrap;gap:8px}
+.px-sw{width:34px;height:34px;border-radius:50%;border:3px solid transparent;box-shadow:0 0 0 1px var(--line);padding:0;cursor:pointer}
+.px-sw.sel{border-color:var(--ink)}
+.px-th{width:56px;height:56px;padding:0;border:3px solid transparent;border-radius:16px;background:var(--pri-soft);overflow:hidden;cursor:pointer;font-size:0}
+.px-th.sel{border-color:var(--pri)}
+.px-th .pxav{width:100%;height:100%;border-radius:0;vertical-align:top}
 .av-prev{width:96px;height:96px;border-radius:50%;background:var(--pri-soft);display:grid;place-items:center;font-size:56px;margin:6px auto 4px}
 .av-cat{font-family:'Baloo 2','Nunito',sans-serif;font-weight:800;font-size:15px;color:var(--muted);margin:14px 0 6px}
 .av-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:8px}
@@ -577,15 +585,109 @@ var AVATAR_GROUPS=[
   ['🌻 Nature',['🌵','🌻','🌸','🍀','🍄','🌳']]
 ];
 function myAvatar(){ return (S.profile&&S.profile.avatar)||avatarFor(S.me.id); }
+/* ---------- Créateur de personnage (pixel art, dessiné dans le code) ---------- */
+var PX_SKIN=['#ffe0c7','#f9caa0','#e2a97e','#c68642','#8d5524','#5c3a21'];
+var PX_HAIRC=['#2b1d16','#6b3f23','#b5651d','#d9a441','#f2d479','#c0392b','#8e8e99','#3b82f6','#e66fa4','#7c5cd6'];
+var PX_TOPC=['#ff6b5e','#ffd166','#1fae6b','#3b82f6','#7c5cd6','#e66fa4','#17233c','#f97316','#14b8a6','#9ca3af'];
+var PX_BG=['#ffe9a8','#ffd0cc','#cdeede','#cfe3ff','#e4d9ff','#ffd9ec','#ffe0c2','#d9f0f5'];
+var PX_HAIR=[ // [derrière, devant]
+  [[],[]],
+  [[],[[5,2,6,1],[4,3,8,2],[4,5,1,1],[11,5,1,1]]],
+  [[[3,3,1,8],[12,3,1,8]],[[5,2,6,1],[4,3,8,2],[4,5,1,4],[11,5,1,4]]],
+  [[],[[5,2,6,1],[4,3,8,2],[4,5,1,1],[11,5,1,1],[2,5,2,3],[12,5,2,3]]],
+  [[],[[4,2,8,3],[4,1,1,1],[6,1,1,1],[8,1,1,1],[10,1,1,1],[4,5,1,1],[11,5,1,1]]],
+  [[],[[4,0,8,1],[3,1,10,4],[3,5,1,3],[12,5,1,3]]],
+  [[],[[5,2,6,1],[4,3,8,1],[4,4,7,1],[4,5,1,5],[11,5,1,2]]],
+  [[],[[7,0,2,2],[5,2,6,1],[4,3,8,2],[4,5,1,1],[11,5,1,1]]],
+  [[[3,3,1,10],[12,3,1,10]],[[5,2,6,1],[4,3,8,2],[4,5,1,4],[11,5,1,4]]]
+];
+var PX_EYES=[
+  [[6,7,1,2,'d'],[9,7,1,2,'d']],
+  [[5,7,2,2,'d'],[9,7,2,2,'d'],[5,7,1,1,'w'],[9,7,1,1,'w']],
+  [[5,8,1,1,'d'],[6,7,1,1,'d'],[7,8,1,1,'d'],[8,8,1,1,'d'],[9,7,1,1,'d'],[10,8,1,1,'d']],
+  [[6,7,1,2,'d'],[8,8,3,1,'d']],
+  [[5,6,2,3,'d'],[9,6,2,3,'d'],[5,6,1,1,'w'],[9,6,1,1,'w']],
+  [[5,8,2,1,'d'],[9,8,2,1,'d']]
+];
+var PX_MOUTH=[
+  [[6,9,1,1,'m'],[7,10,2,1,'m'],[9,9,1,1,'m']],
+  [[6,9,4,1,'m'],[7,10,2,1,'r']],
+  [[7,9,2,1,'m']],
+  [[7,9,2,2,'m']],
+  [[6,9,1,1,'m'],[7,10,2,1,'m'],[9,9,1,1,'m'],[8,10,1,1,'r']]
+];
+var PX_COUNTS=[6,9,10,6,5,6,10,7,8];
+var PX_NAMES={1:'Coiffure',3:'Yeux',4:'Bouche',5:'Haut',7:'Accessoire'};
+function isPx(a){ return typeof a==='string'&&a.indexOf('px:')===0; }
+function pxParse(code){
+  var v=String(code).slice(3).split('.').map(Number), o=[];
+  for(var i=0;i<PX_COUNTS.length;i++){ var n=v[i]; o.push((n>=0&&n<PX_COUNTS[i])?Math.floor(n):0); }
+  return o;
+}
+function pxCode(a){ return 'px:'+a.join('.'); }
+function pxDefault(){ return [1,1,1,1,0,0,0,0,0]; }
+function pxRandom(){ return PX_COUNTS.map(function(n){ return Math.floor(Math.random()*n); }); }
+function pxSvg(a){
+  var skin=PX_SKIN[a[0]], hair=PX_HAIR[a[1]], hc=PX_HAIRC[a[2]], tc=PX_TOPC[a[6]], ac=a[7], bg=PX_BG[a[8]], tp=a[5];
+  var C={d:'#1f2937',w:'#ffffff',r:'#ff7a8a',m:'#9b3d4f'}, o=[];
+  var R=function(x,y,w,h,f,op){ o.push('<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="'+f+'"'+(op?' fill-opacity="'+op+'"':'')+'/>'); };
+  var RL=function(list,col){ list.forEach(function(r){ R(r[0],r[1],r[2],r[3],r[4]?(C[r[4]]||r[4]):col); }); };
+  o.push('<rect width="16" height="16" rx="3" fill="'+bg+'"/>');
+  if(tp===5){ R(1,12,2,4,'#e5484d'); R(13,12,2,4,'#e5484d'); }
+  RL(hair[0].map(function(r){return r.concat([null])}),hc);
+  R(7,11,2,1,skin);
+  R(4,12,8,1,tc); R(2,13,12,3,tc);
+  if(tp===0||tp===2||tp===3||tp===4||tp===5) R(7,12,2,1,skin);
+  if(tp===1){ R(6,12,4,1,skin); R(7,13,2,1,skin); }
+  if(tp===2){ R(5,12,1,1,'#fff',.5); R(10,12,1,1,'#fff',.5); R(7,13,1,2,'#fff',.6); R(8,13,1,2,'#fff',.6); }
+  if(tp===3) R(2,14,12,1,'#fff',.4);
+  if(tp===4){ R(8,13,1,3,'#fff'); R(7,14,3,1,'#fff'); }
+  if(tp===5) R(7,13,2,1,'#ffd166');
+  R(5,3,6,1,skin); R(4,4,8,6,skin); R(5,10,6,1,skin);
+  R(5,9,1,1,'#ff6b81',.45); R(10,9,1,1,'#ff6b81',.45);
+  if(ac===5){ [[4,8],[5,9],[10,9],[11,8]].forEach(function(p){ R(p[0],p[1],1,1,'#b4693a',.7); }); }
+  if(ac===1){ ['#374151'].forEach(function(f){ [0,4].forEach(function(dx){ R(4+dx,6,4,1,f); R(4+dx,8,4,1,f); R(4+dx,7,1,1,f); R(7+dx,7,1,1,f); }); }); }
+  RL(PX_EYES[a[3]].map(function(r){return r.slice()}),'#1f2937');
+  RL(PX_MOUTH[a[4]].map(function(r){return r.slice()}),'#1f2937');
+  if(ac===2){ R(4,6,8,2,'#1f2937'); R(5,6,1,1,'#fff',.35); R(9,6,1,1,'#fff',.35); }
+  RL(hair[1].map(function(r){return r.concat([null])}),hc);
+  if(ac===3) R(4,4,8,1,'#e5484d');
+  if(ac===4){ R(4,2,8,2,tc); R(3,4,10,1,tc); R(3,4,10,1,'#000',.2); }
+  if(ac===6){ R(4,1,2,2,hc); R(10,1,2,2,hc); R(5,2,1,1,'#ffb3c6'); R(10,2,1,1,'#ffb3c6'); }
+  return '<svg class="pxav" viewBox="0 0 16 16" shape-rendering="crispEdges" role="img" aria-label="Avatar personnage">'+o.join('')+'</svg>';
+}
+function av(a){ return isPx(a)?pxSvg(pxParse(a)):a; }
+function avTxt(a){ return isPx(a)?'🎨':a; }
+
 function avatarModalHtml(){
-  var cur=ui.avatarPick||myAvatar();
+  var cur=ui.avatarPick||myAvatar(), mode=ui.avatarMode||'emoji';
   var h='<div class="modal-head"><h2>Mon profil</h2><button class="modal-x" data-a="closeAvatarMenu" aria-label="Fermer">✕</button></div>';
-  h+='<div class="av-prev" id="av-prev">'+cur+'</div><p class="muted" style="text-align:center;margin:0 0 4px;font-weight:700">Choisis ton avatar !</p><button class="btn ghost wide" style="margin:6px 0" data-a="openMascot">🤖 Mon assistant</button>';
-  h+=AVATAR_GROUPS.map(function(g){
-    return '<div class="av-cat">'+g[0]+'</div><div class="av-grid">'+g[1].map(function(a){
-      return '<button type="button" class="av-opt'+(a===cur?' sel':'')+'" data-a="pickAvatar" data-v="'+a+'">'+a+'</button>';
-    }).join('')+'</div>';
-  }).join('');
+  h+='<div class="av-prev" id="av-prev">'+av(cur)+'</div>';
+  h+='<div class="seg sm" role="tablist" style="margin:8px 0">'+[['emoji','😀 Emojis'],['px','🎨 Mon personnage']].map(function(t){
+    return '<button class="'+(mode===t[0]?'on':'')+'" data-a="avMode" data-v="'+t[0]+'">'+t[1]+'</button>';
+  }).join('')+'</div>';
+  h+='<button class="btn ghost wide" style="margin:6px 0" data-a="openMascot">🤖 Mon assistant</button>';
+  if(mode==='px'){
+    var a=ui.pxEdit||pxDefault();
+    h+='<div style="display:flex;gap:8px;margin:6px 0 2px"><button class="btn small ghost" data-a="pxRandom">🎲 Au hasard</button><button class="btn small ghost" data-a="pxReset">↺ Recommencer</button></div>';
+    [['🧑 Peau',0,PX_SKIN],['💇 Coiffure',1],['🎨 Couleur des cheveux',2,PX_HAIRC],['👀 Yeux',3],['👄 Bouche',4],['👕 Haut',5],['🎨 Couleur du haut',6,PX_TOPC],['✨ Accessoire',7],['🌈 Fond',8,PX_BG]].forEach(function(c){
+      var k=c[1], cols=c[2];
+      h+='<div class="av-cat">'+c[0]+'</div><div class="px-grid">';
+      for(var v=0;v<PX_COUNTS[k];v++){
+        var sel=a[k]===v?' sel':'';
+        if(cols) h+='<button type="button" class="px-sw'+sel+'" style="background:'+cols[v]+'" data-a="pxSet" data-k="'+k+'" data-v="'+v+'" aria-label="'+c[0]+' '+(v+1)+'"></button>';
+        else { var b=a.slice(); b[k]=v; h+='<button type="button" class="px-th'+sel+'" data-a="pxSet" data-k="'+k+'" data-v="'+v+'" aria-label="'+c[0]+' '+(v+1)+'">'+pxSvg(b)+'</button>'; }
+      }
+      h+='</div>';
+    });
+  } else {
+    h+='<p class="muted" style="text-align:center;margin:0 0 4px;font-weight:700">Choisis ton avatar !</p>';
+    h+=AVATAR_GROUPS.map(function(g){
+      return '<div class="av-cat">'+g[0]+'</div><div class="av-grid">'+g[1].map(function(a){
+        return '<button type="button" class="av-opt'+(a===cur?' sel':'')+'" data-a="pickAvatar" data-v="'+a+'">'+a+'</button>';
+      }).join('')+'</div>';
+    }).join('');
+  }
   h+='<div class="dlg-btns" style="position:sticky;bottom:-18px;background:var(--card);padding:12px 0 4px;margin-top:14px"><button class="btn ghost" data-a="closeAvatarMenu">Annuler</button><button class="btn go" data-a="saveAvatar">Enregistrer</button></div>';
   return h;
 }
@@ -1107,7 +1209,7 @@ function dayCheckHtml(){
   var h='<div class="modal-head"><h2>📅 Journée d’hier</h2></div>'+
     '<p class="muted" style="font-size:14px;margin:0 0 8px">Hier ('+p[2]+'/'+p[1]+'), certaines routines n’ont pas été validées. Si elles ont bien été faites, tu peux les valider maintenant. Sinon, confirme que la journée était incomplète.</p>';
   dc.items.forEach(function(it){
-    h+='<div style="font-weight:800;margin:12px 0 6px">'+it.child.avatar+' '+esc(it.child.display_name)+'</div>';
+    h+='<div style="font-weight:800;margin:12px 0 6px">'+av(it.child.avatar)+' '+esc(it.child.display_name)+'</div>';
     h+=it.tasks.map(function(t){
       var k=it.child.id+'|'+t.id, on=!!dc.sel[k];
       return '<button type="button" class="chk-row'+(on?' on':'')+'" data-a="toggleDayCheck" data-k="'+k+'"><span class="chk-box">'+(on?'✓':'')+'</span><span style="flex:1;min-width:0">'+esc(t.title)+'</span><span class="muted" style="font-size:13px">'+t.points+' ⭐</span></button>';
@@ -1293,7 +1395,7 @@ function pToday(){
     var pendGifts=S.redemptions.filter(function(r){return r.child_id===c.id}).length;
     var notifs=(pend?'<span class="ntf" data-a="openValidateModal" data-id="'+c.id+'" title="'+pend+' mission(s) à valider">🔔<span class="dot">'+pend+'</span></span>':'')+
       (pendGifts?'<span class="ntf" data-a="openValidateModal" data-id="'+c.id+'" title="'+pendGifts+' demande(s) de cadeau">🎁<span class="dot">'+pendGifts+'</span></span>':'');
-    var head='<div class="kid" data-a="openChildDetail" data-id="'+c.id+'"><span class="av sm">'+c.avatar+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+accIconsHtml(parentAccItems(c.id),20,false)+' '+notifs+'</span>'+
+    var head='<div class="kid" data-a="openChildDetail" data-id="'+c.id+'"><span class="av sm">'+av(c.avatar)+'</span><span class="t-main"><span class="t-title">'+esc(c.display_name)+accIconsHtml(parentAccItems(c.id),20,false)+' '+notifs+'</span>'+
       '<span class="t-meta">Niv. '+c.level+' · ⭐ <span class="num" data-n="'+c.stars+'">'+c.stars+'</span> · 🔥 '+c.streak+'</span></span>'+
       '<span class="pill">'+st.done+' / '+st.total+' faites</span><span class="chev">›</span></div>';
     var bar='<div class="bar" style="margin-top:10px"><i style="width:'+(st.total?Math.round(st.done/st.total*100):0)+'%"></i></div>';
@@ -1322,7 +1424,7 @@ function mform(){
       '<label class="lbl">Moment de la journée</label><div class="chiprow">'+Object.keys(SLOT_LABEL).map(function(k){return '<button class="chip '+(ui.newSlot===k?'sel':'')+'" data-a="setSlot" data-v="'+k+'">'+SLOT_LABEL[k]+'</button>'}).join('')+'</div>'+
       '<label class="lbl">Pour qui ?</label><div class="chiprow">'+
       '<button class="chip '+(ui.newAssignAll?'sel':'')+'" data-a="toggleAssignAll">👨‍👩‍👧 Tous</button>'+
-      S.children.map(function(c){return '<button class="chip '+(ui.newPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="togglePick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+
+      S.children.map(function(c){return '<button class="chip '+(ui.newPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="togglePick" data-v="'+c.id+'">'+av(c.avatar)+' '+esc(c.display_name)+'</button>'}).join('')+
       '</div>'+
       (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
       '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createRecurring">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button></div>';
@@ -1341,7 +1443,7 @@ function missionCard(t, daily){
   var freqText = daily ? freqLabel(t) : 'Une seule fois';
   var slotText = daily ? (SLOT_LABEL[t.slot]||'') : (t.assign_all ? '⚡ Premier arrivé' : ((t.task_assignees&&t.task_assignees.length) ? '✅ Chacun' : '⚠️ Non assignée'));
   var kids = t.assign_all ? S.children : (t.task_assignees||[]).map(function(a){return S.children.filter(function(c){return c.id===a.child_id})[0]}).filter(Boolean);
-  var avatars = kids.map(function(c,i){return '<span title="'+esc(c.display_name)+'">'+c.avatar+'</span>';}).join('');
+  var avatars = kids.map(function(c,i){return '<span title="'+esc(c.display_name)+'">'+av(c.avatar)+'</span>';}).join('');
   return '<div class="mcard" data-longpress="'+t.id+'">'+
     '<div class="mcard-ico">'+taskIco(t,daily?'🔁':'✨')+'<span class="mcard-star">⭐'+t.points+'</span></div>'+
     '<div class="mcard-main"><div class="mcard-title">'+esc(t.title)+'</div>'+
@@ -1373,7 +1475,7 @@ function pMissions(){
   }).join('')+'</div>';
   h+='<div class="vhead"><h2>'+(daily?'Missions de Routines':'Missions spéciales')+'</h2><button class="btn small" data-a="openNew">＋ Nouvelle</button></div>';
   h+='<p class="vhint">'+(daily?'Ces missions se renouvellent automatiquement':'Missions à assigner ponctuellement.')+'</p>';
-  h+=fsegRow([['','👨‍👩‍👧 Tous']].concat(S.children.map(function(c){return [c.id, c.avatar+' '+esc(c.display_name)];})), ui.mFilterChild, 'setMFilterChild');
+  h+=fsegRow([['','👨‍👩‍👧 Tous']].concat(S.children.map(function(c){return [c.id, av(c.avatar)+' '+esc(c.display_name)];})), ui.mFilterChild, 'setMFilterChild');
   if(daily){
     h+=fsegRow([['all','Toutes'],['daily','Quotidiennes'],['weekly','Certains jours']], ui.mfilter, 'setMFilter');
   }
@@ -1390,7 +1492,7 @@ function pMissions(){
       var c=S.children.filter(function(x){return x.id===l.child_id})[0];
       var d=(l.date||'').split('-');
       return '<div class="card" style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:8px">'+
-        '<span style="font-size:26px">'+(c?c.avatar:'👤')+'</span>'+
+        '<span style="font-size:26px">'+(c?av(c.avatar):'👤')+'</span>'+
         '<div style="flex:1;min-width:0"><div style="font-weight:800;overflow:hidden;text-overflow:ellipsis">'+esc(l.title||'Mission')+'</div>'+
         '<div class="muted" style="font-size:12px">'+(c?esc(c.display_name):'')+' · '+(d.length===3?d[2]+'/'+d[1]:'')+' · terminée'+'</div></div>'+
         '<span class="pill ok">+'+l.points+' ⭐</span></div>';
@@ -1415,7 +1517,7 @@ function pFamily(){
       var codeBox0=(ui.lastCode&&ui.lastCode.childId===c0.id)?
         '<div class="codebox-wrap"><div class="codebox">'+esc(ui.lastCode.code)+'</div><span class="t-meta">À saisir sur l’appareil de '+esc(c0.display_name)+' avant '+new Date(ui.lastCode.expiresAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' (valable 10 min).</span></div>':'';
       h+='<div class="kid-hero"><button class="kidcard-gear" data-a="openChildMenu" data-id="'+c0.id+'" aria-label="Gérer">⚙️</button>'+
-        '<div class="av" style="margin:0 auto">'+c0.avatar+'</div>'+
+        '<div class="av" style="margin:0 auto">'+av(c0.avatar)+'</div>'+
         '<div class="hero-name" style="margin-top:10px;font-size:20px">'+esc(c0.display_name)+'</div>'+
         '<div class="muted" style="font-size:13px;margin-top:2px">Niv. '+c0.level+' · ⭐ '+c0.stars+' · 🔥 '+c0.streak+'</div>'+
         '<button class="btn ghost small" style="margin-top:12px" data-a="generateCode" data-id="'+c0.id+'">🔑 Générer un code de jumelage</button>'+codeBox0+
@@ -1425,7 +1527,7 @@ function pFamily(){
         var codeBox=(ui.lastCode&&ui.lastCode.childId===c.id)?
           '<div class="codebox-wrap"><div class="codebox" style="font-size:20px">'+esc(ui.lastCode.code)+'</div><span class="t-meta" style="font-size:10px">avant '+new Date(ui.lastCode.expiresAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</span></div>':'';
         return '<div class="kidcard"><button class="kidcard-gear" data-a="openChildMenu" data-id="'+c.id+'" aria-label="Gérer">⚙️</button>'+
-          '<div class="av sm" style="margin:0 auto">'+c.avatar+'</div>'+
+          '<div class="av sm" style="margin:0 auto">'+av(c.avatar)+'</div>'+
           '<div style="font-weight:800;margin-top:8px;font-size:14px">'+esc(c.display_name)+'</div>'+
           '<div class="muted" style="font-size:11px;margin-top:2px">Niv.'+c.level+' · ⭐'+c.stars+' · 🔥'+c.streak+'</div>'+
           '<button class="btn ghost small" style="margin-top:8px;width:100%;font-size:11px;padding:6px 4px" data-a="generateCode" data-id="'+c.id+'">🔑 Code</button>'+codeBox+
@@ -1452,7 +1554,7 @@ function pFamily(){
     S.pauses.forEach(function(p){ if(p.reason && pastReasons.indexOf(p.reason)===-1) pastReasons.push(p.reason); });
     h+='<div class="sheet-inline" style="margin-bottom:16px">'+
       '<label class="lbl">Qui est en pause ?</label><select class="inp" data-field="pauseChild">'+
-      '<option value="">👨‍👩‍👧 Toute la famille</option>'+S.children.map(function(c){return '<option value="'+c.id+'" '+(ui.pauseChild===c.id?'selected':'')+'>'+c.avatar+' '+esc(c.display_name)+'</option>'}).join('')+'</select>'+
+      '<option value="">👨‍👩‍👧 Toute la famille</option>'+S.children.map(function(c){return '<option value="'+c.id+'" '+(ui.pauseChild===c.id?'selected':'')+'>'+avTxt(c.avatar)+' '+esc(c.display_name)+'</option>'}).join('')+'</select>'+
       '<label class="lbl">Du</label><input class="inp" type="date" data-field="pauseFrom" value="'+esc(ui.pauseFrom)+'">'+
       '<label class="lbl">Au <span class="muted" style="font-weight:600">(vide = indéfini)</span></label><input class="inp" type="date" data-field="pauseTo" value="'+esc(ui.pauseTo)+'">'+
       '<label class="lbl">Raison <span class="muted" style="font-weight:600">(facultatif)</span></label><input class="inp" data-field="pauseReason" value="'+esc(ui.pauseReason)+'" placeholder="Ex : Vacances">'+
@@ -1469,7 +1571,7 @@ function pFamily(){
   } else if(ui.fview==='adjust'){
     h+='<div class="sheet-inline" style="margin-bottom:16px">'+
       '<label class="lbl">Enfant</label><select class="inp" data-field="adjChild">'+
-      '<option value="">Choisir...</option>'+S.children.map(function(c){return '<option value="'+c.id+'" '+(ui.adjChild===c.id?'selected':'')+'>'+c.avatar+' '+esc(c.display_name)+'</option>'}).join('')+'</select>'+
+      '<option value="">Choisir...</option>'+S.children.map(function(c){return '<option value="'+c.id+'" '+(ui.adjChild===c.id?'selected':'')+'>'+avTxt(c.avatar)+' '+esc(c.display_name)+'</option>'}).join('')+'</select>'+
       '<label class="lbl">Étoiles <span class="muted" style="font-weight:600">(négatif pour retirer)</span></label><input class="inp" type="number" data-field="adjPoints" value="'+esc(ui.adjPoints)+'" placeholder="Ex : 5 ou -3">'+
       '<label class="lbl">Raison <span class="muted" style="font-weight:600">(facultatif)</span></label><input class="inp" data-field="adjReason" value="'+esc(ui.adjReason)+'" placeholder="Ex : bonus effort">'+
       '<button class="btn wide" style="margin-top:14px" data-a="createAdjustment">Ajouter</button></div>';
@@ -1503,14 +1605,14 @@ function assignForm(){
   var btnLabel = pickedNames.length ? ('Assigner à '+pickedNames.join(', ')) : 'Assigner';
   var fields;
   if(isRoutine){
-    fields='<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.assignPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleAssignPick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+'</div>'+
+    fields='<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.assignPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleAssignPick" data-v="'+c.id+'">'+av(c.avatar)+' '+esc(c.display_name)+'</button>'}).join('')+'</div>'+
       (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
       '<div style="margin-top:18px"><button class="btn wide" data-a="saveAssign">'+esc(btnLabel)+'</button></div>';
   } else {
     fields='<label class="lbl">Règle</label><div class="chiprow">'+
       '<button class="chip '+(ui.assignMode==='race'?'sel':'')+'" data-a="setAssignMode" data-v="race">⚡ Le premier qui la fait</button>'+
       '<button class="chip '+(ui.assignMode==='each'?'sel':'')+'" data-a="setAssignMode" data-v="each">✅ Chacun doit la faire</button></div>'+
-      (ui.assignMode==='each'?'<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.assignPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleAssignPick" data-v="'+c.id+'">'+c.avatar+' '+esc(c.display_name)+'</button>'}).join('')+'</div>':'')+
+      (ui.assignMode==='each'?'<label class="lbl">Qui ?</label><div class="chiprow">'+S.children.map(function(c){return '<button class="chip '+(ui.assignPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="toggleAssignPick" data-v="'+c.id+'">'+av(c.avatar)+' '+esc(c.display_name)+'</button>'}).join('')+'</div>':'')+
       (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
       '<div style="margin-top:18px"><button class="btn wide" data-a="saveAssign">'+(ui.assignMode==='each'?esc(btnLabel):'Enregistrer')+'</button></div>';
   }
@@ -1596,7 +1698,7 @@ function rewardStatsHtml(){
            '<div style="font-size:13px">🎯 Total possible : <b>≈ '+r(st.potWeek)+' ⭐/semaine</b> (≈ '+r(st.potDay)+' ⭐/jour)</div>';
     } else body='<div style="font-size:13px;margin-top:2px">Aucune routine assignée</div>';
     var real=st.realDay==null?'Pas encore assez de missions validées':'En pratique : <b>≈ '+r(st.realDay)+' ⭐/jour</b> · <b>≈ '+r(st.realWeek)+' ⭐/semaine</b>';
-    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;'+(i?'border-top:1px solid var(--line)':'')+'"><span style="font-size:28px;flex:none">'+c.avatar+'</span><div style="min-width:0"><div style="font-weight:800">'+esc(c.display_name)+'</div>'+body+'<div class="muted" style="font-size:13px;margin-top:2px">'+real+'</div></div></div>';
+    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;'+(i?'border-top:1px solid var(--line)':'')+'"><span style="font-size:28px;flex:none">'+av(c.avatar)+'</span><div style="min-width:0"><div style="font-weight:800">'+esc(c.display_name)+'</div>'+body+'<div class="muted" style="font-size:13px;margin-top:2px">'+real+'</div></div></div>';
   }).join('');
   return '<div class="card" style="padding:12px 14px;margin-bottom:16px"><div style="font-weight:800;font-size:14px;margin-bottom:6px">📊 Pour t’aider à fixer les coûts</div>'+rows+'<p class="muted" style="font-size:12px;margin:8px 0 0">Le potentiel compte toutes les routines (quotidiennes ou de certains jours) et les badges accessibles avec elles. Les badges liés aux missions spéciales viennent en plus. La moyenne réelle (routines, missions spéciales et badges) est calculée sur les 4 dernières semaines.</p></div>';
 }
@@ -1671,7 +1773,7 @@ function viewChildDetail(){
   var base=(c.level-1)*50, progress=Math.max(0,c.earned-base), pct=Math.min(100,Math.round(progress/50*100)), remaining=Math.max(0,50-progress);
 
   var h='<header class="top"><button class="ghost-link" data-a="backToParent">← Retour</button></header>';
-  h+='<section class="hero"><div class="hero-av">'+c.avatar+'</div><div class="hero-main"><div class="hero-name"><span>'+esc(c.display_name)+'</span>'+accIconsHtml(parentAccItems(c.id),26,false)+'</div>'+
+  h+='<section class="hero"><div class="hero-av">'+av(c.avatar)+'</div><div class="hero-main"><div class="hero-name"><span>'+esc(c.display_name)+'</span>'+accIconsHtml(parentAccItems(c.id),26,false)+'</div>'+
     '<div class="hero-lvl">Niveau '+c.level+'</div>'+
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
     '<div class="muted" style="font-size:12px;margin-top:4px">'+remaining+' ⭐ pour le niveau suivant</div>'+
@@ -2185,12 +2287,12 @@ function accessCardParent(r){
   if(r.active){
     h+=targets.map(function(c){
       var st=stat[c.id];
-      if(!st) return '<div class="acc-child muted">'+c.avatar+' '+esc(c.display_name)+' · …</div>';
+      if(!st) return '<div class="acc-child muted">'+av(c.avatar)+' '+esc(c.display_name)+' · …</div>';
       var txt,btn;
       if(st.state==='blocked'){ txt='⏸️ Suspendu aujourd’hui'; btn='<button class="btn ghost small" data-a="accClear" data-r="'+r.id+'" data-c="'+c.id+'">Rétablir</button>'; }
       else if(st.state==='open'){ txt=(st.via==='granted'?'🎁 Accordé par toi':'✅ Débloqué'); btn='<button class="btn ghost small" data-a="accBlock" data-r="'+r.id+'" data-c="'+c.id+'">Suspendre</button>'; }
       else { txt=(st.state==='notToday'?'⏳ Pas aujourd’hui':'🔒 '+st.missing+' condition'+(st.missing>1?'s':'')+' restante'+(st.missing>1?'s':'')); btn='<button class="btn ghost small" data-a="accGrant" data-r="'+r.id+'" data-c="'+c.id+'">Accorder</button>'; }
-      return '<div class="acc-child"><span style="font-size:22px">'+c.avatar+'</span><div style="flex:1;min-width:0"><b>'+esc(c.display_name)+'</b><div class="muted" style="font-size:12px">'+txt+'</div></div>'+btn+'</div>';
+      return '<div class="acc-child"><span style="font-size:22px">'+av(c.avatar)+'</span><div style="flex:1;min-width:0"><b>'+esc(c.display_name)+'</b><div class="muted" style="font-size:12px">'+txt+'</div></div>'+btn+'</div>';
     }).join('');
   }
   return h+'</div>';
@@ -2227,7 +2329,7 @@ function accessFormHtml(){
   var f=ui.accessForm, edit=!!f.id;
   var h='<div class="modal-head"><h2>'+(edit?'Modifier le bonus':'Nouveau bonus')+'</h2><button class="modal-x" data-a="closeAccessForm" aria-label="Fermer">✕</button></div>';
   h+='<label class="lbl">Ce que l’enfant pourra faire</label><input class="inp" data-field="accTitle" placeholder="Ex : Jouer à la Switch" value="'+esc(f.title)+'">'+iconBlockHtml(f.title);
-  h+='<label class="lbl">Pour qui ?</label><div class="chiprow">'+accChip(!f.childIds.length,'data-a="accToggle" data-k="all"','👨‍👩‍👧 Tous')+S.children.map(function(c){return accChip(f.childIds.indexOf(c.id)>-1,'data-a="accToggle" data-k="child" data-v="'+c.id+'"',c.avatar+' '+esc(c.display_name));}).join('')+'</div>';
+  h+='<label class="lbl">Pour qui ?</label><div class="chiprow">'+accChip(!f.childIds.length,'data-a="accToggle" data-k="all"','👨‍👩‍👧 Tous')+S.children.map(function(c){return accChip(f.childIds.indexOf(c.id)>-1,'data-a="accToggle" data-k="child" data-v="'+c.id+'"',av(c.avatar)+' '+esc(c.display_name));}).join('')+'</div>';
   h+='<label class="lbl" style="margin-top:14px">Conditions <span class="muted" style="font-weight:700">(toutes doivent être remplies)</span></label>';
   h+=f.conds.map(accCondEditor).join('');
   h+=f.conds.length<ACC_MAX_CONDS?'<button type="button" class="chip" style="margin-top:6px" data-a="accAdd">＋ Ajouter une condition</button>':'<p class="muted" style="font-size:12px;margin:6px 0 0">Maximum '+ACC_MAX_CONDS+' conditions : plus, ce serait difficile à comprendre pour l’enfant.</p>';
@@ -2668,7 +2770,7 @@ function vigBannerHtml(){
   h+=S.children.map(function(c,i){
     var n=(S.vigNotes||[]).filter(function(x){return x.child_id===c.id})[0];
     var st=n?(n.deliver_on<=todayStr()?'✅ Transmis':'✅ Prêt : transmis dimanche'):'Pas encore de message';
-    return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;'+(i?'border-top:1px solid var(--line)':'')+'"><span style="font-size:24px">'+c.avatar+'</span><div style="flex:1;min-width:0"><b>'+esc(c.display_name)+'</b><div class="muted" style="font-size:12px">'+st+'</div></div><button class="btn small'+(n?' ghost':'')+'" data-a="openVig" data-c="'+c.id+'">'+(n?'Modifier':'Écrire')+'</button></div>';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;'+(i?'border-top:1px solid var(--line)':'')+'"><span style="font-size:24px">'+av(c.avatar)+'</span><div style="flex:1;min-width:0"><b>'+esc(c.display_name)+'</b><div class="muted" style="font-size:12px">'+st+'</div></div><button class="btn small'+(n?' ghost':'')+'" data-a="openVig" data-c="'+c.id+'">'+(n?'Modifier':'Écrire')+'</button></div>';
   }).join('');
   return h+'</div>';
 }
@@ -2991,7 +3093,7 @@ function childTrophies(){
   // --- Préférences
   var mm=validMascot(S.profile&&S.profile.mascot), mname=mm?((S.profile.mascot_name)||'Mon assistant'):'Pas encore choisi';
   h+='<div class="sec"><h3>⚙️ Mes préférences</h3></div>';
-  h+=rowBtn('openAvatarMenu','<span style="font-size:26px">'+myAvatar()+'</span>','Mon avatar','Change ton image de profil');
+  h+=rowBtn('openAvatarMenu','<span style="font-size:26px">'+av(myAvatar())+'</span>','Mon avatar','Change ton image de profil');
   h+=rowBtn('openMascot','🐾','Mon assistant',esc(mname));
   h+=rowBtn('toggleTheme',isDarkTheme()?'☀️':'🌙',isDarkTheme()?'Passer en mode clair':'Passer en mode sombre','Change les couleurs de l’appli');
   h+=rowBtn('replayTour','💡','Revoir le tutoriel','Une petite visite guidée de chaque page');
@@ -3028,7 +3130,7 @@ function viewChild(){
   var streak=S.myStreak||0;
   var got=currentBadgeIds(), wx=wxHero();
   return '<header class="top"><button class="ghost-link" data-a="replayTour">💡 Aide</button><span></span></header>'+
-    '<section class="hero'+wx.cls+'">'+wx.fx+wx.chip+'<div class="hero-av">'+myAvatar()+'<button class="av-gear" data-a="openAvatarMenu" aria-label="Personnaliser mon profil">⚙️</button></div><div class="hero-main">'+
+    '<section class="hero'+wx.cls+'">'+wx.fx+wx.chip+'<div class="hero-av">'+av(myAvatar())+'<button class="av-gear" data-a="openAvatarMenu" aria-label="Personnaliser mon profil">⚙️</button></div><div class="hero-main">'+
     '<div class="hero-name"><span>Salut '+esc(S.profile.display_name)+' !</span>'+accIconsHtml(kidAccItems(),28,true)+'</div>'+
     '<div class="hero-lvl">Niveau '+lvl+' · '+levelTitle(lvl)+'</div>'+
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
@@ -4185,8 +4287,17 @@ var A={
     var d={id:t.id,title:t.title,points:t.points};
     if(t.recurring) await A.doTask(d); else await A.doSpecial(d);
   },
-  openAvatarMenu:function(){ ui.avatarMenu=true; ui.avatarPick=myAvatar(); render(); },
-  closeAvatarMenu:function(){ ui.avatarMenu=false; ui.avatarPick=null; render(); },
+  openAvatarMenu:function(){ var c=myAvatar(); ui.avatarMenu=true; ui.avatarPick=c; ui.avatarMode=isPx(c)?'px':'emoji'; ui.pxEdit=isPx(c)?pxParse(c):pxRandom(); render(); },
+  closeAvatarMenu:function(){ ui.avatarMenu=false; ui.avatarPick=null; ui.avatarMode=null; ui.pxEdit=null; render(); },
+  avMode:function(d){
+    ui.avatarMode=d.v;
+    if(d.v==='px'){ if(!ui.pxEdit) ui.pxEdit=pxRandom(); ui.avatarPick=pxCode(ui.pxEdit); }
+    else ui.avatarPick=myAvatar();
+    render();
+  },
+  pxSet:function(d){ ui.pxEdit=(ui.pxEdit||pxDefault()).slice(); ui.pxEdit[+d.k]=+d.v; ui.avatarPick=pxCode(ui.pxEdit); render(); },
+  pxRandom:function(){ ui.pxEdit=pxRandom(); ui.avatarPick=pxCode(ui.pxEdit); render(); },
+  pxReset:function(){ ui.pxEdit=pxDefault(); ui.avatarPick=pxCode(ui.pxEdit); render(); },
   pickAvatar:function(d){
     ui.avatarPick=d.v;
     document.querySelectorAll('.av-opt').forEach(function(b){ b.classList.toggle('sel',b.getAttribute('data-v')===d.v); });
