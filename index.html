@@ -155,7 +155,56 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .ast-bubble{position:static;flex:1;min-width:0;padding:0}
 .ast-cta{display:inline-block;margin-top:6px;border:0;border-radius:999px;background:var(--pri-soft);color:var(--pri);font:inherit;font-weight:800;font-size:12.5px;padding:3px 11px;cursor:pointer}
 .ast-cta:active{transform:scale(.95)}
+.hero.wx{position:relative;overflow:hidden;padding-top:34px;background:var(--wxbg);color:var(--wxink)}
+.hero.wx>*:not(.wx-fx):not(.wx-chip){position:relative;z-index:1}
+.hero.wx .hero-lvl,.hero.wx .muted{color:var(--wxsoft)}
+.wx.wx-dk{--wxink:#fff;--wxsoft:#dbe4ff;--cl:rgba(255,255,255,.28)}
+.wx.wx-lt{--wxink:#1f2a44;--wxsoft:#2f5aa8;--cl:rgba(255,255,255,.8)}
+.wx-clear{--wxbg:linear-gradient(135deg,#8fd0ff,#fff1b8)}
+.wx-partly{--wxbg:linear-gradient(135deg,#9fd0f2,#e8f2fb)}
+.wx-cloudy{--wxbg:linear-gradient(135deg,#bcc8d6,#e6ebf1)}
+.wx-fog{--wxbg:linear-gradient(135deg,#c5cdd4,#eceff1)}
+.wx-rain{--wxbg:linear-gradient(135deg,#55738f,#8aa4bc)}
+.wx-snow{--wxbg:linear-gradient(135deg,#9db3cc,#dce8f4)}
+.wx-storm{--wxbg:linear-gradient(135deg,#363b51,#656b88)}
+.wx-night{--wxbg:linear-gradient(135deg,#17204a,#3a3f78)}
+.wx-chip{position:absolute!important;top:8px;right:10px;z-index:3;display:flex;align-items:center;gap:4px;border:0;border-radius:999px;padding:4px 10px;font:inherit;font-weight:800;font-size:13px;cursor:pointer;background:rgba(255,255,255,.88);color:#1f2a44;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.wx-chip:active{transform:scale(.95)}
+.wx-fx{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:inherit;z-index:0}
+.wx-sun{position:absolute;top:-34px;right:-24px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,#fffbc8 0 32%,rgba(255,236,140,.6) 33% 58%,rgba(255,236,140,0) 72%);animation:wxPulse 6s ease-in-out infinite}
+.wx-moon{position:absolute;top:14px;right:74px;width:34px;height:34px;border-radius:50%;box-shadow:11px 4px 0 0 #f6f1d5;animation:wxPulse 7s ease-in-out infinite}
+.wx-star{position:absolute;width:3px;height:3px;border-radius:50%;background:#fff;animation:wxTwinkle 3s ease-in-out infinite}
+.wx-cloud{position:absolute;height:24px;border-radius:30px;background:var(--cl);animation:wxDrift linear infinite}
+.wx-cloud::before{content:"";position:absolute;width:32px;height:32px;border-radius:50%;background:inherit;top:-14px;left:16px}
+.wx-cloud::after{content:"";position:absolute;width:22px;height:22px;border-radius:50%;background:inherit;top:-8px;left:40px}
+.wx-drop{position:absolute;top:-16px;width:2px;height:14px;background:linear-gradient(rgba(255,255,255,.85),rgba(255,255,255,0));transform:rotate(12deg);animation:wxFall linear infinite}
+.wx-flake{position:absolute;top:-8px;width:6px;height:6px;border-radius:50%;background:#fff;opacity:.9;animation:wxSnow linear infinite}
+.wx-band{position:absolute;left:-40%;width:180%;height:26px;border-radius:20px;background:rgba(255,255,255,.5);filter:blur(7px);animation:wxFog ease-in-out infinite alternate}
+.wx-flash{position:absolute;inset:0;background:#fff;opacity:0;animation:wxFlash 6s infinite}
+@keyframes wxPulse{0%,100%{transform:scale(1);opacity:.95}50%{transform:scale(1.08);opacity:1}}
+@keyframes wxTwinkle{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes wxDrift{from{transform:translateX(-140px)}to{transform:translateX(460px)}}
+@keyframes wxFall{to{transform:translate(-16px,190px) rotate(12deg)}}
+@keyframes wxSnow{0%{transform:translate(0,0)}50%{transform:translate(14px,90px)}100%{transform:translate(-8px,190px)}}
+@keyframes wxFog{from{transform:translateX(-8%)}to{transform:translateX(8%)}}
+@keyframes wxFlash{0%,91%,100%{opacity:0}92%{opacity:.55}94%{opacity:0}96%{opacity:.4}98%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.wx-fx *{animation:none!important}.wx-flash{display:none}}
+.wx-now{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.wx-now .wx-big{font-size:54px;line-height:1}
+.wx-now b{font-family:'Baloo 2','Nunito',sans-serif;font-size:38px;line-height:1}
+.wx-hours{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px}
+.wx-h{flex:none;min-width:58px;text-align:center;background:var(--card);border-radius:14px;padding:8px 6px;box-shadow:var(--shadow);font-weight:800;font-size:13px}
+.wx-h span{display:block;font-size:11px;color:var(--muted);font-weight:700}
+.wx-tip{background:var(--pri-soft);border-radius:14px;padding:10px 12px;font-weight:700;font-size:14px;margin-bottom:12px}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ktask .t-rule{display:block;font-size:11.5px;color:var(--muted);font-weight:700;margin-top:2px}
+.stat-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:2px solid var(--line);border-radius:20px;padding:14px 12px;background:var(--card);color:var(--ink);font:inherit;cursor:pointer;box-shadow:var(--shadow);border-left:6px solid var(--c);transition:transform .12s}
+.stat-btn:active{transform:scale(.97)}
+@supports (background:color-mix(in srgb,red 10%,white)){.stat-btn{background:linear-gradient(135deg,color-mix(in srgb,var(--c) 20%,var(--card)),var(--card) 80%);border-color:color-mix(in srgb,var(--c) 40%,transparent);border-left-color:var(--c)}}
+.stat-btn .sb-i{font-size:28px;line-height:1}
+.stat-btn .sb-t{font-weight:800;font-size:15px;line-height:1.2;margin-top:4px}
+.stat-btn .sb-s{font-size:12px;font-weight:700;color:var(--muted)}
 .stat-tile{background:var(--card);border-radius:16px;padding:12px 8px;box-shadow:var(--shadow);text-align:center}
 .stat-tile b{display:block;font-family:'Baloo 2','Nunito',sans-serif;font-size:24px;line-height:1.1}
 .stat-tile span{font-size:12px;color:var(--muted);font-weight:700}
@@ -392,7 +441,21 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .inp:focus{outline:none;border-color:var(--pri)}
 .sherr{color:var(--bad);font-size:13px;margin-top:10px;font-weight:700}
 .wel-sub{font-size:13px;color:var(--muted);font-weight:700;margin-top:-2px}
-.ptop{margin-bottom:18px;align-items:flex-start}
+.ptop{position:relative;overflow:hidden;margin:0 0 18px;align-items:center;gap:12px;min-height:76px;padding:14px 14px 14px 16px;border-radius:26px;background:linear-gradient(135deg,var(--pri-d) 0%,#d44a6a 100%);color:#fff;box-shadow:0 10px 24px rgba(212,74,106,.28)}
+.ptop::before{content:"";position:absolute;top:-46px;right:-30px;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,.12)}
+.ptop::after{content:"";position:absolute;bottom:-40px;left:34%;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,.08)}
+.ptop>*:not(.wx-fx){position:relative;z-index:1}
+.ptop.wx{background:var(--wxbg);color:var(--wxink);box-shadow:var(--shadow)}
+.ptop.wx::before,.ptop.wx::after{display:none}
+.ptop.wx .ph-sub{color:var(--wxsoft)}
+.ptop.wx.wx-lt .ph-ico{background:rgba(255,255,255,.55)}
+.ptop.wx.wx-lt .info-btn{background:rgba(255,255,255,.55);color:#1f2a44}
+.wx-chip.in{position:relative!important;top:auto;right:auto;flex:none}
+.ph-main{min-width:0;flex:1}
+.ph-title{display:flex;align-items:center;gap:10px;font-family:'Baloo 2','Nunito',sans-serif;font-weight:800;font-size:25px;line-height:1.1}
+.ph-ico{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,.2);font-size:24px;line-height:1}
+.ph-sub{font-size:13px;color:rgba(255,255,255,.9);font-weight:700;margin:4px 0 0;min-height:17px}
+.ptop .info-btn{margin-left:0;width:40px;height:40px;font-size:19px;background:rgba(255,255,255,.22);color:#fff}
 
 #toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translate(-50%,30px);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:99px;font-weight:800;font-size:15px;opacity:0;transition:.25s;z-index:90;max-width:92%;text-align:center;pointer-events:none}
 #toast.show{opacity:1;transform:translate(-50%,0)}
@@ -447,6 +510,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .badge-ico{width:34px;height:34px;border-radius:10px;background:var(--pri-soft);display:grid;place-items:center;font-size:17px;opacity:.3;filter:grayscale(1);transition:.2s}
 .badge-ico.on{opacity:1;filter:none;background:var(--acc);box-shadow:0 2px 6px rgba(0,0,0,.15)}
 
+.modal-backdrop,.dlg-back{overscroll-behavior:contain;touch-action:none}
+.modal{overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch}
+.dlg{overscroll-behavior:contain;touch-action:pan-y}
+html.modal-open,html.modal-open body{overflow:hidden}
 .modal-backdrop{position:fixed;inset:0;background:rgba(20,14,36,.5);z-index:60;display:flex;align-items:flex-end;justify-content:center}
 @media(min-width:560px){.modal-backdrop{align-items:center}}
 .modal{background:var(--card);width:100%;max-width:540px;max-height:88vh;overflow-y:auto;border-radius:26px 26px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 30px rgba(0,0,0,.2)}
@@ -748,7 +815,14 @@ async function loadChildren(){
   }
 }
 
+async function loadFamSettings(){
+  try{
+    var r=await client.from('family_settings').select('*').eq('family_id',S.profile.family_id).maybeSingle();
+    S.famSet=(r&&!r.error&&r.data)?r.data:null;
+  }catch(e){ S.famSet=null; }
+}
 async function loadParentData(){
+  await loadFamSettings();
   var {data:tasks}=await client.from('tasks').select('*, task_assignees(child_id)').eq('family_id',S.profile.family_id).order('created_at');
   S.tasks=tasks||[];
   var spIds=S.tasks.filter(function(t){return !t.recurring}).map(function(t){return t.id});
@@ -1041,6 +1115,7 @@ function dayCheckHtml(){
   });
   h+='<button type="button" class="chip" style="margin-top:2px" data-a="selectAllDayCheck">Tout cocher</button>';
   h+='<div class="dlg-btns" style="flex-direction:column;margin-top:14px"><button class="btn go wide" data-a="validateDayCheck"'+(n?'':' disabled')+'>✅ Valider les missions cochées'+(n?' ('+n+')':'')+'</button>'+
+     '<button class="btn ghost wide" data-a="validateDayCheck" data-zero="1"'+(n?'':' disabled')+'>☑️ Compter comme faites, sans étoile'+(n?' ('+n+')':'')+'</button>'+
      '<button class="btn ghost wide" data-a="confirmDayIncomplete">Confirmer : journée incomplète</button></div>';
   return h;
 }
@@ -1109,7 +1184,7 @@ function navHtml(items,cur,act){
   }).join('')+'</div></div>';
 }
 function parentNav(){ return navHtml([['today','🏠','Accueil',pendingCount()],['missions','📋','Missions'],['shop','🎁','Bonus'],['family','⚙️','Préférences']],ui.ptab,'ptab'); }
-function childNav(){ var open=(S.myAccess||[]).filter(function(a){return a.state==='open'}).length; return navHtml([['missions','🎯','Missions'],['bonus','🔓','Bonus',open],['shop','🛍️','Boutique'],['trophies','📒','Carnet']],ui.tab,'tab'); }
+function childNav(){ var open=(S.myAccess||[]).filter(function(a){return a.state==='open'}).length; return navHtml([['missions','🏠','Accueil'],['bonus','🔓','Bonus',open],['shop','🛍️','Boutique'],['trophies','📒','Carnet']],ui.tab,'tab'); }
 
 function collapseEl(el){
   return new Promise(function(res){
@@ -1142,9 +1217,18 @@ function animateRow(row,pts,delay,kind,label){
   });
 }
 function unanimateRow(row){ if(row){ row.classList.remove('row-out','row-out-no'); } }
+async function logToday(cid,taskId){
+  try{
+    var {data}=await client.from('task_logs').select('id,status').eq('child_id',cid).eq('task_id',taskId).eq('date',todayStr()).limit(1);
+    return data&&data[0]?data[0]:null;
+  }catch(e){ return null; }
+}
 async function validateCore(logId,cid){
-  var {data:vlog,error}=await client.from('task_logs').update({status:'validated', validated_at:new Date().toISOString(), comment:null}).eq('id',logId).select('task_id');
+  var {data:vlog,error}=await client.from('task_logs').update({status:'validated', validated_at:new Date().toISOString(), comment:null}).eq('id',logId).select('task_id,date');
   if(error) return error.message;
+  if(vlog&&vlog[0]&&vlog[0].date){
+    try{ await client.from('task_logs').delete().eq('child_id',cid).eq('task_id',vlog[0].task_id).eq('date',vlog[0].date).eq('status','pending').neq('id',logId); }catch(e){}
+  }
   var vt=vlog&&vlog[0]?S.tasks.filter(function(x){return x.id===vlog[0].task_id})[0]:null;
   if(vt && !vt.recurring){
     var unErr;
@@ -1160,7 +1244,7 @@ function closeValidateIfDone(){
   if(!left){ ui.validateModal=null; render(); }
 }
 function forChildBtn(t,c,special){
-  return '<span class="acts"><button class="ib ok" data-a="doForChild" data-task="'+t.id+'" data-cid="'+c.id+'" data-special="'+special+'" data-title="'+esc(t.title)+'" data-points="'+t.points+'" aria-label="Valider à la place de '+esc(c.display_name)+'" title="Valider à sa place">✅</button></span>';
+  return '<span class="acts"><button class="ib ok" data-a="doForChild" data-task="'+t.id+'" data-cid="'+c.id+'" data-special="'+special+'" data-title="'+esc(t.title)+'" data-points="'+t.points+'" aria-label="Valider à la place de '+esc(c.display_name)+'" title="Valider à sa place">✅</button>'+(special?'':'<button class="ib" data-a="excuseForChild" data-task="'+t.id+'" data-cid="'+c.id+'" data-title="'+esc(t.title)+'" aria-label="Compter comme faite, sans étoile, pour '+esc(c.display_name)+'" title="Compter comme faite, sans étoile">☑️</button>')+'</span>';
 }
 function pendingCount(){ return S.logs.length; }
 function comingSoon(txt){ return '<div class="empty"><div class="big">🚧</div><p>'+esc(txt)+'<br>Arrive à la prochaine étape.</p></div>'; }
@@ -1360,7 +1444,9 @@ function pFamily(){
     h+='<div class="sec"><h3>Réglages</h3></div><div style="display:flex;flex-direction:column;gap:10px">'+
       '<button class="btn ghost" data-a="changePassword">🔑 Changer mon mot de passe</button></div>';
     h+='<div class="sec"><h3>Apparence</h3></div><div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px"><span style="font-size:26px">🌙</span><div style="flex:1;min-width:0"><div style="font-weight:800">Mode sombre</div><div class="muted" style="font-size:13px">Plus reposant le soir.</div></div><button class="switch'+(isDarkTheme()?' on':'')+'" data-a="toggleTheme" role="switch" aria-checked="'+(isDarkTheme()?'true':'false')+'" aria-label="Mode sombre"></button></div>';
+    h+='<div class="sec"><h3>Météo</h3></div><div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px"><span style="font-size:26px">🌦️</span><div style="flex:1;min-width:0"><div style="font-weight:800">Ville de la famille</div><div class="muted" style="font-size:13px">'+(S.famSet&&S.famSet.weather_city?esc(S.famSet.weather_city):'Pas encore choisie')+'</div></div><button class="btn small ghost" data-a="openCity">'+(S.famSet&&S.famSet.weather_city?'Changer':'Choisir')+'</button></div><p class="help-hint" style="margin:6px 2px 0">Sert à afficher la météo du jour sur l’accueil des enfants.</p>';
     h+='<div class="sec"><h3>Aide</h3></div><div class="card" id="help-card" style="padding:12px 14px"><div style="font-weight:800">🎓 Tutoriel</div><p class="muted" style="font-size:13px;margin:4px 0 10px">Revois les explications de chaque page, pas à pas.</p><button class="btn ghost wide" data-a="restartTour">Revoir le tutoriel</button></div>';
+    h+='<div class="sec"><h3>Compte</h3></div><button class="btn ghost wide" style="color:var(--bad);border-color:var(--bad)" data-a="logout">🚪 Me déconnecter</button>';
   } else if(ui.fview==='pauses'){
     var pastReasons=[];
     S.pauses.forEach(function(p){ if(p.reason && pastReasons.indexOf(p.reason)===-1) pastReasons.push(p.reason); });
@@ -1696,28 +1782,34 @@ function pActivity(){
   }).join('');
 }
 
+function pageHead(ico,title,sub,helpAction,helpLabel,wx){
+  wx=wx||{cls:'',fx:'',chip:''};
+  return '<header class="top ptop'+wx.cls+'">'+wx.fx+'<div class="ph-main"><div class="ph-title"><span class="ph-ico">'+ico+'</span>'+title+'</div><p class="ph-sub">'+sub+'</p></div>'+wx.chip+
+    '<button class="info-btn" data-a="'+helpAction+'" aria-label="'+helpLabel+'">💡</button></header>';
+}
 function viewParent(){
   var body = ui.ptab==='today' ? (pToday()+pScheduledToday()+pActivity())
     : ui.ptab==='missions' ? pMissions()
     : ui.ptab==='shop' ? pShop()
     : pFamily();
-  if(ui.ptab!=='today'){
-    var title={missions:'Missions',shop:'Bonus',family:'Préférences'}[ui.ptab];
-    var sub=ui.ptab==='missions'?'Créez, éditez et assignez vos missions':'';
-    var infoBtn=ui.ptab==='missions'?'<button class="info-btn" data-a="openMissionHelp" aria-label="Conseils sur les missions">💡</button>':(ui.ptab==='shop'?'<button class="info-btn" data-a="'+(ui.bonusTab==='buy'?'openRewardHelp':'openAccessHelp')+'" aria-label="Aide et conseils sur les bonus">💡</button>':'');
-    return '<header class="top ptop"><div><div class="logo">'+title+infoBtn+'</div>'+(sub?'<p class="wel-sub">'+esc(sub)+'</p>':'')+'</div>'+(ui.ptab==='family'?'<button class="ghost-link" data-a="logout">Déconnexion</button>':'')+'</header>'+body;
-  }
+  var head;
+  if(ui.ptab==='today') head=pageHead('🏠','Accueil',esc(todayFr()),'replayTour','Revoir le tutoriel de cette page',wxHero(true));
+  else if(ui.ptab==='missions') head=pageHead('📋','Missions','Créez, éditez et assignez vos missions','openMissionHelp','Conseils sur les missions');
+  else if(ui.ptab==='shop') head=pageHead('🎁','Bonus','Accès à débloquer et cadeaux à acheter',ui.bonusTab==='buy'?'openRewardHelp':'openAccessHelp','Aide et conseils sur les bonus');
+  else head=pageHead('⚙️','Préférences','Famille, pauses, ajustements et badges','replayTour','Revoir le tutoriel de cette page');
+  if(ui.ptab!=='today') return head+body;
   var scheduledCount=S.tasks.filter(function(t){return t.recurring && t.freq==='weekly' && isDueToday(t)}).length;
-  var banner=scheduledCount?'<button class="btn ghost small" style="margin-top:8px" data-a="scrollToScheduled">📌 '+scheduledCount+' mission(s) à penser aujourd’hui</button>':'';
-  return '<header class="top ptop"><div><div class="hello">Bienvenue 👋</div><p class="wel-sub">'+esc(todayFr())+'</p></div>'+
-    '</header>'+banner+body;
+  var banner=scheduledCount?'<button class="btn ghost small" style="margin-bottom:10px" data-a="scrollToScheduled">📌 '+scheduledCount+' mission(s) à penser aujourd’hui</button>':'';
+  return head+banner+body;
 }
 
+function morningClosed(t){ return !!t&&t.slot==='morning'&&new Date().getHours()>=11; }
 function taskCardKid(t){
   var log=S.myLogsToday.filter(function(l){return l.task_id===t.id})[0];
   var st = log ? log.status : 'todo';
   var right='',note='';
-  if(st==='todo') right='<button class="btn go" data-a="doTask" data-id="'+t.id+'" data-title="'+esc(t.title)+'" data-points="'+t.points+'">C’est fait !</button>';
+  if(st==='todo'&&morningClosed(t)){ right='<span class="pill">🔒 Matin terminé</span>'; note='<span class="t-rule">Les routines du matin se valident avant 11 h</span>'; }
+  else if(st==='todo') right='<button class="btn go" data-a="doTask" data-id="'+t.id+'" data-title="'+esc(t.title)+'" data-points="'+t.points+'">C’est fait !</button>';
   else if(st==='pending') right='<span class="pill wait">⏳ À valider</span>';
   else right='<span class="pill ok">✅ Validé</span>';
   return '<div class="task ktask '+st+'"><span class="t-emoji">'+taskIco(t,'🔁')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐ · '+freqLabel(t)+'</span>'+note+detailsBtn(t,st)+'</span>'+right+'</div>';
@@ -2396,6 +2488,7 @@ function celebrateFx(obj){
 }
 function astAfterRender(){
   mvMount();
+  if(ui.view==='child'||(ui.view==='parent'&&ui.ptab==='today')) ensureWeather();
   var host=document.querySelector('.ast-mascot'); if(!host){ ui._astFx=null; return; }
   var mid=host.getAttribute('data-mid'), mood=host.getAttribute('data-mood');
   var is3=host.classList.contains('is3d')&&!_mv.party;
@@ -2424,6 +2517,110 @@ function assistantHtml(){
   var mo=astMood(m.id,new Date().getHours());
   return '<div class="ast"><button type="button" class="ast-mascot m-'+mo.m+(mascot3d(mf)?' is3d':'')+'" data-a="astPoke" data-mid="'+m.id+'" data-mood="'+mo.m+'" aria-label="Jouer avec mon assistant"><span class="ast-body">'+mascotInner(mf)+'</span></button><div class="ast-bubble"><button class="ast-x" data-a="astDismiss" data-id="'+m.id+'" aria-label="Fermer">✕</button>'+
     (nm?'<div class="ast-name">'+esc(nm)+'</div>':'')+(m.label?'<div class="muted" style="font-size:12px;font-weight:800;margin-bottom:2px">'+m.label+'</div>':'')+'<div class="ast-text">'+((file||vn)?esc(m.text):m.text)+'</div>'+cta+'</div></div>';
+}
+/* ---------- météo (Open-Meteo, sans clé) ---------- */
+function wxKind(code){
+  if(code===0) return 'clear'; if(code===1||code===2) return 'partly'; if(code===3) return 'cloudy';
+  if(code===45||code===48) return 'fog'; if(code>=51&&code<=67) return 'rain'; if(code>=71&&code<=77) return 'snow';
+  if(code>=80&&code<=82) return 'rain'; if(code===85||code===86) return 'snow'; if(code>=95) return 'storm'; return 'cloudy';
+}
+var WX_LABEL={0:'Grand soleil',1:'Plutôt dégagé',2:'Éclaircies',3:'Couvert',45:'Brouillard',48:'Brouillard givrant',51:'Bruine légère',53:'Bruine',55:'Bruine forte',56:'Bruine verglaçante',57:'Bruine verglaçante',61:'Pluie faible',63:'Pluie',65:'Forte pluie',66:'Pluie verglaçante',67:'Pluie verglaçante',71:'Neige faible',73:'Neige',75:'Forte neige',77:'Grains de neige',80:'Averses',81:'Averses',82:'Fortes averses',85:'Averses de neige',86:'Fortes averses de neige',95:'Orage',96:'Orage et grêle',99:'Orage et grêle'};
+function wxEmoji(code,day){
+  var k=wxKind(code);
+  return {clear:day?'☀️':'🌙',partly:day?'⛅':'☁️',cloudy:'☁️',fog:'🌫️',rain:'🌧️',snow:'❄️',storm:'⛈️'}[k];
+}
+async function loadWeather(){
+  if(!S.famLoaded){ await loadFamSettings(); S.famLoaded=true; }
+  var f=S.famSet; if(!f||f.weather_lat==null||f.weather_lon==null){ S.wx=null; return; }
+  var key='wx2_'+f.weather_lat+'_'+f.weather_lon, now=Date.now();
+  try{ var c=JSON.parse(lsGet(key)||'null'); if(c&&now-c.at<30*60000){ S.wx=c.data; return; } }catch(e){}
+  try{
+    var u='https://api.open-meteo.com/v1/forecast?latitude='+f.weather_lat+'&longitude='+f.weather_lon
+      +'&current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,precipitation,weather_code,wind_speed_10m'
+      +'&hourly=temperature_2m,precipitation_probability,weather_code'
+      +'&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max'
+      +'&timezone=auto&forecast_days=2';
+    var r=await fetch(u); if(!r.ok) throw new Error('HTTP '+r.status);
+    var j=await r.json(); if(!j.current) throw new Error('réponse vide');
+    S.wx=j; lsSet(key,JSON.stringify({at:now,data:j}));
+  }catch(e){ console.warn('météo',e); }
+}
+function ensureWeather(){
+  if(S.wxBusy||(S.wxAt&&Date.now()-S.wxAt<10*60000)) return;
+  S.wxBusy=true;
+  loadWeather().then(function(){ S.wxAt=Date.now(); S.wxBusy=false; if(S.wx&&(ui.view==='child'||(ui.view==='parent'&&ui.ptab==='today'))) render(); }).catch(function(){ S.wxAt=Date.now(); S.wxBusy=false; });
+}
+function wxFxHtml(kind,night){
+  var h='', i, n;
+  var cloud=function(top,dur,delay,w){ return '<i class="wx-cloud" style="top:'+top+'px;width:'+w+'px;animation-duration:'+dur+'s;animation-delay:'+delay+'s"></i>'; };
+  var drops=function(c){ var o=''; for(i=0;i<c;i++) o+='<i class="wx-drop" style="left:'+((i*37+11)%100)+'%;animation-duration:'+(0.7+(i%4)*0.12).toFixed(2)+'s;animation-delay:-'+((i*0.17)%1.2).toFixed(2)+'s"></i>'; return o; };
+  if(night&&(kind==='clear'||kind==='partly')){ for(i=0;i<14;i++) h+='<i class="wx-star" style="left:'+((i*29+7)%96)+'%;top:'+((i*17+5)%70)+'%;animation-delay:-'+((i*0.4)%3).toFixed(1)+'s"></i>'; h+='<i class="wx-moon"></i>'; }
+  if(!night&&(kind==='clear'||kind==='partly')) h+='<i class="wx-sun"></i>';
+  if(kind==='partly') h+=cloud(40,38,-12,70)+cloud(80,52,-30,56);
+  if(kind==='cloudy') h+=cloud(16,44,-8,80)+cloud(52,60,-26,64)+cloud(88,50,-40,72);
+  if(kind==='fog') for(i=0;i<3;i++) h+='<i class="wx-band" style="top:'+(10+i*34)+'px;animation-duration:'+(7+i*2)+'s"></i>';
+  if(kind==='rain') h+=cloud(10,50,-14,84)+cloud(30,64,-34,70)+drops(18);
+  if(kind==='storm') h+=cloud(8,46,-10,90)+cloud(28,60,-30,72)+drops(14)+'<i class="wx-flash"></i>';
+  if(kind==='snow'){ h+=cloud(10,56,-20,84); for(i=0;i<18;i++) h+='<i class="wx-flake" style="left:'+((i*31+9)%100)+'%;animation-duration:'+(3.2+(i%5)*0.7).toFixed(1)+'s;animation-delay:-'+((i*0.55)%4).toFixed(1)+'s"></i>'; }
+  return '<div class="wx-fx" aria-hidden="true">'+h+'</div>';
+}
+function wxHero(inRow){
+  var w=S.wx; if(!w||!w.current) return {cls:'',fx:'',chip:''};
+  var cu=w.current, day=cu.is_day===1, kind=wxKind(cu.weather_code), night=!day&&(kind==='clear'||kind==='partly'||kind==='cloudy'||kind==='fog');
+  var dark=night||kind==='rain'||kind==='storm';
+  var cls=' wx wx-'+(night?'night':kind)+(dark?' wx-dk':' wx-lt');
+  var chip='<button class="wx-chip'+(inRow?' in':'')+'" data-a="openWeather" aria-label="Voir la météo du jour">🌡️ '+Math.round(cu.temperature_2m)+'°</button>';
+  return {cls:cls,fx:wxFxHtml(kind,night),chip:chip};
+}
+function wxTip(w){
+  var cu=w.current, d=w.daily, code=cu.weather_code, kind=wxKind(code), pop=(d.precipitation_probability_max||[0])[0]||0, t=cu.temperature_2m, uv=(d.uv_index_max||[0])[0]||0;
+  if(kind==='storm') return '⚡ Il y a de l’orage : reste à l’abri et profite de ta maison !';
+  if(kind==='snow') return '⛄ De la neige ! Couvre-toi bien : bonnet, gants et écharpe.';
+  if(kind==='rain'||pop>=60) return '☔ Il risque de pleuvoir : prends un parapluie ou un imperméable.';
+  if(t<=8) return '🧥 Il fait frais : mets une bonne veste.';
+  if(t>=28) return '💧 Il fait chaud : pense à boire de l’eau et à rester à l’ombre.';
+  if(uv>=6) return '🧴 Le soleil est fort : chapeau et crème solaire !';
+  return '😎 Belle journée devant toi !';
+}
+function weatherModalHtml(){
+  var w=S.wx, f=S.famSet; if(!w||!w.current) return '<div class="modal-head"><h2>🌦️ Météo</h2><button class="modal-x" data-a="closeWeather" aria-label="Fermer">✕</button></div><p class="muted">La météo n’est pas disponible pour le moment.</p>';
+  var cu=w.current, d=w.daily, day=cu.is_day===1, code=cu.weather_code;
+  var hm=function(t){ return t?t.slice(11,16).replace(':','h'):'—'; };
+  var h='<div class="modal-head"><h2>🌦️ Météo · '+esc((f&&f.weather_city)||'')+'</h2><button class="modal-x" data-a="closeWeather" aria-label="Fermer">✕</button></div>';
+  h+='<div class="wx-now"><span class="wx-big">'+wxEmoji(code,day)+'</span><div><b>'+Math.round(cu.temperature_2m)+'°</b><div style="font-weight:800">'+(WX_LABEL[code]||'')+'</div><div class="muted" style="font-size:13px">Ressenti '+Math.round(cu.apparent_temperature)+'°</div></div></div>';
+  h+='<div class="wx-tip">'+wxTip(w)+'</div>';
+  var pop=(d.precipitation_probability_max||[null])[0], uv=(d.uv_index_max||[null])[0];
+  h+='<div class="stat-grid">'
+    +statTile('🌡️ '+Math.round(d.temperature_2m_min[0])+'° / '+Math.round(d.temperature_2m_max[0])+'°','minimum / maximum du jour')
+    +statTile('☔ '+(pop==null?'—':pop+' %'),'risque de pluie')
+    +statTile('💨 '+Math.round(cu.wind_speed_10m)+' km/h','vent')
+    +statTile('💧 '+Math.round(cu.relative_humidity_2m)+' %','humidité')
+    +statTile('🌅 '+hm(d.sunrise[0]),'lever du soleil')
+    +statTile('🌇 '+hm(d.sunset[0]),'coucher du soleil')+'</div>';
+  if(uv!=null) h+='<p class="muted" style="font-size:13px;margin:8px 0 0">☀️ Indice UV du jour : '+Math.round(uv)+(uv>=6?' (fort : protège-toi)':uv>=3?' (modéré)':' (faible)')+'</p>';
+  var hr=w.hourly, nowH=parseInt(cu.time.slice(11,13),10), items='', n=0;
+  var sunH=function(arr,day,def){ return parseInt(((arr&&arr[day])||def).slice(11,13),10); };
+  for(var i=nowH;i<(hr.time||[]).length&&n<12;i+=2,n++){
+    var hh=parseInt(hr.time[i].slice(11,13),10), dd=Math.floor(i/24);
+    var isDay=hh>=sunH(d.sunrise,dd,'T07')&&hh<sunH(d.sunset,dd,'T20');
+    var lab=i===nowH?'Maint.':hh+' h';
+    var tomorrow=(dd>0&&(i-2<24||i===nowH))?'<em style="display:block;font-style:normal;font-size:10px;color:var(--pri)">demain</em>':'';
+    items+='<div class="wx-h"><span>'+lab+'</span>'+tomorrow+wxEmoji(hr.weather_code[i],isDay)+'<div>'+Math.round(hr.temperature_2m[i])+'°</div><span>☔ '+(hr.precipitation_probability[i]||0)+'%</span></div>';
+  }
+  if(items) h+='<div class="sec"><h3>Heure par heure</h3></div><div class="wx-hours">'+items+'</div>';
+  h+='<p class="muted" style="font-size:11.5px;margin:8px 0 0;text-align:center">Données météo : Open-Meteo</p>';
+  return h;
+}
+function cityModalHtml(){
+  var f=ui.cityForm, h='<div class="modal-head"><h2>🌦️ Ville de la famille</h2><button class="modal-x" data-a="closeCity" aria-label="Fermer">✕</button></div>';
+  h+='<p class="muted" style="font-size:14px;margin:0 0 8px">Tape le nom de la ville, puis choisis-la dans la liste.</p>';
+  h+='<div style="display:flex;gap:8px"><input class="inp" style="flex:1" data-field="cityQ" placeholder="Ex. : La Seyne-sur-Mer" value="'+esc(f.q||'')+'" autocomplete="off"><button class="btn" data-a="citySearch"'+(f.busy?' disabled':'')+'>'+(f.busy?'…':'Chercher')+'</button></div>';
+  if(f.err) h+='<p class="muted" style="margin:10px 0 0;font-size:14px">'+esc(f.err)+'</p>';
+  if(f.res&&f.res.length) h+='<div style="margin-top:10px">'+f.res.map(function(r,i){
+    return '<button class="navrow" data-a="cityPick" data-i="'+i+'"><span class="nr-i">📍</span><span class="nr-t">'+esc(r.name)+'<span class="nr-s">'+esc([r.admin1,r.country].filter(Boolean).join(' · '))+'</span></span><span class="nr-c">›</span></button>';
+  }).join('')+'</div>';
+  if(S.famSet&&S.famSet.weather_city) h+='<button class="btn ghost wide" style="margin-top:10px" data-a="cityClear">Retirer la ville</button>';
+  return h;
 }
 function mascotModalHtml(){
   var mm=ui.mascotMenu, cur=mascotOf(mm.pick);
@@ -2705,7 +2902,7 @@ function barChart(vals,labels,color){
 }
 // Calendrier de régularité : 10 semaines, lundi → dimanche. Plus la case est foncée, plus il y a de missions.
 function heatChart(st){
-  var t=todayStr(), weeks=10, W=320, cw=29, ch=17, gx=3, gy=3, pl=18, pt=14, mon0=addDays(mondayOf(t),-7*(weeks-1));
+  var t=todayStr(), weeks=10, W=320, cw=27, ch=17, gx=3, gy=3, pl=18, pt=14, mon0=addDays(mondayOf(t),-7*(weeks-1));
   var g='', DL=['L','M','M','J','V','S','D'], i, k;
   for(k=0;k<7;k++) g+='<text x="'+(pl-5)+'" y="'+(pt+k*(ch+gy)+ch*0.72)+'" text-anchor="end">'+DL[k]+'</text>';
   for(i=0;i<weeks;i++){
@@ -2731,7 +2928,7 @@ function statBlock(st){
   var avg=active30?Math.round(stars30/active30*10)/10:0;
   var WD=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'], wi=0;
   st.wd.forEach(function(v,j){ if(v>st.wd[wi]) wi=j; });
-  var sec=function(t){ return '<p class="help-hint" style="margin:16px 0 8px"><b>'+t+'</b></p>'; };
+  var sec=function(t){ return '\u0001'+t+'\u0002'; };
 
   h+=sec('Vue d’ensemble');
   h+='<div class="stat-grid">'+statTile('⭐ '+(S.earned||S.stars),'étoiles gagnées en tout')+statTile('💰 '+S.stars,'étoiles à dépenser')
@@ -2774,13 +2971,23 @@ function statBlock(st){
   h+='<div class="stat-grid">'+statTile('🎁 '+st.given,'cadeau'+(st.given>1?'x':'')+' obtenu'+(st.given>1?'s':''))+statTile('⭐ '+st.spent,'étoiles dépensées en cadeaux')
     +statTile('⏳ '+st.pend,'demande'+(st.pend>1?'s':'')+' en attente')+statTile('🔓 '+st.unlocks,'bonus débloqué'+(st.unlocks>1?'s':'')+' en tout')
     +statTile('📝 '+st.reviews,'bilan'+(st.reviews>1?'s':'')+' de semaine fait'+(st.reviews>1?'s':''))+statTile(st.lastGift?((st.lastGift.emoji||'🎁')+' '+esc(st.lastGift.title)):'—','dernier cadeau obtenu')+'</div>';
-  return h;
+  return h.split('\u0001').slice(1).map(function(c){ var i=c.indexOf('\u0002'); return {t:c.slice(0,i),html:c.slice(i+1)}; });
+}
+var STAT_META=[['📊','#6C5CE7'],['🔥','#FF7A45'],['📈','#1FA97C'],['🗓️','#2D9CDB'],['🏅','#F2B01E'],['🎁','#E84393']];
+function statSubs(st){
+  var t=todayStr();
+  return ['⭐ '+(S.earned||S.stars)+' gagnées','🔥 série de '+(S.myStreak||0)+' j','Courbes et semaines','Calendrier et jours',st.badges+' badge'+(st.badges>1?'s':'')+' gagné'+(st.badges>1?'s':''),st.given+' cadeau'+(st.given>1?'x':'')+' obtenu'+(st.given>1?'s':'')];
+}
+function statModalHtml(){
+  var st=S.myStats; if(!st) return '';
+  var sec=statBlock(st)[ui.statSec]; if(!sec) return '';
+  return '<div class="modal-head"><h2>'+STAT_META[ui.statSec][0]+' '+sec.t+'</h2><button class="modal-x" data-a="closeStat" aria-label="Fermer">✕</button></div>'+sec.html;
 }
 function rowBtn(a,ico,title,sub){
   return '<button class="navrow" data-a="'+a+'"><span class="nr-i">'+ico+'</span><span class="nr-t">'+title+(sub?'<span class="nr-s">'+sub+'</span>':'')+'</span><span class="nr-c">›</span></button>';
 }
 function childTrophies(){
-  var st=S.myStats, h='<div class="vhead"><h2>📒 Mon carnet</h2></div>';
+  var st=S.myStats, h='';
   // --- Préférences
   var mm=validMascot(S.profile&&S.profile.mascot), mname=mm?((S.profile.mascot_name)||'Mon assistant'):'Pas encore choisi';
   h+='<div class="sec"><h3>⚙️ Mes préférences</h3></div>';
@@ -2792,7 +2999,10 @@ function childTrophies(){
   h+='<div class="sec"><h3>📊 Mes statistiques</h3></div>';
   if(!st){ h+='<p class="muted">Chargement…</p>'; }
   else {
-    h+=statBlock(st);
+    var secs=statBlock(st), subs=statSubs(st);
+    h+='<div class="stat-btns">'+secs.map(function(x,i){
+      return '<button class="stat-btn" style="--c:'+STAT_META[i][1]+'" data-a="openStat" data-v="'+i+'"><span class="sb-i">'+STAT_META[i][0]+'</span><span class="sb-t">'+x.t+'</span><span class="sb-s">'+subs[i]+'</span></button>';
+    }).join('')+'</div>';
   }
   // --- Badges
   var got=currentBadgeIds();
@@ -2816,9 +3026,9 @@ function viewChild(){
     : childTrophies();
   var lvl=levelFor(S.earned||S.stars), base=(lvl-1)*50, prog=Math.max(0,(S.earned||S.stars)-base), pct=Math.min(100,Math.round(prog/50*100));
   var streak=S.myStreak||0;
-  var got=currentBadgeIds();
+  var got=currentBadgeIds(), wx=wxHero();
   return '<header class="top"><button class="ghost-link" data-a="replayTour">💡 Aide</button><span></span></header>'+
-    '<section class="hero"><div class="hero-av">'+myAvatar()+'<button class="av-gear" data-a="openAvatarMenu" aria-label="Personnaliser mon profil">⚙️</button></div><div class="hero-main">'+
+    '<section class="hero'+wx.cls+'">'+wx.fx+wx.chip+'<div class="hero-av">'+myAvatar()+'<button class="av-gear" data-a="openAvatarMenu" aria-label="Personnaliser mon profil">⚙️</button></div><div class="hero-main">'+
     '<div class="hero-name"><span>Salut '+esc(S.profile.display_name)+' !</span>'+accIconsHtml(kidAccItems(),28,true)+'</div>'+
     '<div class="hero-lvl">Niveau '+lvl+' · '+levelTitle(lvl)+'</div>'+
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
@@ -2924,6 +3134,7 @@ function render(){
   if(ui.newOpen) modal='<div class="modal-backdrop" data-a="closeForm"><div class="modal" data-a="noop">'+mform()+'</div></div>';
   else if(ui.rFormOpen) modal='<div class="modal-backdrop" data-a="closeRewardForm"><div class="modal" data-a="noop">'+rform()+'</div></div>';
   else if(ui.corr) modal='<div class="modal-backdrop" data-a="closeCorr"><div class="modal" data-a="noop">'+corrModalHtml()+'</div></div>';
+  else if(ui.cityForm) modal='<div class="modal-backdrop" data-a="closeCity"><div class="modal" data-a="noop">'+cityModalHtml()+'</div></div>';
   else if(ui.vig) modal='<div class="modal-backdrop" data-a="closeVig"><div class="modal" data-a="noop">'+vigModalHtml()+'</div></div>';
   else if(ui.accessForm) modal='<div class="modal-backdrop" data-a="closeAccessForm"><div class="modal" data-a="noop">'+accessFormHtml()+'</div></div>';
   else if(ui.accessHelp) modal='<div class="modal-backdrop" data-a="closeAccessHelp"><div class="modal" data-a="noop">'+accessHelpHtml()+'</div></div>';
@@ -2940,6 +3151,8 @@ function render(){
   if(ui.mascotMenu && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeMascot"><div class="modal" data-a="noop">'+mascotModalHtml()+'</div></div>';
   if(ui.review && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeReview"><div class="modal" data-a="noop">'+reviewModalHtml()+'</div></div>';
   if(ui.detailsTask && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeDetails"><div class="modal" data-a="noop">'+detailsModalHtml()+'</div></div>';
+  if(ui.weatherOpen && (ui.view==='child'||ui.view==='parent')) modal='<div class="modal-backdrop" data-a="closeWeather"><div class="modal" data-a="noop">'+weatherModalHtml()+'</div></div>';
+  if(ui.statSec!=null && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeStat"><div class="modal" data-a="noop">'+statModalHtml()+'</div></div>';
   if(ui.accessUnlocked && ui.accessUnlocked.length && ui.view==='child') modal=accessUnlockedHtml();
   if(ui.celebrate && ui.view==='child') modal=celebrateHtml(ui.celebrate);
   var app=document.getElementById('app');
@@ -3007,7 +3220,7 @@ var TOURS={
   parent_shop:[
     {sel:'.seg',title:'Deux types de bonus',text:'« À débloquer » : des accès que l’enfant obtient quand les conditions sont remplies. « À acheter » : il les paie avec ses étoiles.'},
     {sel:'[data-a="openAccessForm"],[data-a="openRewardForm"]',title:'Ajouter un bonus',text:'À débloquer : tu fixes les conditions (routines, étoiles, jour…). À acheter : tu fixes le coût en étoiles.'},
-    {sel:'.info-btn',title:'Aide et conseils',text:'Touche 💡 à côté du titre pour comprendre comment ça marche et fixer des valeurs réalistes.'}
+    {sel:'.info-btn',title:'Aide et conseils',text:'Touche 💡 en haut à droite pour comprendre comment ça marche et fixer des valeurs réalistes.'}
   ],
   parent_family:[
     {sel:'.seg',title:'Quatre rubriques',text:'Famille (enfants et parents) · Pauses (vacances, maladie) · Ajustements (bonus ou retrait d’étoiles) · Badges (le catalogue).'},
@@ -3017,7 +3230,7 @@ var TOURS={
   parent_detail:[
     {sel:'.hero',title:'La fiche de l’enfant',text:'Niveau, étoiles, badges et statistiques détaillées, jour après jour.'},
     {sel:'[data-a="validateAll"],.task.pending',title:'Missions à valider',text:'Valide une mission, ou toutes d’un coup avec « Tout valider ».'},
-    {sel:'[data-a="doForChild"]',title:'Valider à sa place',text:'Un imprévu ? Touche ✅ pour cocher une mission à la place de l’enfant.'}
+    {sel:'[data-a="doForChild"]',title:'Valider à sa place',text:'Un imprévu ? Touche ✅ pour cocher une routine à la place de l’enfant, ou ☑️ pour la compter comme faite sans étoile (la journée parfaite et la série ne sont pas cassées).'}
   ],
   child_missions:[
     {title:'Salut ! 👋',text:'Fais tes missions, gagne des ⭐, monte de niveau et débloque des badges. Je t’explique en 5 secondes !'},
@@ -3195,6 +3408,14 @@ function showAlert(msg,o){
   _openAlerts[text]=pr; return pr;
 }
 
+/* Bloque le défilement de la page derrière une fenêtre ouverte */
+(function(){
+  var raf=0;
+  function sync(){ raf=0; document.documentElement.classList.toggle('modal-open',!!document.querySelector('.modal-backdrop,.dlg-back')); }
+  function go(){ if(!raf) raf=requestAnimationFrame(sync); }
+  function start(){ new MutationObserver(go).observe(document.body,{childList:true,subtree:true}); go(); }
+  if(document.body) start(); else document.addEventListener('DOMContentLoaded',start);
+})();
 function toast(msg){
   var t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
@@ -3446,6 +3667,36 @@ var A={
     ui.mascotMenu={pick:cm||'duck',name:cm?((S.profile&&S.profile.mascot_name)||''):''}; render();
   },
   closeMascot:function(){ ui.mascotMenu=null; render(); },
+  openCity:function(){ ui.cityForm={q:'',res:[],busy:false,err:''}; render(); },
+  closeCity:function(){ ui.cityForm=null; render(); },
+  citySearch:async function(){
+    var f=ui.cityForm; if(!f) return;
+    var q=(f.q||'').trim(); if(q.length<2){ f.err='Écris au moins 2 lettres.'; render(); return; }
+    f.busy=true; f.err=''; render();
+    try{
+      var r=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=6&language=fr&format=json');
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      var j=await r.json();
+      f.res=j.results||[]; if(!f.res.length) f.err='Aucune ville trouvée. Essaie une autre orthographe.';
+    }catch(e){ f.res=[]; f.err='Recherche impossible pour le moment (connexion ?).'; }
+    f.busy=false; if(ui.cityForm===f) render();
+  },
+  cityPick:async function(d){
+    var f=ui.cityForm; if(!f) return; var r=f.res[+d.i]; if(!r) return;
+    var label=r.name+(r.admin1&&r.admin1!==r.name?' ('+r.admin1+')':'');
+    var {data,error}=await client.from('family_settings').upsert({family_id:S.profile.family_id,weather_city:label,weather_lat:r.latitude,weather_lon:r.longitude,updated_at:new Date().toISOString()}).select();
+    if(error||!data||!data.length){ showAlert('❌ Impossible d’enregistrer la ville'+(error?' : '+error.message:' (droits manquants ?)')); return; }
+    S.famSet=data[0]; S.wx=null; S.wxAt=0; ui.cityForm=null; toast('🌦️ Ville enregistrée : '+label); render();
+  },
+  cityClear:async function(){
+    var {data,error}=await client.from('family_settings').delete().eq('family_id',S.profile.family_id).select();
+    if(error){ showAlert('❌ '+error.message); return; }
+    S.famSet=null; S.wx=null; S.wxAt=0; ui.cityForm=null; toast('Ville retirée'); render();
+  },
+  openWeather:function(){ ui.weatherOpen=true; render(); },
+  closeWeather:function(){ ui.weatherOpen=false; render(); },
+  openStat:function(d){ ui.statSec=+d.v; render(); },
+  closeStat:function(){ ui.statSec=null; render(); },
   pickMascot:function(d){
     if(!ui.mascotMenu) return; ui.mascotMenu.pick=d.v;
     document.querySelectorAll('[data-a="pickMascot"]').forEach(function(b){ b.classList.toggle('sel',b.getAttribute('data-v')===d.v); });
@@ -3480,16 +3731,17 @@ var A={
   },
   validateDayCheck:async function(d,btn){
     var dc=ui.dayCheck; if(!dc||!dayCheckCount()) return;
+    var zero=d&&d.zero==='1';
     if(btn) btn.disabled=true;
     var rows=[], kids={};
     dc.items.forEach(function(it){ it.tasks.forEach(function(t){
-      if(dc.sel[it.child.id+'|'+t.id]){ rows.push({family_id:S.profile.family_id,task_id:t.id,child_id:it.child.id,title:t.title,points:t.points,status:'validated',date:dc.date,validated_at:new Date().toISOString()}); kids[it.child.id]=true; }
+      if(dc.sel[it.child.id+'|'+t.id]){ rows.push({family_id:S.profile.family_id,task_id:t.id,child_id:it.child.id,title:t.title,points:zero?0:t.points,status:'validated',date:dc.date,validated_at:new Date().toISOString()}); kids[it.child.id]=true; }
     }); });
     var {error}=await client.from('task_logs').insert(rows);
     if(error){ if(btn) btn.disabled=false; showAlert('❌ '+error.message+'\n\nSi le message parle de « row-level security », la policy d’insertion des parents sur task_logs est manquante.'); return; }
     for(var cid in kids){ await recalcBalance(cid); await retroBadges(cid,dc.date); await checkBadges(cid); }
     lsSet(dayCheckKey(),todayStr()); ui.dayCheck=null;
-    toast('✅ '+rows.length+' mission'+(rows.length>1?'s':'')+' validée'+(rows.length>1?'s':'')+' pour hier');
+    toast((zero?'☑️ ':'✅ ')+rows.length+' mission'+(rows.length>1?'s':'')+(zero?' comptée'+(rows.length>1?'s':'')+' comme faite'+(rows.length>1?'s':'')+' (sans étoile)':' validée'+(rows.length>1?'s':''))+' pour hier');
     await refreshParentScreen();
   },
   toggleTheme:function(){
@@ -3562,9 +3814,13 @@ var A={
     if(el) el.disabled=true;
     var row=el&&el.closest?el.closest('.task'):null;
     var anim=animateRow(row,parseInt(d.points,10)||0,0,'flash');
-    var {data:log,error}=await client.from('task_logs').insert({
+    var exl=await logToday(d.cid,d.task);
+    if(exl&&exl.status==='validated'){ unanimateRow(row); showAlert('✅ Cette mission est déjà validée aujourd’hui.'); await refreshParentScreen(); return; }
+    var log=null, error=null;
+    if(exl){ log={id:exl.id}; }
+    else { var ins=await client.from('task_logs').insert({
       family_id:S.profile.family_id, task_id:d.task, child_id:d.cid, title:d.title, points:+d.points, status:'pending', date:todayStr()
-    }).select('id').single();
+    }).select('id').single(); log=ins.data; error=ins.error; }
     if(error||!log){ unanimateRow(row); if(el) el.disabled=false; showAlert('❌ '+(error?error.message:'Impossible d’enregistrer')+'\n\nSi le message parle de « row-level security », la policy d’insertion des parents sur task_logs est manquante.'); return; }
     var err=await validateCore(log.id,d.cid);
     if(err){ showAlert('❌ '+err); }
@@ -3572,6 +3828,30 @@ var A={
     await checkBadges(d.cid);
     toast('✅ Validé à la place de '+name);
     await anim;
+    await refreshParentScreen();
+  },
+  excuseForChild:async function(d,el){
+    var c=S.children.filter(function(x){return x.id===d.cid})[0];
+    var name=c?c.display_name:'l’enfant';
+    if(!(await askConfirm({icon:'☑️',title:'Compter comme faite, sans étoile ?',message:'« '+d.title+' »\nCette routine comptera pour la journée parfaite et la série de '+name+', mais ne rapportera aucune étoile.',okLabel:'Oui, compter comme faite'}))) return;
+    if(el) el.disabled=true;
+    var exl=await logToday(d.cid,d.task);
+    if(exl&&exl.status==='validated'){ showAlert('✅ Cette routine est déjà validée aujourd’hui.'); await refreshParentScreen(); return; }
+    var log=null, error=null;
+    if(exl){
+      var up=await client.from('task_logs').update({points:0}).eq('id',exl.id).select('id');
+      if(up.error||!up.data||!up.data.length){ if(el) el.disabled=false; showAlert('❌ '+(up.error?up.error.message:'Impossible de modifier l’envoi de l’enfant')); return; }
+      log={id:exl.id};
+    } else {
+      var ins=await client.from('task_logs').insert({family_id:S.profile.family_id,task_id:d.task,child_id:d.cid,title:d.title,points:0,status:'pending',date:todayStr()}).select('id').single();
+      log=ins.data; error=ins.error;
+    }
+    if(error||!log){ if(el) el.disabled=false; showAlert('❌ '+(error?error.message:'Impossible d’enregistrer')); return; }
+    var err=await validateCore(log.id,d.cid);
+    if(err) showAlert('❌ '+err);
+    await recalcBalance(d.cid);
+    await checkBadges(d.cid);
+    toast('☑️ Comptée comme faite (sans étoile) pour '+name);
     await refreshParentScreen();
   },
   validateAll:async function(d,el){
@@ -3745,30 +4025,44 @@ var A={
   menuEdit:function(d){ ui.taskMenu=null; A.editTask({id:d.id}); },
   menuDelete:async function(d){ ui.taskMenu=null; render(); await A.delTask({id:d.id}); },
 
-  doTask:async function(d){
+  doTask:async function(d,el){
+    var tk=(S.tasks||[]).filter(function(x){return x.id===d.id})[0];
+    if(morningClosed(tk)){ showAlert('🔒 Les routines du matin se valident avant 11 h. Demande à un parent si tu l’as faite !'); render(); return; }
     if(checklistBlocked(d.id)) return;
-    var {error}=await client.from('task_logs').insert({
-      family_id:S.profile.family_id, task_id:d.id, child_id:S.me.id, title:d.title, points:+d.points, status:'pending', date:todayStr()
-    });
-    if(error){ showAlert('❌ '+error.message); return; }
-    if(KID_TASKS[d.id]) chkClear(KID_TASKS[d.id]);
-    ui._astFx='cheer';
-    toast('⏳ Envoyé à tes parents pour validation');
-    await refreshChildScreen();
+    if(ui._sending&&ui._sending[d.id]) return;
+    ui._sending=ui._sending||{}; ui._sending[d.id]=true; if(el) el.disabled=true;
+    try{
+      var ex=await logToday(S.me.id,d.id);
+      if(ex){ await refreshChildScreen(); return; }
+      var {error}=await client.from('task_logs').insert({
+        family_id:S.profile.family_id, task_id:d.id, child_id:S.me.id, title:d.title, points:+d.points, status:'pending', date:todayStr()
+      });
+      if(error){ showAlert('❌ '+error.message); if(el) el.disabled=false; return; }
+      if(KID_TASKS[d.id]) chkClear(KID_TASKS[d.id]);
+      ui._astFx='cheer';
+      toast('⏳ Envoyé à tes parents pour validation');
+      await refreshChildScreen();
+    } finally { ui._sending[d.id]=false; }
   },
   doSpecial:async function(d){
     if(checklistBlocked(d.id)) return;
     var cm=await askPrompt({icon:'✨',title:'Mission terminée ?',label:'Un petit mot pour tes parents ? (facultatif)',placeholder:'Écris ici…',multiline:true,okLabel:'Envoyer'});
     if(cm===null) return;
     var comment=cm.trim()||null;
-    var {error}=await client.from('task_logs').insert({
-      family_id:S.profile.family_id, task_id:d.id, child_id:S.me.id, title:d.title, points:+d.points, status:'pending', date:todayStr(), comment:comment
-    });
-    if(error){ showAlert('❌ '+error.message); return; }
-    if(KID_TASKS[d.id]) chkClear(KID_TASKS[d.id]);
-    ui._astFx='cheer';
-    toast('⏳ Envoyé à tes parents pour validation');
-    await refreshChildScreen();
+    if(ui._sending&&ui._sending[d.id]) return;
+    ui._sending=ui._sending||{}; ui._sending[d.id]=true;
+    try{
+      var ex=await logToday(S.me.id,d.id);
+      if(ex){ await refreshChildScreen(); return; }
+      var {error}=await client.from('task_logs').insert({
+        family_id:S.profile.family_id, task_id:d.id, child_id:S.me.id, title:d.title, points:+d.points, status:'pending', date:todayStr(), comment:comment
+      });
+      if(error){ showAlert('❌ '+error.message); return; }
+      if(KID_TASKS[d.id]) chkClear(KID_TASKS[d.id]);
+      ui._astFx='cheer';
+      toast('⏳ Envoyé à tes parents pour validation');
+      await refreshChildScreen();
+    } finally { ui._sending[d.id]=false; }
   },
 
   fview:function(d){ ui.fview=d.v; render(); },
@@ -4044,6 +4338,7 @@ document.addEventListener('input',function(e){
     var _tp=document.getElementById('vig-tip'); if(_tp) _tp.style.display=vigNegative(el.value)?'':'none';
   }
   else if(f==='mascotName'&&ui.mascotMenu) ui.mascotMenu.name=el.value;
+  else if(f==='cityQ'&&ui.cityForm) ui.cityForm.q=el.value;
   else if(f==='revpride'&&ui.review) ui.review.pride=el.value;
   else if(f==='revgoal'&&ui.review) ui.review.goal=el.value;
   else if(f==='iconSearch'){ ui.iconSearch=el.value; var g=document.getElementById('ico-results'); if(g) g.innerHTML=iconResultsHtml(el.value); }
@@ -4069,6 +4364,7 @@ document.addEventListener('change',function(e){
 });
 document.addEventListener('keydown',function(e){
   if(e.key!=='Enter')return;
+  if(ui.cityForm&&e.target&&e.target.dataset&&e.target.dataset.field==='cityQ'){ A.citySearch(); return; }
   if(ui.view==='parentlogin') A.doParentLogin();
   else if(ui.view==='kidlogin') A.doChildPair();
 });
