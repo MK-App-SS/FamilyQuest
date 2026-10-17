@@ -155,6 +155,16 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .ast-bubble{position:static;flex:1;min-width:0;padding:0}
 .ast-cta{display:inline-block;margin-top:6px;border:0;border-radius:999px;background:var(--pri-soft);color:var(--pri);font:inherit;font-weight:800;font-size:12.5px;padding:3px 11px;cursor:pointer}
 .ast-cta:active{transform:scale(.95)}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat-tile{background:var(--card);border-radius:16px;padding:12px 8px;box-shadow:var(--shadow);text-align:center}
+.stat-tile b{display:block;font-family:'Baloo 2','Nunito',sans-serif;font-size:24px;line-height:1.1}
+.stat-tile span{font-size:12px;color:var(--muted);font-weight:700}
+.chart-card{background:var(--card);border-radius:18px;padding:12px;box-shadow:var(--shadow);margin-top:10px}
+.chart-card h4{margin:0 0 6px;font-size:14px}
+.chart-card svg{width:100%;height:auto;display:block}
+.chart-card text{fill:var(--muted);font-size:9px;font-weight:700;font-family:inherit}
+.top-row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;font-weight:700;font-size:14px;border-bottom:1px solid var(--line)}
+.top-row:last-child{border-bottom:0}
 .ast-name{font-family:'Baloo 2','Nunito',sans-serif;font-weight:800;font-size:13px;color:var(--pri)}
 .ast-text{font-weight:700;font-size:14px;line-height:1.35;transition:opacity .2s}
 .ast-x{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:0;background:var(--pri-soft);color:var(--muted);font-weight:800;cursor:pointer;line-height:1;padding:0}
@@ -1098,8 +1108,8 @@ function navHtml(items,cur,act){
     return '<button class="nb '+(cur===t[0]?'on':'')+'" data-a="'+act+'" data-t="'+t[0]+'"><span class="te">'+t[1]+(t[3]?'<span class="dot" style="position:absolute;margin-left:2px">'+t[3]+'</span>':'')+'</span>'+t[2]+'</button>';
   }).join('')+'</div></div>';
 }
-function parentNav(){ return navHtml([['today','🏠','Accueil',pendingCount()],['missions','📋','Missions'],['shop','🎁','Bonus',S.redemptions.length],['family','⚙️','Préférences']],ui.ptab,'ptab'); }
-function childNav(){ var open=(S.myAccess||[]).filter(function(a){return a.state==='open'}).length; return navHtml([['missions','🎯','Missions'],['bonus','🔓','Bonus',open],['shop','🛍️','Boutique'],['trophies','🏅','Badges']],ui.tab,'tab'); }
+function parentNav(){ return navHtml([['today','🏠','Accueil',pendingCount()],['missions','📋','Missions'],['shop','🎁','Bonus'],['family','⚙️','Préférences']],ui.ptab,'ptab'); }
+function childNav(){ var open=(S.myAccess||[]).filter(function(a){return a.state==='open'}).length; return navHtml([['missions','🎯','Missions'],['bonus','🔓','Bonus',open],['shop','🛍️','Boutique'],['trophies','📒','Carnet']],ui.tab,'tab'); }
 
 function collapseEl(el){
   return new Promise(function(res){
@@ -2629,15 +2639,173 @@ function currentBadgeIds(list){
   });
   return cur;
 }
+var DOW_I=['D','L','M','M','J','V','S'];
+function frDate(d){ return d.slice(8,10)+'/'+d.slice(5,7); }
+async function loadMyStats(){
+  var me=S.me.id, t=todayStr(), from=addDays(t,-119), logs=[], pg=0, r;
+  try{
+    while(pg<5){
+      r=await client.from('task_logs').select('date,points,title').eq('child_id',me).eq('status','validated').gte('date',from).order('date').range(pg*1000,pg*1000+999);
+      if(r.error||!r.data) break;
+      logs=logs.concat(r.data); if(r.data.length<1000) break; pg++;
+    }
+  }catch(e){ console.error('stats logs',e); }
+  var total=0, given=[], pend=0, unlocks=0, reviews=0;
+  try{ r=await client.from('task_logs').select('id',{count:'exact',head:true}).eq('child_id',me).eq('status','validated'); total=r.count||0; }catch(e){}
+  try{ r=await client.from('redemptions').select('status,cost,title,emoji,decided_at').eq('child_id',me); (r.data||[]).forEach(function(x){ if(x.status==='given') given.push(x); else if(x.status==='pending') pend++; }); }catch(e){}
+  try{ r=await client.from('access_unlocks').select('rule_id',{count:'exact',head:true}).eq('child_id',me).eq('kind','earned'); unlocks=r.count||0; }catch(e){}
+  try{ r=await client.from('weekly_reviews').select('week',{count:'exact',head:true}).eq('child_id',me); reviews=r.count||0; }catch(e){}
+  var perfect=(S.myBadges||[]).filter(function(b){return b.badge_id==='perfectday'}).map(function(b){return b.period}).sort();
+  var best=0,run=0,prev=null;
+  perfect.forEach(function(x){ run=(prev&&addDays(prev,1)===x)?run+1:1; best=Math.max(best,run); prev=x; });
+  var days={}, titles={}, wd=[0,0,0,0,0,0,0], wdStars=[0,0,0,0,0,0,0];
+  logs.forEach(function(l){
+    var d=days[l.date]||(days[l.date]={stars:0,n:0}); d.stars+=l.points||0; d.n++;
+    titles[l.title]=(titles[l.title]||0)+1;
+    var i=(dowOf(l.date)+6)%7; wd[i]++; wdStars[i]+=l.points||0;
+  });
+  var top=Object.keys(titles).map(function(k){return [k,titles[k]]}).sort(function(a,b){return b[1]-a[1]}).slice(0,5);
+  var bd=null, bn=null;
+  Object.keys(days).forEach(function(d){
+    if(!bd||days[d].stars>days[bd].stars) bd=d;
+    if(!bn||days[d].n>days[bn].n) bn=d;
+  });
+  var badgeCount={}; (S.myBadges||[]).forEach(function(x){ badgeCount[x.badge_id]=(badgeCount[x.badge_id]||0)+1; });
+  var spent=given.reduce(function(a,x){return a+(x.cost||0)},0);
+  given.sort(function(x,y){return new Date(y.decided_at||0)-new Date(x.decided_at||0)});
+  S.myStats={days:days,top:top,total:total,best:best,perfect:perfect,perfectSet:perfect.reduce(function(o,x){o[x]=1;return o},{}),
+    badges:(S.myBadges||[]).length,badgeCount:badgeCount,wd:wd,wdStars:wdStars,bestDay:bd,bestDayN:bn,
+    given:given.length,pend:pend,spent:spent,lastGift:given[0]||null,unlocks:unlocks,reviews:reviews,at:t};
+}
+function lineChart(vals,labels){
+  var W=320,H=130,pl=24,pr=8,pt=10,pb=22,max=Math.max.apply(null,vals.concat([5])), n=vals.length;
+  var x=function(i){return pl+(W-pl-pr)*i/(n-1)}, y=function(v){return pt+(H-pt-pb)*(1-v/max)};
+  var pts=vals.map(function(v,i){return x(i).toFixed(1)+','+y(v).toFixed(1)}).join(' ');
+  var area=pl+','+(H-pb)+' '+pts+' '+x(n-1).toFixed(1)+','+(H-pb);
+  var g='<line x1="'+pl+'" y1="'+(H-pb)+'" x2="'+(W-pr)+'" y2="'+(H-pb)+'" stroke="var(--line)" stroke-width="1"/>'
+    +'<line x1="'+pl+'" y1="'+y(max)+'" x2="'+(W-pr)+'" y2="'+y(max)+'" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3"/>'
+    +'<text x="'+(pl-4)+'" y="'+(y(max)+3)+'" text-anchor="end">'+max+'</text><text x="'+(pl-4)+'" y="'+(H-pb+3)+'" text-anchor="end">0</text>'
+    +'<polygon points="'+area+'" fill="var(--pri)" opacity=".15"/><polyline points="'+pts+'" fill="none" stroke="var(--pri)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+  vals.forEach(function(v,i){ g+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="'+(i===n-1?4:2.5)+'" fill="var(--pri)"/>'; });
+  labels.forEach(function(l,i){ g+='<text x="'+x(i).toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle">'+l+'</text>'; });
+  return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Courbe">'+g+'</svg>';
+}
+function barChart(vals,labels,color){
+  color=color||'var(--ok)';
+  var W=320,H=130,pl=24,pr=8,pt=14,pb=22,max=Math.max.apply(null,vals.concat([5])), n=vals.length, bw=(W-pl-pr)/n;
+  var g='<line x1="'+pl+'" y1="'+(H-pb)+'" x2="'+(W-pr)+'" y2="'+(H-pb)+'" stroke="var(--line)" stroke-width="1"/>'
+    +'<text x="'+(pl-4)+'" y="'+(pt+3)+'" text-anchor="end">'+max+'</text><text x="'+(pl-4)+'" y="'+(H-pb+3)+'" text-anchor="end">0</text>';
+  vals.forEach(function(v,i){
+    var h=(H-pt-pb)*v/max, bx=pl+bw*i+bw*0.18;
+    g+='<rect x="'+bx.toFixed(1)+'" y="'+(H-pb-h).toFixed(1)+'" width="'+(bw*0.64).toFixed(1)+'" height="'+Math.max(h,0).toFixed(1)+'" rx="4" fill="'+color+'"/>';
+    if(v>0) g+='<text x="'+(bx+bw*0.32).toFixed(1)+'" y="'+(H-pb-h-3).toFixed(1)+'" text-anchor="middle">'+v+'</text>';
+    g+='<text x="'+(bx+bw*0.32).toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle">'+labels[i]+'</text>';
+  });
+  return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Histogramme">'+g+'</svg>';
+}
+// Calendrier de régularité : 10 semaines, lundi → dimanche. Plus la case est foncée, plus il y a de missions.
+function heatChart(st){
+  var t=todayStr(), weeks=10, W=320, cw=29, ch=17, gx=3, gy=3, pl=18, pt=14, mon0=addDays(mondayOf(t),-7*(weeks-1));
+  var g='', DL=['L','M','M','J','V','S','D'], i, k;
+  for(k=0;k<7;k++) g+='<text x="'+(pl-5)+'" y="'+(pt+k*(ch+gy)+ch*0.72)+'" text-anchor="end">'+DL[k]+'</text>';
+  for(i=0;i<weeks;i++){
+    var m=addDays(mon0,7*i), x=pl+i*(cw+gx);
+    if(i%2===0) g+='<text x="'+(x+cw/2)+'" y="9" text-anchor="middle">'+frDate(m)+'</text>';
+    for(k=0;k<7;k++){
+      var d=addDays(m,k); if(d>t) continue;
+      var n=(st.days[d]&&st.days[d].n)||0, y=pt+k*(ch+gy);
+      var fill=n?'var(--ok)':'var(--line)', op=n?(0.3+Math.min(n/6,1)*0.7).toFixed(2):'1';
+      g+='<rect x="'+x+'" y="'+y+'" width="'+cw+'" height="'+ch+'" rx="5" fill="'+fill+'" opacity="'+op+'"'+(d===t?' stroke="var(--pri)" stroke-width="2"':'')+'/>';
+      if(st.perfectSet[d]) g+='<text style="fill:#fff;font-size:10px" x="'+(x+cw/2)+'" y="'+(y+ch*0.74)+'" text-anchor="middle">★</text>';
+    }
+  }
+  var H=pt+7*(ch+gy);
+  return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Calendrier des missions validées">'+g+'</svg>';
+}
+function statTile(v,l){ return '<div class="stat-tile"><b>'+v+'</b><span>'+l+'</span></div>'; }
+function statBlock(st){
+  var t=todayStr(), lvl=levelFor(S.earned||S.stars), streak=S.myStreak||0, h='', i, k;
+  var mon=mondayOf(t), nWeek=0, nMonth=0, starsWeek=0, active30=0, stars30=0, perfect30=0, d;
+  for(i=0;i<30;i++){ d=addDays(t,-i); if(st.days[d]){ active30++; stars30+=st.days[d].stars; } if(st.perfectSet[d]) perfect30++; }
+  Object.keys(st.days).forEach(function(x){ if(x>=mon){ nWeek+=st.days[x].n; starsWeek+=st.days[x].stars; } if(x.slice(0,7)===t.slice(0,7)) nMonth+=st.days[x].n; });
+  var avg=active30?Math.round(stars30/active30*10)/10:0;
+  var WD=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'], wi=0;
+  st.wd.forEach(function(v,j){ if(v>st.wd[wi]) wi=j; });
+  var sec=function(t){ return '<p class="help-hint" style="margin:16px 0 8px"><b>'+t+'</b></p>'; };
+
+  h+=sec('Vue d’ensemble');
+  h+='<div class="stat-grid">'+statTile('⭐ '+(S.earned||S.stars),'étoiles gagnées en tout')+statTile('💰 '+S.stars,'étoiles à dépenser')
+    +statTile('Niv. '+lvl,levelTitle(lvl))+statTile('✅ '+st.total,'missions validées en tout')
+    +statTile('📅 '+nWeek,'missions cette semaine')+statTile('🗓️ '+nMonth,'missions ce mois-ci')
+    +statTile('⭐ '+starsWeek,'étoiles cette semaine')+statTile('📈 '+avg,'étoiles par jour actif (30 j)')+'</div>';
+
+  h+=sec('Séries et records');
+  h+='<div class="stat-grid">'+statTile('🔥 '+streak,'série en cours (jour'+(streak>1?'s':'')+')')+statTile('🏆 '+st.best,'meilleure série (jour'+(st.best>1?'s':'')+')')
+    +statTile('🌟 '+st.perfect.length,'journée'+(st.perfect.length>1?'s':'')+' parfaite'+(st.perfect.length>1?'s':'')+' en tout')+statTile('✨ '+perfect30+' / 30','journées parfaites ces 30 jours')
+    +statTile(st.bestDay?('⭐ '+st.days[st.bestDay].stars):'—','record d’étoiles en un jour'+(st.bestDay?' ('+frDate(st.bestDay)+')':''))
+    +statTile(st.bestDayN?('✅ '+st.days[st.bestDayN].n):'—','record de missions en un jour'+(st.bestDayN?' ('+frDate(st.bestDayN)+')':''))
+    +statTile('🗂️ '+active30+' / 30','jours actifs ces 30 jours')+statTile(st.wd[wi]?('📆 '+WD[wi]):'—','ton jour le plus actif')+'</div>';
+
+  h+=sec('Évolution');
+  var vals=[], labs=[];
+  for(i=13;i>=0;i--){ d=addDays(t,-i); vals.push((st.days[d]&&st.days[d].stars)||0); labs.push(DOW_I[dowOf(d)]); }
+  h+='<div class="chart-card"><h4>⭐ Étoiles gagnées par jour (14 derniers jours)</h4>'+lineChart(vals,labs)+'</div>';
+  var sw=[], mw=[], wl=[];
+  for(i=7;i>=0;i--){
+    var m0=addDays(mon,-7*i), c=0, sx=0;
+    for(k=0;k<7;k++){ var dd=addDays(m0,k); if(st.days[dd]){ c+=st.days[dd].n; sx+=st.days[dd].stars; } }
+    sw.push(sx); mw.push(c); wl.push(frDate(m0));
+  }
+  h+='<div class="chart-card"><h4>⭐ Étoiles gagnées par semaine (8 semaines)</h4>'+barChart(sw,wl,'var(--acc)')+'</div>';
+  h+='<div class="chart-card"><h4>✅ Missions validées par semaine (8 semaines)</h4>'+barChart(mw,wl)+'</div>';
+
+  h+=sec('Régularité');
+  h+='<div class="chart-card"><h4>🗓️ Ton calendrier (10 semaines)</h4>'+heatChart(st)+'<p class="muted" style="font-size:12px;margin:6px 0 0">Plus la case est foncée, plus tu as validé de missions. ★ = journée parfaite.</p></div>';
+  h+='<div class="chart-card"><h4>📆 Missions validées selon le jour de la semaine (4 derniers mois)</h4>'+barChart(st.wd,['L','M','M','J','V','S','D'],'var(--pri)')+'</div>';
+  if(st.top.length){
+    h+='<div class="chart-card"><h4>💪 Tes missions les plus faites (4 derniers mois)</h4>'+st.top.map(function(x,j){return '<div class="top-row"><span>'+['🥇','🥈','🥉','4️⃣','5️⃣'][j]+' '+esc(x[0])+'</span><span>×'+x[1]+'</span></div>';}).join('')+'</div>';
+  }
+
+  h+=sec('Badges obtenus');
+  h+='<div class="stat-grid">'+statTile('🏅 '+st.badges,'badges gagnés en tout')+statTile('🎖️ '+Object.keys(st.badgeCount).length+' / '+BADGE_DEFS.length,'types de badges découverts')+'</div>';
+  h+='<div class="chart-card">'+BADGE_DEFS.map(function(def){return '<div class="top-row"><span>'+def.emoji+' '+esc(def.name)+'</span><span>×'+(st.badgeCount[def.id]||0)+'</span></div>';}).join('')+'</div>';
+
+  h+=sec('Cadeaux, bonus et bilans');
+  h+='<div class="stat-grid">'+statTile('🎁 '+st.given,'cadeau'+(st.given>1?'x':'')+' obtenu'+(st.given>1?'s':''))+statTile('⭐ '+st.spent,'étoiles dépensées en cadeaux')
+    +statTile('⏳ '+st.pend,'demande'+(st.pend>1?'s':'')+' en attente')+statTile('🔓 '+st.unlocks,'bonus débloqué'+(st.unlocks>1?'s':'')+' en tout')
+    +statTile('📝 '+st.reviews,'bilan'+(st.reviews>1?'s':'')+' de semaine fait'+(st.reviews>1?'s':''))+statTile(st.lastGift?((st.lastGift.emoji||'🎁')+' '+esc(st.lastGift.title)):'—','dernier cadeau obtenu')+'</div>';
+  return h;
+}
+function rowBtn(a,ico,title,sub){
+  return '<button class="navrow" data-a="'+a+'"><span class="nr-i">'+ico+'</span><span class="nr-t">'+title+(sub?'<span class="nr-s">'+sub+'</span>':'')+'</span><span class="nr-c">›</span></button>';
+}
 function childTrophies(){
-  var got=currentBadgeIds(), h='<div class="vhead"><h2>Mes badges</h2></div><p class="muted" style="margin:-4px 0 4px;font-size:14px">Voici les badges à gagner et comment les obtenir. Les trophées arrivent bientôt !</p>';
-  [['day','☀️ Badges du jour','À regagner chaque jour : ils se grisent le lendemain.'],['week','📅 Badges de la semaine','À regagner chaque semaine (du lundi au dimanche).']].forEach(function(g){
-    h+='<div class="sec"><h3>'+g[1]+'</h3></div><p class="help-hint">'+g[2]+'</p>';
+  var st=S.myStats, h='<div class="vhead"><h2>📒 Mon carnet</h2></div>';
+  // --- Préférences
+  var mm=validMascot(S.profile&&S.profile.mascot), mname=mm?((S.profile.mascot_name)||'Mon assistant'):'Pas encore choisi';
+  h+='<div class="sec"><h3>⚙️ Mes préférences</h3></div>';
+  h+=rowBtn('openAvatarMenu','<span style="font-size:26px">'+myAvatar()+'</span>','Mon avatar','Change ton image de profil');
+  h+=rowBtn('openMascot','🐾','Mon assistant',esc(mname));
+  h+=rowBtn('toggleTheme',isDarkTheme()?'☀️':'🌙',isDarkTheme()?'Passer en mode clair':'Passer en mode sombre','Change les couleurs de l’appli');
+  h+=rowBtn('replayTour','💡','Revoir le tutoriel','Une petite visite guidée de chaque page');
+  // --- Statistiques
+  h+='<div class="sec"><h3>📊 Mes statistiques</h3></div>';
+  if(!st){ h+='<p class="muted">Chargement…</p>'; }
+  else {
+    h+=statBlock(st);
+  }
+  // --- Badges
+  var got=currentBadgeIds();
+  h+='<div class="sec"><h3>🏅 Mes badges</h3></div><p class="help-hint" style="margin-top:-4px">Voici les badges à gagner et comment les obtenir.</p>';
+  [['day','☀️ Du jour','À regagner chaque jour : ils se grisent le lendemain.'],['week','📅 De la semaine','À regagner chaque semaine (du lundi au dimanche).']].forEach(function(g){
+    h+='<p class="help-hint" style="margin:10px 0 6px"><b>'+g[1]+'</b> · '+g[2]+'</p>';
     h+=BADGE_DEFS.filter(function(d){return d.scope===g[0]}).map(function(def){
       var on=!!got[def.id];
       return '<div class="task"><span class="t-emoji" style="background:var(--acc)'+(on?'':';opacity:.55')+'">'+def.emoji+'</span><span class="t-main"><span class="t-title">'+esc(def.name)+'</span><span class="t-meta" style="white-space:normal">'+esc(def.desc)+'</span></span>'+(on?'<span class="pill ok">✅ Obtenu</span>':'<span class="pill ok">+'+def.reward+' ⭐</span>')+'</div>';
     }).join('');
   });
+  // --- Déconnexion
+  h+='<div style="margin-top:26px"><button class="btn ghost wide" style="color:var(--bad);border-color:var(--bad)" data-a="logoutChild">🚪 Me déconnecter</button></div>';
   return h;
 }
 
@@ -2649,7 +2817,7 @@ function viewChild(){
   var lvl=levelFor(S.earned||S.stars), base=(lvl-1)*50, prog=Math.max(0,(S.earned||S.stars)-base), pct=Math.min(100,Math.round(prog/50*100));
   var streak=S.myStreak||0;
   var got=currentBadgeIds();
-  return '<header class="top"><button class="ghost-link" data-a="replayTour">💡 Aide</button><span style="display:flex;align-items:center;gap:4px"><button class="ghost-link theme-btn" data-a="toggleTheme" aria-label="'+(isDarkTheme()?'Passer en mode clair':'Passer en mode sombre')+'">'+(isDarkTheme()?'☀️':'🌙')+'</button><button class="ghost-link" data-a="logout">Déconnexion</button></span></header>'+
+  return '<header class="top"><button class="ghost-link" data-a="replayTour">💡 Aide</button><span></span></header>'+
     '<section class="hero"><div class="hero-av">'+myAvatar()+'<button class="av-gear" data-a="openAvatarMenu" aria-label="Personnaliser mon profil">⚙️</button></div><div class="hero-main">'+
     '<div class="hero-name"><span>Salut '+esc(S.profile.display_name)+' !</span>'+accIconsHtml(kidAccItems(),28,true)+'</div>'+
     '<div class="hero-lvl">Niveau '+lvl+' · '+levelTitle(lvl)+'</div>'+
@@ -2857,7 +3025,7 @@ var TOURS={
     {sel:'.ast',title:'Ton assistant',text:'Il te donne des conseils au bon moment, et parfois un petit message de tes parents. Touche ✕ pour fermer un message. Tu peux changer de compagnon et de nom avec la roue dentée ⚙️.'},
     {sel:'.hero-top',title:'Tes étoiles et tes badges',text:'⭐ = ce que tu peux dépenser. 🔥 = jours parfaits d’affilée. Les badges se regagnent chaque jour ou chaque semaine.'},
     {sel:'.ktask .btn.go',title:'Quand c’est fait…',text:'Touche « C’est fait ! ». Tes parents vérifient, et tu reçois tes étoiles.'},
-    {sel:'.nav-in',title:'Boutique et Badges',text:'Bonus : des accès à débloquer en remplissant des conditions. Boutique : échange tes étoiles contre des cadeaux. Badges : découvre ceux que tu peux gagner et comment les obtenir.'}
+    {sel:'.nav-in',title:'Boutique et Carnet',text:'Bonus : des accès à débloquer en remplissant des conditions. Boutique : échange tes étoiles contre des cadeaux. Carnet : tes préférences, tes statistiques et tes badges.'}
   ],
   child_bonus:[
     {sel:'.acc-card',title:'Tes bonus',text:'Chaque bonus montre ce qu’il te reste à faire pour le débloquer. Quand tout est coché ✅, il est à toi pour la journée !'}
@@ -3341,7 +3509,11 @@ var A={
     ui.ptab=d.t; ui.expandChild=null; ui.newOpen=false; render();
     if(d.t==='shop'&&ui.bonusTab==='unlock'){ await loadAccessAdmin(); render(); }
   },
-  tab:function(d){ ui.tab=d.t; render(); },
+  tab:async function(d){ ui.tab=d.t; if(d.t==='trophies'&&(!S.myStats||S.myStats.at!==todayStr())){ S.myStats=null; render(); await loadMyStats(); } render(); window.scrollTo(0,0); },
+  logoutChild:async function(){
+    if(!(await askConfirm({icon:'🚪',title:'Te déconnecter ?',message:'Attention, si tu te déconnectes, tu auras besoin d’un parent pour te connecter à nouveau !',okLabel:'Me déconnecter',cancelLabel:'Rester',danger:true}))) return;
+    await client.auth.signOut(); location.reload();
+  },
 
   toggleChild:function(d){ ui.expandChild = ui.expandChild===d.id ? null : d.id; render(); },
   openChildDetail:async function(d){
