@@ -205,13 +205,19 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .cal-nav button{border:0;background:var(--pri-soft);color:var(--pri);border-radius:12px;width:38px;height:38px;font-size:20px;font-weight:800;cursor:pointer}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .cal-dow{text-align:center;font-size:11px;font-weight:800;color:var(--muted);padding-bottom:2px}
-.cal-day{position:relative;aspect-ratio:1;border:2px solid transparent;border-radius:12px;background:var(--pri-soft);color:var(--ink);font:inherit;font-weight:800;font-size:14px;cursor:pointer;padding:0}
-.cal-day.out{opacity:.35;background:transparent}
-.cal-day.today{border-color:var(--pri)}
-.cal-day.sel{background:var(--pri);color:var(--pri-ink)}
-.cal-day .cdots{position:absolute;bottom:3px;left:0;right:0;display:flex;justify-content:center;gap:2px}
-.cal-day .cdots i{width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.8)}
-.cdots i.sp{background:#f97316}.cdots i.nt{background:#3b82f6}
+.cal-day{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;position:relative;aspect-ratio:5/6;border:0;border-radius:12px;font:inherit;cursor:pointer;padding:0;text-align:left;color:#fff;background:var(--line);overflow:hidden}
+.cal-day .dn{position:absolute;top:4px;left:6px;font-weight:800;font-size:13px;line-height:1}
+.cal-day.k-sp{background:linear-gradient(135deg,#ff6b5e,#e5484d)}
+.cal-day.k-nt{background:linear-gradient(135deg,#5aa2ff,#3b82f6)}
+.cal-day.k-both{background:linear-gradient(135deg,#ff6b5e 0%,#e5484d 38%,#3b82f6 62%,#5aa2ff 100%)}
+.cal-day.k-none{background:var(--line);color:var(--muted);opacity:.6}
+.cal-day.out{opacity:.28}
+.cal-day.today{box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--ink)}
+.cal-day.sel{box-shadow:0 0 0 2px var(--card),0 0 0 5px var(--pri)}
+.cal-day .cav{position:absolute;bottom:4px;left:0;right:0;display:flex;justify-content:center}
+.cal-av{width:21px;height:21px;border-radius:50%;background:#fff;border:1.5px solid #fff;margin-left:-6px;overflow:hidden;font-size:14px;line-height:1;display:grid;place-items:center;color:#1f2a44;font-weight:800}
+.cal-av:first-child{margin-left:0}
+.cal-av .pxav2,.cal-av img{width:100%;height:100%;border-radius:50%;object-fit:cover}
 .cal-item{display:flex;gap:10px;align-items:flex-start;background:var(--pri-soft);border-radius:14px;padding:10px 12px;margin-bottom:8px}
 .cal-item .ci{font-size:22px;line-height:1.1;width:30px;text-align:center;flex:none}
 .cal-item .cm{flex:1;min-width:0;font-weight:800;font-size:14.5px}
@@ -1593,14 +1599,13 @@ function calSpecials(){
   return S.tasks.filter(function(t){
     if(t.recurring||!t.deadline) return false;
     if(!(t.assign_all||(t.task_assignees&&t.task_assignees.length))) return false;
-    if(!ui.calChild) return true;
-    return t.assign_all||t.task_assignees.some(function(a){return a.child_id===ui.calChild});
+    return true;
   });
 }
 function calNotesList(){
   return (S.calNotes||[]).filter(function(n){
     if(ui.view==='child') return true;
-    return !ui.calChild||!n.child_id||n.child_id===ui.calChild;
+    return true;
   });
 }
 function calItemsOn(day){
@@ -1608,6 +1613,21 @@ function calItemsOn(day){
     sp:calSpecials().filter(function(t){return ymd(new Date(t.deadline))===day}),
     nt:calNotesList().filter(function(n){return n.date===day})
   };
+}
+function calKids(it){
+  var ids={}, all=false;
+  if(ui.view==='child'){
+    if(!it.sp.length&&!it.nt.length) return [];
+    return [{id:S.me.id,avatar:myAvatar(),display_name:S.profile.display_name}];
+  }
+  it.sp.forEach(function(t){ if(t.assign_all) all=true; else (t.task_assignees||[]).forEach(function(a){ids[a.child_id]=1;}); });
+  it.nt.forEach(function(n){ if(!n.child_id) all=true; else ids[n.child_id]=1; });
+  return S.children.filter(function(c){ return all||ids[c.id]; });
+}
+function calAvatars(kids){
+  if(!kids.length) return '';
+  var shown=kids.slice(0,3), more=kids.length-shown.length;
+  return '<span class="cav">'+shown.map(function(c){return '<span class="cal-av" title="'+esc(c.display_name)+'">'+av(c.avatar)+'</span>';}).join('')+(more>0?'<span class="cal-av">+'+more+'</span>':'')+'</span>';
 }
 function calCount(){ var it=calItemsOn(ymd(new Date())); return it.sp.length+it.nt.length; }
 function calChip(inRow){
@@ -1619,19 +1639,16 @@ function calModalHtml(){
   var isParent=ui.view==='parent';
   var h='<div class="modal-head"><h2>📅 Calendrier</h2><button class="modal-x" data-a="closeCal" aria-label="Fermer">✕</button></div>';
   if(ui.calForm) return h+calFormHtml();
-  if(isParent&&S.children.length>1){
-    h+='<div class="chiprow" style="margin-bottom:6px"><button class="chip '+(!ui.calChild?'sel':'')+'" data-a="calChild" data-v="">👨‍👩‍👧 Tous</button>'+S.children.map(function(c){return '<button class="chip '+(ui.calChild===c.id?'sel':'')+'" data-a="calChild" data-v="'+c.id+'">'+av(c.avatar)+' '+esc(c.display_name)+'</button>';}).join('')+'</div>';
-  }
   var label=new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
   h+='<div class="cal-nav"><button data-a="calPrev" aria-label="Mois précédent">‹</button><b>'+esc(label)+'</b><button data-a="calNext" aria-label="Mois suivant">›</button></div>';
   h+='<div class="cal-grid">'+['L','M','M','J','V','S','D'].map(function(d){return '<div class="cal-dow">'+d+'</div>';}).join('');
   var first=new Date(y,m,1), off=(first.getDay()+6)%7, dim=new Date(y,m+1,0).getDate(), cells=Math.ceil((off+dim)/7)*7;
   for(var i=0;i<cells;i++){
     var dt=new Date(y,m,1-off+i), key=ymd(dt), out=dt.getMonth()!==m, it=calItemsOn(key);
-    var dots=(it.sp.length||it.nt.length)?'<span class="cdots">'+(it.sp.length?'<i class="sp"></i>':'')+(it.nt.length?'<i class="nt"></i>':'')+'</span>':'';
-    h+='<button class="cal-day'+(out?' out':'')+(key===today?' today':'')+(key===sel?' sel':'')+'" data-a="calPick" data-d="'+key+'" aria-label="'+key+'">'+dt.getDate()+dots+'</button>';
+    var kind=it.sp.length&&it.nt.length?'k-both':(it.sp.length?'k-sp':(it.nt.length?'k-nt':'k-none'));
+    h+='<button class="cal-day '+kind+(out?' out':'')+(key===today?' today':'')+(key===sel?' sel':'')+'" data-a="calPick" data-d="'+key+'"'+(isParent?' data-longpress-day="'+key+'"':'')+' aria-label="'+key+'"><span class="dn">'+dt.getDate()+'</span>'+calAvatars(calKids(it))+'</button>';
   }
-  h+='</div><p class="muted" style="font-size:12px;margin:8px 0 0;text-align:center"><span style="color:#f97316">●</span> mission spéciale à rendre · <span style="color:#3b82f6">●</span> info des parents</p>';
+  h+='</div><p class="muted" style="font-size:12px;margin:8px 0 0;text-align:center"><span style="color:#e5484d">■</span> mission spéciale à rendre · <span style="color:#3b82f6">■</span> info des parents · dégradé : les deux</p>'+(isParent?'<p class="muted" style="font-size:12.5px;margin:4px 0 0;text-align:center;font-weight:700">👆 Appui long sur un jour pour les options</p>':'');
   var sp=new Date(+sel.slice(0,4),+sel.slice(5,7)-1,+sel.slice(8,10)).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   var items=calItemsOn(sel);
   h+='<div class="sec"><h3 style="text-transform:capitalize">'+esc(sp)+'</h3></div>';
@@ -1646,8 +1663,26 @@ function calModalHtml(){
   });
   if(isParent){
     if(S.calOff) h+='<p class="muted" style="font-size:13px;margin:6px 0 0">⚠️ Les infos du calendrier ne sont pas encore activées (SQL « calendar_notes » à exécuter dans Supabase).</p>';
-    else h+='<button class="btn wide" style="margin-top:6px" data-a="calAdd">＋ Ajouter une info ce jour-là</button>';
   }
+  return h;
+}
+function calMenuHtml(){
+  var day=ui.calMenu, lab=new Date(day+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  var h='<div class="modal-head"><h2 style="text-transform:capitalize">'+esc(lab)+'</h2><button class="modal-x" data-a="closeCalMenu" aria-label="Fermer">✕</button></div>';
+  if(ui.calMenuMode==='pick'){
+    var list=S.tasks.filter(function(t){return !t.recurring});
+    h+='<p class="muted" style="margin:0 0 10px;font-size:14px;font-weight:700">Choisis la mission spéciale à rendre ce jour-là.</p>';
+    if(!list.length) h+='<p class="muted" style="margin:0 0 10px">Aucune mission spéciale pour le moment.</p>';
+    h+=list.map(function(t){
+      var who=t.assign_all?'Tous les enfants':(t.task_assignees&&t.task_assignees.length?t.task_assignees.map(function(a){var c=S.children.filter(function(x){return x.id===a.child_id})[0]; return c?c.display_name:'';}).filter(Boolean).join(', '):'⚠️ Non assignée');
+      var dl=t.deadline?' · ⏰ '+dlFmt(t).txt:'';
+      return '<button class="navrow" style="margin-bottom:8px" data-a="calSetDeadline" data-id="'+t.id+'"><span class="nr-i">'+taskIco(t,'✨')+'</span><span class="nr-t">'+esc(t.title)+'<span class="nr-s">'+esc(who)+esc(dl)+'</span></span><span class="nr-c">›</span></button>';
+    }).join('');
+    h+='<button class="btn wide" style="margin-top:4px" data-a="calNewSpecial">＋ Créer une mission spéciale</button><button class="btn ghost wide" style="margin-top:8px" data-a="calMenuBack">← Retour</button>';
+    return h;
+  }
+  h+='<button class="navrow" data-a="calMenuNote"><span class="nr-i">📝</span><span class="nr-t">Ajouter une note<span class="nr-s">Une info pour un ou plusieurs enfants</span></span><span class="nr-c">›</span></button>';
+  h+='<button class="navrow" data-a="calMenuSpecial"><span class="nr-i">✨</span><span class="nr-t">Ajouter une mission spéciale<span class="nr-s">Choisir une mission existante ou en créer une</span></span><span class="nr-c">›</span></button>';
   return h;
 }
 function calFormHtml(){
@@ -3632,6 +3667,7 @@ function render(){
   if(ui.detailsTask && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeDetails"><div class="modal" data-a="noop">'+detailsModalHtml()+'</div></div>';
   if(ui.weatherOpen && (ui.view==='child'||ui.view==='parent')) modal='<div class="modal-backdrop" data-a="closeWeather"><div class="modal" data-a="noop">'+weatherModalHtml()+'</div></div>';
   if(ui.calOpen && (ui.view==='child'||ui.view==='parent')) modal='<div class="modal-backdrop" data-a="closeCal"><div class="modal" data-a="noop">'+calModalHtml()+'</div></div>';
+  if(ui.calMenu && ui.calOpen && ui.view==='parent') modal='<div class="modal-backdrop" data-a="closeCalMenu"><div class="modal" data-a="noop">'+calMenuHtml()+'</div></div>';
   if(ui.statSec!=null && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeStat"><div class="modal" data-a="noop">'+statModalHtml()+'</div></div>';
   if(ui.view==='child'){ celEnsure(); if(ui.celSeq) modal=celStepHtml(); }
   var app=document.getElementById('app');
@@ -4254,8 +4290,28 @@ var A={
   closeCal:function(){ ui.calOpen=false; ui.calForm=null; render(); },
   calPrev:function(){ var ms=ui.calMonth, y=+ms.slice(0,4), m=+ms.slice(5,7)-2; var d=new Date(y,m,1); ui.calMonth=ymd(d).slice(0,7); render(); },
   calNext:function(){ var ms=ui.calMonth, y=+ms.slice(0,4), m=+ms.slice(5,7); var d=new Date(y,m,1); ui.calMonth=ymd(d).slice(0,7); render(); },
-  calPick:function(d){ ui.calSel=d.d; ui.calMonth=d.d.slice(0,7); render(); },
-  calChild:function(d){ ui.calChild=d.v||null; render(); },
+  calPick:function(d){ if(Date.now()-_calLpAt<800) return; ui.calSel=d.d; ui.calMonth=d.d.slice(0,7); render(); },
+  openDayMenu:function(d){ _calLpAt=Date.now(); if(navigator.vibrate) try{navigator.vibrate(15)}catch(e){} ui.calSel=d.d; ui.calMonth=d.d.slice(0,7); ui.calMenu=d.d; ui.calMenuMode='menu'; render(); },
+  closeCalMenu:function(){ ui.calMenu=null; ui.calMenuMode=null; render(); },
+  calMenuBack:function(){ ui.calMenuMode='menu'; render(); },
+  calMenuNote:function(){ ui.calMenu=null; ui.calMenuMode=null; A.calAdd(); },
+  calMenuSpecial:function(){ ui.calMenuMode='pick'; render(); },
+  calSetDeadline:async function(d){
+    var t=S.tasks.filter(function(x){return x.id===d.id})[0], day=ui.calMenu; if(!t||!day) return;
+    var hh='23:59';
+    if(t.deadline){ var o=new Date(t.deadline); if(!(o.getHours()===23&&o.getMinutes()===59)) hh=('0'+o.getHours()).slice(-2)+':'+('0'+o.getMinutes()).slice(-2); }
+    var dt=new Date(day+'T'+hh+':00');
+    var {data,error}=await client.from('tasks').update({deadline:dt.toISOString()}).eq('id',t.id).select('id');
+    if(error||!data||!data.length){ showAlert('❌ Impossible de fixer l’échéance'+(error?' : '+error.message:'')); return; }
+    var unassigned=!(t.assign_all||(t.task_assignees&&t.task_assignees.length));
+    ui.calMenu=null; ui.calMenuMode=null; ui.calSel=day;
+    await refreshParentScreen();
+    toast('⏰ « '+t.title+' » à rendre le '+new Date(day+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long'})+(unassigned?' · pense à l’assigner pour qu’elle apparaisse':''));
+  },
+  calNewSpecial:function(){
+    var day=ui.calMenu; ui.calMenu=null; ui.calMenuMode=null; ui.calOpen=false; ui.calForm=null;
+    ui.ptab='missions'; A.openNew(); ui.mview='special'; ui.newSDate=day; render(); window.scrollTo(0,0);
+  },
   calAdd:function(){ ui.formErr=null; ui.calForm={id:null,date:ui.calSel,title:'',details:'',all:true,ids:[]}; render(); },
   calEdit:function(d){
     var n=(S.calNotes||[]).filter(function(x){return x.id===d.id})[0]; if(!n) return;
@@ -4842,7 +4898,7 @@ var A={
 };
 
 /* appui long sur une carte de mission -> menu Assigner/Éditer/Supprimer */
-var _lpTimer=null, _taskMenuOpenedAt=0, _rewardMenuOpenedAt=0;
+var _lpTimer=null, _taskMenuOpenedAt=0, _rewardMenuOpenedAt=0, _calLpAt=0;
 document.addEventListener('pointerdown',function(e){
   var el=e.target.closest?e.target.closest('[data-longpress]'):null;
   if(el){
@@ -4854,6 +4910,12 @@ document.addEventListener('pointerdown',function(e){
   if(rel){
     var rid=rel.getAttribute('data-longpress-reward');
     _lpTimer=setTimeout(function(){ _lpTimer=null; A.openRewardMenu({id:rid}); },500);
+    return;
+  }
+  var dayEl=e.target.closest?e.target.closest('[data-longpress-day]'):null;
+  if(dayEl){
+    var dd=dayEl.getAttribute('data-longpress-day');
+    _lpTimer=setTimeout(function(){ _lpTimer=null; A.openDayMenu({d:dd}); },500);
   }
 });
 ['pointerup','pointercancel','pointerleave'].forEach(function(evt){
