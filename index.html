@@ -315,6 +315,11 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .av-gear:active{transform:scale(.9)}
 .pxav{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.2em;border-radius:22%}
 .av .pxav,.hero-av .pxav,.av-prev .pxav{width:100%;height:100%;border-radius:50%;vertical-align:top}
+.pxav2{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.2em;border-radius:22%;image-rendering:pixelated}
+.av .pxav2,.hero-av .pxav2,.av-prev .pxav2{width:100%;height:100%;border-radius:50%;vertical-align:top;object-fit:cover}
+.px-full{display:grid;place-items:center;margin:6px 0 4px}
+.pxfull{width:176px;height:176px;border-radius:24px;image-rendering:pixelated;box-shadow:var(--shadow)}
+.px-th img.pxth{width:100%;height:100%;object-fit:cover;image-rendering:pixelated;display:block}
 .px-grid{display:flex;flex-wrap:wrap;gap:8px}
 .px-sw{width:34px;height:34px;border-radius:50%;border:3px solid transparent;box-shadow:0 0 0 1px var(--line);padding:0;cursor:pointer}
 .px-sw.sel{border-color:var(--ink)}
@@ -656,35 +661,188 @@ function pxSvg(a){
   if(ac===6){ R(4,1,2,2,hc); R(10,1,2,2,hc); R(5,2,1,1,'#ffb3c6'); R(10,2,1,1,'#ffb3c6'); }
   return '<svg class="pxav" viewBox="0 0 16 16" shape-rendering="crispEdges" role="img" aria-label="Avatar personnage">'+o.join('')+'</svg>';
 }
-function av(a){ return isPx(a)?pxSvg(pxParse(a)):a; }
-function avTxt(a){ return isPx(a)?'🎨':a; }
+/* ---------- Personnages 64×64 en pied (formes → pixels, contours et ombres automatiques) ---------- */
+var PX2=(function(){
+  var N=64;
+  var C={
+    skin:['#ffe0c7','#f9caa0','#e2a97e','#c68642','#8d5524','#5c3a21'],
+    hair:['#2b1d16','#6b3f23','#b5651d','#d9a441','#f2d479','#c0392b','#8e8e99','#3b82f6','#e66fa4','#7c5cd6'],
+    top:['#ff6b5e','#e5484d','#f97316','#ffd166','#a3d65c','#1fae6b','#14b8a6','#38bdf8','#3b82f6','#1e40af','#7c5cd6','#c084fc','#e66fa4','#ff9ecb','#17233c','#6b7280','#d1d5db','#ffffff','#8b5a2b','#f5e6c8'],
+    bottom:['#3b5b92','#1e293b','#111827','#6b4f3a','#a47c52','#d6c3a1','#556b2f','#1fae6b','#14b8a6','#3b82f6','#7c5cd6','#c0392b','#e66fa4','#9ca3af','#f2d479','#ffffff'],
+    shoe:['#ffffff','#17233c','#c0392b','#3b82f6','#6b4f3a','#ffd166','#e66fa4','#1fae6b','#f97316','#9ca3af'],
+    bg:['#ffe9a8','#ffd0cc','#cdeede','#cfe3ff','#e4d9ff','#ffd9ec','#ffe0c2','#d9f0f5']
+  };
+  // ordre des champs : peau, coiffure, couleur cheveux, yeux, bouche, haut, couleur haut, bas, couleur bas, chaussures, couleur chaussures, accessoire, fond
+  var COUNTS=[6,8,10,4,4,3,20,3,16,2,10,5,8];
+  function hex(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; }
+  function mix(c,t,k){ return [Math.round(c[0]+(t[0]-c[0])*k),Math.round(c[1]+(t[1]-c[1])*k),Math.round(c[2]+(t[2]-c[2])*k)]; }
+  function toHex(c){ return '#'+c.map(function(v){return ('0'+v.toString(16)).slice(-2)}).join(''); }
+  function nm(){ return new Uint8Array(N*N); }
+  function inM(m,x,y){ return x>=0&&y>=0&&x<N&&y<N&&m[y*N+x]===1; }
+  function ell(m,cx,cy,rx,ry){ for(var y=0;y<N;y++)for(var x=0;x<N;x++){ var dx=(x+.5-cx)/rx, dy=(y+.5-cy)/ry; if(dx*dx+dy*dy<=1) m[y*N+x]=1; } return m; }
+  function rect(m,x0,y0,w,h){ for(var y=y0;y<y0+h;y++)for(var x=x0;x<x0+w;x++) if(x>=0&&y>=0&&x<N&&y<N) m[y*N+x]=1; return m; }
+  function rr(m,x0,y0,w,h,r){ for(var y=y0;y<y0+h;y++)for(var x=x0;x<x0+w;x++){ if(x<0||y<0||x>=N||y>=N) continue;
+    var cx=Math.min(Math.max(x+.5,x0+r),x0+w-r), cy=Math.min(Math.max(y+.5,y0+r),y0+h-r), dx=x+.5-cx, dy=y+.5-cy; if(dx*dx+dy*dy<=r*r) m[y*N+x]=1; } return m; }
+  function poly(m,pts){ for(var y=0;y<N;y++)for(var x=0;x<N;x++){ var px=x+.5,py=y+.5,c=false; for(var i=0,j=pts.length-1;i<pts.length;j=i++){ var a=pts[i],b=pts[j]; if(((a[1]>py)!==(b[1]>py))&&(px<(b[0]-a[0])*(py-a[1])/(b[1]-a[1])+a[0])) c=!c; } if(c) m[y*N+x]=1; } return m; }
+  function sub(a,b){ var o=nm(); for(var i=0;i<N*N;i++) o[i]=(a[i]&&!b[i])?1:0; return o; }
+  function uni(){ var o=nm(); for(var k=0;k<arguments.length;k++) for(var i=0;i<N*N;i++) if(arguments[k][i]) o[i]=1; return o; }
+  var px;
+  function paint(m,fill,o){
+    o=o||{}; var base=hex(fill), shade=mix(base,[0,0,0],.18), light=mix(base,[255,255,255],.16), line=mix(base,[20,10,30],.55);
+    for(var y=0;y<N;y++)for(var x=0;x<N;x++){ if(!m[y*N+x]) continue;
+      var c=base;
+      if(!o.flat){ if(!inM(m,x+1,y+2)||!inM(m,x+2,y+1)) c=shade; else if(!inM(m,x-2,y-2)&&!inM(m,x-1,y-1)) c=light; }
+      if(!o.noLine&&(!inM(m,x-1,y)||!inM(m,x+1,y)||!inM(m,x,y-1)||!inM(m,x,y+1))) c=line;
+      px[y*N+x]=c; }
+  }
+  function dots(list,fill){ var c=hex(fill); for(var i=0;i<list.length;i++){ var x=list[i][0],y=list[i][1]; if(x>=0&&y>=0&&x<N&&y<N) px[y*N+x]=c; } }
+  function F(m,fill){ paint(m,fill,{flat:true,noLine:true}); }
+  function draw(v){
+    px=new Array(N*N).fill(null);
+    var skin=C.skin[v[0]], H=v[1], hc=C.hair[v[2]], E=v[3], M=v[4], T=v[5], tc=C.top[v[6]], B=v[7], bc=C.bottom[v[8]], S=v[9], shc=C.shoe[v[10]], A=v[11], bgc=hex(C.bg[v[12]]);
+    F(ell(nm(),32,61,13,2.6),toHex(mix(bgc,[0,0,0],.12)));
+    var face=ell(nm(),32,26,12.5,11);
+    if(H===2) paint(rr(nm(),15,13,34,33,7),hc);
+    if(H===3){ paint(ell(nm(),13.5,31,4.2,8),hc); paint(ell(nm(),50.5,31,4.2,8),hc); }
+    var legEnd=58, legC=(B===0)?bc:skin;
+    paint(rr(nm(),26,49,6,legEnd-49,2),legC); paint(rr(nm(),32,49,6,legEnd-49,2),legC);
+    var ls=rr(nm(),23,57,9,5,2), rs=rr(nm(),32,57,9,5,2);
+    if(S===1){ ls=uni(ls,rr(nm(),25,53,6,6,1)); rs=uni(rs,rr(nm(),33,53,6,6,1)); }
+    paint(ls,shc); paint(rs,shc);
+    if(S===0){ F(rect(nm(),24,60,7,1),'#ffffff'); F(rect(nm(),33,60,7,1),'#ffffff'); }
+    if(B===0) paint(rr(nm(),25,47,14,5,2),bc);
+    if(B===1) paint(rr(nm(),25,47,14,8,2),bc);
+    if(B===2) paint(poly(nm(),[[26,47],[38,47],[42,56],[22,56]]),bc);
+    var longSleeve=(T===1);
+    paint(rr(nm(),18,35,6,13,3),longSleeve?tc:skin); paint(rr(nm(),40,35,6,13,3),longSleeve?tc:skin);
+    paint(ell(nm(),21,48.5,3,3),skin); paint(ell(nm(),43,48.5,3,3),skin);
+    paint(rr(nm(),23,34,18,16,4),tc);
+    if(!longSleeve){ paint(rr(nm(),18,35,6,6,2.5),tc); paint(rr(nm(),40,35,6,6,2.5),tc); }
+    if(T===1) F(rr(nm(),27,42,10,5,2),toHex(mix(hex(tc),[0,0,0],.15)));
+    if(T===2){ for(var yy=38;yy<=46;yy+=4) F(rect(nm(),24,yy,16,2),'#ffffff'); }
+    paint(rect(nm(),29,31,6,5),skin,{noLine:true});
+    if(T!==1) paint(ell(nm(),32,34,3.6,2),skin,{noLine:true});
+    paint(ell(nm(),18.5,23,2.4,3),skin); paint(ell(nm(),45.5,23,2.4,3),skin);
+    paint(ell(nm(),32,21,13.5,12.5),skin);
+    F(ell(nm(),23.5,27.5,2.6,1.6),'#ff8fa3'); F(ell(nm(),40.5,27.5,2.6,1.6),'#ff8fa3');
+    if(E===0){ F(ell(nm(),26.5,23,1.8,2.6),'#1f2937'); F(ell(nm(),37.5,23,1.8,2.6),'#1f2937'); dots([[26,21],[37,21]],'#ffffff'); }
+    if(E===1){ F(ell(nm(),26.5,23,2.6,3.2),'#1f2937'); F(ell(nm(),37.5,23,2.6,3.2),'#1f2937'); F(ell(nm(),27.2,24.2,1.1,1.1),'#6aa6ff'); F(ell(nm(),38.2,24.2,1.1,1.1),'#6aa6ff'); dots([[25,21],[26,21],[36,21],[37,21],[25,22],[36,22]],'#ffffff'); }
+    if(E===2) dots([[24,24],[25,23],[26,22],[27,22],[28,23],[29,24],[35,24],[36,23],[37,22],[38,22],[39,23],[40,24]],'#1f2937');
+    if(E===3){ F(ell(nm(),26.5,23,1.8,2.6),'#1f2937'); dots([[35,23],[36,23],[37,23],[38,23],[39,23],[40,23]],'#1f2937'); dots([[26,21]],'#ffffff'); }
+    var mc='#9b3d4f';
+    if(M===0) dots([[29,29],[30,30],[31,30],[32,30],[33,30],[34,30],[35,29]],mc);
+    if(M===1){ F(ell(nm(),32,30,3.4,2.4),mc); F(rect(nm(),29,28,6,1),'#ffffff'); F(ell(nm(),32,31.3,1.8,1),'#ff7a8a'); }
+    if(M===2) dots([[30,30],[31,30],[32,30],[33,30],[34,30]],mc);
+    if(M===3) F(ell(nm(),32,30,1.8,2.2),mc);
+    dots([[32,26]],toHex(mix(hex(skin),[120,50,30],.35)));
+    if(A===1){ var ring=function(cx){ return sub(ell(nm(),cx,23,5,4.2),ell(nm(),cx,23,3.6,2.9)); }; F(uni(ring(26.5),ring(37.5),rect(nm(),31,22,2,1)),'#374151'); }
+    var cap=sub(ell(nm(),32,18,15.5,13.5),face), front=null;
+    if(H===1||H===2||H===3||H===7) front=cap;
+    if(H===4) front=uni(cap,poly(nm(),[[18,12],[21,3],[26,11]]),poly(nm(),[[26,10],[31,1],[36,10]]),poly(nm(),[[36,11],[42,3],[46,12]]));
+    if(H===5) front=sub(ell(nm(),32,16,19.5,15.5),face);
+    if(H===6) front=uni(sub(ell(nm(),32,18,15.5,13.5),ell(nm(),35,27,12.5,11)),rr(nm(),16.5,17,4,22,2));
+    if(H===7) front=uni(front,ell(nm(),32,6.5,5.5,5));
+    if(front) paint(front,hc);
+    if(H===3){ F(ell(nm(),19,22,1.8,1.8),'#ff6b5e'); F(ell(nm(),45,22,1.8,1.8),'#ff6b5e'); }
+    if(A===2){ paint(uni(sub(ell(nm(),32,14,15,11),rect(nm(),0,15,N,N)),rect(nm(),17,14,30,3)),tc); F(rr(nm(),30,15,22,4,2),toHex(mix(hex(tc),[0,0,0],.2))); }
+    if(A===3) F(rect(nm(),17,15,30,3),'#e5484d');
+    if(A===4){ paint(poly(nm(),[[18,11],[19,2],[27,8]]),hc); paint(poly(nm(),[[46,11],[45,2],[37,8]]),hc); dots([[20,6],[21,6],[20,7],[44,6],[43,6],[44,7]],'#ffb3c6'); }
+    var out=[]; for(var i=0;i<N*N;i++) out.push(px[i]||bgc);
+    return out;
+  }
+  return {N:N,C:C,COUNTS:COUNTS,draw:draw};
+})();
+function isPx2(a){ return typeof a==='string'&&a.indexOf('px2:')===0; }
+function px2Parse(code){
+  var v=String(code).slice(4).split('.').map(Number), o=[];
+  for(var i=0;i<PX2.COUNTS.length;i++){ var n=v[i]; o.push((n>=0&&n<PX2.COUNTS[i])?Math.floor(n):0); }
+  return o;
+}
+function px2Code(a){ return 'px2:'+a.join('.'); }
+function px2Default(){ return [1,1,1,1,0,0,0,0,0,0,0,0,0]; }
+function px2Random(){ return PX2.COUNTS.map(function(n){ return Math.floor(Math.random()*n); }); }
+// Convertit un ancien personnage 16×16 pour continuer à le modifier
+function px2FromLegacy(code){
+  var o=pxParse(code), a=px2Default();
+  a[0]=o[0]; a[1]=[0,1,2,3,4,5,6,7,2][o[1]]; a[2]=o[2]; a[3]=[0,1,2,3,1,2][o[3]]; a[4]=[0,1,2,3,0][o[4]];
+  a[5]=[0,0,1,2,0,0][o[5]];
+  var legacyTop=PX_TOPC[o[6]], i=PX2.C.top.indexOf(legacyTop); a[6]=i<0?0:i;
+  a[11]=[0,1,1,3,2,0,4][o[7]]; a[12]=o[8];
+  return a;
+}
+var _px2Cache={};
+var PX2_BUST=[10,5,44,44], PX2_CROP={hair:[11,1,42,42],eyes:[16,12,32,32],mouth:[17,17,30,30],top:[12,26,38,38],bottom:[13,28,38,36],shoes:[12,30,40,34],acc:[11,1,42,42],full:[0,0,64,64]};
+function px2Url(a,crop){
+  var key=a.join('.')+'|'+crop.join(',');
+  if(_px2Cache[key]!==undefined) return _px2Cache[key];
+  var url='';
+  try{
+    var px=PX2.draw(a), N=PX2.N, c=document.createElement('canvas'); c.width=crop[2]; c.height=crop[3];
+    var ctx=c.getContext('2d'), im=ctx.createImageData(crop[2],crop[3]), d=im.data;
+    for(var y=0;y<crop[3];y++)for(var x=0;x<crop[2];x++){
+      var sx=crop[0]+x, sy=crop[1]+y, p=(sx<N&&sy<N)?px[sy*N+sx]:[255,255,255], o=(y*crop[2]+x)*4;
+      d[o]=p[0]; d[o+1]=p[1]; d[o+2]=p[2]; d[o+3]=255;
+    }
+    ctx.putImageData(im,0,0); url=c.toDataURL('image/png');
+  }catch(e){ url=''; }
+  _px2Cache[key]=url; return url;
+}
+function px2Img(a,crop,cls){ var u=px2Url(a,crop); return u?'<img class="'+cls+'" src="'+u+'" alt="Avatar" draggable="false">':'🎨'; }
 
+function av(a){
+  if(isPx2(a)) return px2Img(px2Parse(a),PX2_BUST,'pxav2');
+  return isPx(a)?pxSvg(pxParse(a)):a;
+}
+function avTxt(a){ return (isPx(a)||isPx2(a))?'🎨':a; }
+
+var PX2_CATS=[ // [titre, champ, 'sw' (couleurs) ou 'th' (vignettes), liste de couleurs | rognage, champ de couleur lié]
+  ['🧑 Peau',0,'sw','skin'],
+  ['💇 Coiffure',1,'th','hair',2],
+  ['🎨 Couleur des cheveux',2,'sw','hair'],
+  ['👀 Yeux',3,'th','eyes'],
+  ['👄 Bouche',4,'th','mouth'],
+  ['👕 Haut',5,'th','top',6],
+  ['🎨 Couleur du haut',6,'sw','top'],
+  ['👖 Bas',7,'th','bottom',8],
+  ['🎨 Couleur du bas',8,'sw','bottom'],
+  ['👟 Chaussures',9,'th','shoes',10],
+  ['🎨 Couleur des chaussures',10,'sw','shoe'],
+  ['✨ Accessoire',11,'th','acc'],
+  ['🌈 Fond',12,'sw','bg']
+];
 function avatarModalHtml(){
   var cur=ui.avatarPick||myAvatar(), mode=ui.avatarMode||'emoji';
   var h='<div class="modal-head"><h2>Mon profil</h2><button class="modal-x" data-a="closeAvatarMenu" aria-label="Fermer">✕</button></div>';
-  h+='<div class="av-prev" id="av-prev">'+av(cur)+'</div>';
+  var a=ui.pxEdit||px2Default();
+  if(mode==='px') h+='<div class="px-full">'+px2Img(a,PX2_CROP.full,'pxfull')+'</div>';
+  else h+='<div class="av-prev" id="av-prev">'+av(cur)+'</div>';
   h+='<div class="seg sm" role="tablist" style="margin:8px 0">'+[['emoji','😀 Emojis'],['px','🎨 Mon personnage']].map(function(t){
     return '<button class="'+(mode===t[0]?'on':'')+'" data-a="avMode" data-v="'+t[0]+'">'+t[1]+'</button>';
   }).join('')+'</div>';
   h+='<button class="btn ghost wide" style="margin:6px 0" data-a="openMascot">🤖 Mon assistant</button>';
   if(mode==='px'){
-    var a=ui.pxEdit||pxDefault();
     h+='<div style="display:flex;gap:8px;margin:6px 0 2px"><button class="btn small ghost" data-a="pxRandom">🎲 Au hasard</button><button class="btn small ghost" data-a="pxReset">↺ Recommencer</button></div>';
-    [['🧑 Peau',0,PX_SKIN],['💇 Coiffure',1],['🎨 Couleur des cheveux',2,PX_HAIRC],['👀 Yeux',3],['👄 Bouche',4],['👕 Haut',5],['🎨 Couleur du haut',6,PX_TOPC],['✨ Accessoire',7],['🌈 Fond',8,PX_BG]].forEach(function(c){
-      var k=c[1], cols=c[2];
+    PX2_CATS.forEach(function(c){
+      var k=c[1], v;
       h+='<div class="av-cat">'+c[0]+'</div><div class="px-grid">';
-      for(var v=0;v<PX_COUNTS[k];v++){
+      for(v=0;v<PX2.COUNTS[k];v++){
         var sel=a[k]===v?' sel':'';
-        if(cols) h+='<button type="button" class="px-sw'+sel+'" style="background:'+cols[v]+'" data-a="pxSet" data-k="'+k+'" data-v="'+v+'" aria-label="'+c[0]+' '+(v+1)+'"></button>';
-        else { var b=a.slice(); b[k]=v; h+='<button type="button" class="px-th'+sel+'" data-a="pxSet" data-k="'+k+'" data-v="'+v+'" aria-label="'+c[0]+' '+(v+1)+'">'+pxSvg(b)+'</button>'; }
+        if(c[2]==='sw'){
+          h+='<button type="button" class="px-sw'+sel+'" style="background:'+PX2.C[c[3]][v]+'" data-a="pxSet" data-k="'+k+'" data-v="'+v+'" aria-label="'+c[0]+' '+(v+1)+'"></button>';
+        } else {
+          var b=[1,1,1,1,0,0,0,0,0,0,0,0,7];       // personnage neutre : les vignettes restent en mémoire
+          b[2]=a[2]; if(c[4]!=null) b[c[4]]=a[c[4]];  // seule la couleur concernée suit ton choix
+          b[k]=v;
+          h+='<button type="button" class="px-th'+sel+'" data-a="pxSet" data-k="'+k+'" data-v="'+v+'" aria-label="'+c[0]+' '+(v+1)+'">'+px2Img(b,PX2_CROP[c[3]],'pxth')+'</button>';
+        }
       }
       h+='</div>';
     });
   } else {
     h+='<p class="muted" style="text-align:center;margin:0 0 4px;font-weight:700">Choisis ton avatar !</p>';
     h+=AVATAR_GROUPS.map(function(g){
-      return '<div class="av-cat">'+g[0]+'</div><div class="av-grid">'+g[1].map(function(a){
-        return '<button type="button" class="av-opt'+(a===cur?' sel':'')+'" data-a="pickAvatar" data-v="'+a+'">'+a+'</button>';
+      return '<div class="av-cat">'+g[0]+'</div><div class="av-grid">'+g[1].map(function(e){
+        return '<button type="button" class="av-opt'+(e===cur?' sel':'')+'" data-a="pickAvatar" data-v="'+e+'">'+e+'</button>';
       }).join('')+'</div>';
     }).join('');
   }
@@ -1207,7 +1365,7 @@ function dayCheckCount(){ return Object.keys(ui.dayCheck.sel).filter(function(k)
 function dayCheckHtml(){
   var dc=ui.dayCheck, p=dc.date.split('-'), n=dayCheckCount();
   var h='<div class="modal-head"><h2>📅 Journée d’hier</h2></div>'+
-    '<p class="muted" style="font-size:14px;margin:0 0 8px">Hier ('+p[2]+'/'+p[1]+'), certaines routines n’ont pas été validées. Si elles ont bien été faites, tu peux les valider maintenant. Sinon, confirme que la journée était incomplète.</p>';
+    '<p class="muted" style="font-size:14px;margin:0 0 8px">Hier ('+p[2]+'/'+p[1]+'), certaines routines n’ont pas été validées. Si elles ont bien été faites, tu peux les valider maintenant, avec ou sans étoile (la journée parfaite et la série sont alors préservées, sans gain d’étoile). Sinon, confirme que la journée était incomplète.</p>';
   dc.items.forEach(function(it){
     h+='<div style="font-weight:800;margin:12px 0 6px">'+av(it.child.avatar)+' '+esc(it.child.display_name)+'</div>';
     h+=it.tasks.map(function(t){
@@ -1217,7 +1375,7 @@ function dayCheckHtml(){
   });
   h+='<button type="button" class="chip" style="margin-top:2px" data-a="selectAllDayCheck">Tout cocher</button>';
   h+='<div class="dlg-btns" style="flex-direction:column;margin-top:14px"><button class="btn go wide" data-a="validateDayCheck"'+(n?'':' disabled')+'>✅ Valider les missions cochées'+(n?' ('+n+')':'')+'</button>'+
-     '<button class="btn ghost wide" data-a="validateDayCheck" data-zero="1"'+(n?'':' disabled')+'>☑️ Compter comme faites, sans étoile'+(n?' ('+n+')':'')+'</button>'+
+     '<button class="btn ghost wide" data-a="validateDayCheck" data-zero="1"'+(n?'':' disabled')+'>☑️ Valider sans étoile'+(n?' ('+n+')':'')+'</button>'+
      '<button class="btn ghost wide" data-a="confirmDayIncomplete">Confirmer : journée incomplète</button></div>';
   return h;
 }
@@ -4287,17 +4445,17 @@ var A={
     var d={id:t.id,title:t.title,points:t.points};
     if(t.recurring) await A.doTask(d); else await A.doSpecial(d);
   },
-  openAvatarMenu:function(){ var c=myAvatar(); ui.avatarMenu=true; ui.avatarPick=c; ui.avatarMode=isPx(c)?'px':'emoji'; ui.pxEdit=isPx(c)?pxParse(c):pxRandom(); render(); },
+  openAvatarMenu:function(){ var c=myAvatar(); ui.avatarMenu=true; ui.avatarPick=c; ui.avatarMode=(isPx(c)||isPx2(c))?'px':'emoji'; ui.pxEdit=isPx2(c)?px2Parse(c):(isPx(c)?px2FromLegacy(c):px2Random()); render(); },
   closeAvatarMenu:function(){ ui.avatarMenu=false; ui.avatarPick=null; ui.avatarMode=null; ui.pxEdit=null; render(); },
   avMode:function(d){
     ui.avatarMode=d.v;
-    if(d.v==='px'){ if(!ui.pxEdit) ui.pxEdit=pxRandom(); ui.avatarPick=pxCode(ui.pxEdit); }
+    if(d.v==='px'){ if(!ui.pxEdit) ui.pxEdit=px2Random(); ui.avatarPick=px2Code(ui.pxEdit); }
     else ui.avatarPick=myAvatar();
     render();
   },
-  pxSet:function(d){ ui.pxEdit=(ui.pxEdit||pxDefault()).slice(); ui.pxEdit[+d.k]=+d.v; ui.avatarPick=pxCode(ui.pxEdit); render(); },
-  pxRandom:function(){ ui.pxEdit=pxRandom(); ui.avatarPick=pxCode(ui.pxEdit); render(); },
-  pxReset:function(){ ui.pxEdit=pxDefault(); ui.avatarPick=pxCode(ui.pxEdit); render(); },
+  pxSet:function(d){ ui.pxEdit=(ui.pxEdit||px2Default()).slice(); ui.pxEdit[+d.k]=+d.v; ui.avatarPick=px2Code(ui.pxEdit); render(); },
+  pxRandom:function(){ ui.pxEdit=px2Random(); ui.avatarPick=px2Code(ui.pxEdit); render(); },
+  pxReset:function(){ ui.pxEdit=px2Default(); ui.avatarPick=px2Code(ui.pxEdit); render(); },
   pickAvatar:function(d){
     ui.avatarPick=d.v;
     document.querySelectorAll('.av-opt').forEach(function(b){ b.classList.toggle('sel',b.getAttribute('data-v')===d.v); });
