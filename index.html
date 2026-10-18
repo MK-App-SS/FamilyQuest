@@ -1600,11 +1600,29 @@ function mform(){
       iconBlockHtml(ui.newSTitle||'')+
       detailsFormHtml()+
       '<label class="lbl">Étoiles</label><input class="inp" type="number" data-field="spoints" value="'+esc(ui.newSPoints!=null?ui.newSPoints:5)+'">'+(ui.editId?'':'<p class="muted" style="font-size:12px;margin:4px 0 0">Valeur conseillée : 5. Elle peut dépendre de la pénibilité ou du temps requis.</p>')+
+      '<label class="lbl">⏰ Échéance (facultatif)</label><div style="display:flex;gap:8px"><input class="inp" type="date" data-field="sdate" value="'+esc(ui.newSDate||'')+'" style="flex:1;min-width:0"><input class="inp" type="time" data-field="stime" value="'+esc(ui.newSTime||'')+'" style="width:118px"></div>'+
+      '<p class="muted" style="font-size:12px;margin:4px 0 0">Sans heure, la mission reste valable toute la journée choisie. Une fois l’échéance passée, l’enfant peut encore la faire : à toi de décider de la valider.</p>'+
+      (ui.newSDate?'<button class="btn small ghost" style="margin-top:6px" data-a="clearDeadline">Retirer l’échéance</button>':'')+
       (ui.formErr?'<p class="sherr">❌ '+esc(ui.formErr)+'</p>':'')+
       '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn wide" data-a="createSpecial">'+(ui.editId?'Enregistrer':'Créer la mission')+'</button></div>';
   }
   var title=ui.editId?'Modifier la mission':(ui.mview==='daily'?'Nouvelle mission de routine':'Nouvelle mission spéciale');
   return '<div class="modal-head"><h2>'+title+'</h2><button class="modal-x" data-a="closeForm" aria-label="Fermer">✕</button></div>'+fields;
+}
+function dlFmt(t){
+  var d=new Date(t.deadline), now=new Date();
+  var hasTime=!(d.getHours()===23&&d.getMinutes()===59);
+  var day0=new Date(now.getFullYear(),now.getMonth(),now.getDate()), dd=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  var diff=Math.round((dd-day0)/86400000);
+  var dayTxt=diff===0?'aujourd’hui':(diff===1?'demain':d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'}));
+  var tm=hasTime?(' à '+d.getHours()+'h'+(d.getMinutes()?('0'+d.getMinutes()).slice(-2):'')):'';
+  return {txt:dayTxt+tm, passed:d.getTime()<now.getTime(), diff:diff};
+}
+function dlKid(t){
+  if(!t.deadline) return '';
+  var f=dlFmt(t);
+  if(f.passed) return '<span class="t-rule">⌛ Échéance dépassée · tu peux encore la faire !</span>';
+  return '<span class="t-rule">'+(f.diff<=0?'<b>':'')+'⏰ À faire avant '+esc(f.txt)+(f.diff<=0?'</b>':'')+'</span>';
 }
 function missionCard(t, daily){
   var freqText = daily ? freqLabel(t) : 'Une seule fois';
@@ -1614,7 +1632,7 @@ function missionCard(t, daily){
   return '<div class="mcard" data-longpress="'+t.id+'"'+(daily&&t.school_only&&vacNow()?' style="opacity:.55"':'')+'>'+
     '<div class="mcard-ico">'+taskIco(t,daily?'🔁':'✨')+'<span class="mcard-star">⭐'+t.points+'</span></div>'+
     '<div class="mcard-main"><div class="mcard-title">'+esc(t.title)+'</div>'+
-    '<div class="mcard-sub"><span>'+esc(freqText)+'</span>'+(slotText?'<span>· '+esc(slotText)+'</span>':'')+(daily&&t.school_only?'<span>· 🎒 Scolaire'+(vacNow()?' (en pause)':'')+'</span>':'')+(detailLines(t).length?'<span>· 📋 Détails</span>':'')+'</div></div>'+
+    '<div class="mcard-sub"><span>'+esc(freqText)+'</span>'+(slotText?'<span>· '+esc(slotText)+'</span>':'')+(daily&&t.school_only?'<span>· 🎒 Scolaire'+(vacNow()?' (en pause)':'')+'</span>':'')+(!daily&&t.deadline?'<span>· ⏰ Avant '+esc(dlFmt(t).txt)+(dlFmt(t).passed?' (dépassée)':'')+'</span>':'')+(detailLines(t).length?'<span>· 📋 Détails</span>':'')+'</div></div>'+
     '<div class="mcard-avatars">'+avatars+'</div>'+
     '</div>';
 }
@@ -2098,13 +2116,16 @@ function specialCardKid(t){
     if(log.comment) note='<span class="t-comment">💬 « '+esc(log.comment)+' »</span>';
   }
   else right='<span class="pill ok">✅ Validé</span>';
-  return '<div class="task ktask sp '+st+'"><span class="t-emoji">'+taskIco(t,'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐</span><span class="t-rule">'+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+note+detailsBtn(t,st)+'</span>'+right+'</div>';
+  return '<div class="task ktask sp '+st+'"><span class="t-emoji">'+taskIco(t,'✨')+'</span><span class="t-main"><span class="t-title">'+esc(t.title)+'</span><span class="t-meta">+'+t.points+' ⭐</span><span class="t-rule">'+(t.assign_all?'⚡ le premier qui la fait':'à faire par chacun')+'</span>'+dlKid(t)+note+detailsBtn(t,st)+'</span>'+right+'</div>';
 }
 function activeSpecials(){
   return (S.mySpecials||[]).filter(function(t){
     var logs=(S.specialLogs||[]).filter(function(l){return l.task_id===t.id&&l.status==='validated'});
     if(t.assign_all) return !logs.length;
     return !logs.some(function(l){return l.child_id===S.me.id});
+  }).sort(function(a,b){
+    var da=a.deadline?new Date(a.deadline).getTime():Infinity, db=b.deadline?new Date(b.deadline).getTime():Infinity;
+    return da===db?0:(da<db?-1:1);
   });
 }
 function childMissions(){
@@ -4150,7 +4171,7 @@ var A={
   mview:function(d){ ui.mview=d.v; ui.newOpen=false; ui.editId=null; ui.formErr=null; render(); },
   setMFilter:function(d){ ui.mfilter=d.v; render(); },
   setMFilterChild:function(d){ ui.mFilterChild=d.v; render(); },
-  openNew:function(){ ui.newOpen=true; ui.editId=null; ui.newFreq='daily'; ui.newSlot='none'; ui.newSchoolOnly=false; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='1'; ui.newSTitle=''; ui.newSPoints='5'; ui.newIcon=null; ui.newIconManual=false; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank'; ui.newHasDetails=false; ui.newDetails=''; render(); },
+  openNew:function(){ ui.newOpen=true; ui.editId=null; ui.newFreq='daily'; ui.newSlot='none'; ui.newSchoolOnly=false; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='1'; ui.newSTitle=''; ui.newSPoints='5'; ui.newSDate=''; ui.newSTime=''; ui.newIcon=null; ui.newIconManual=false; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank'; ui.newHasDetails=false; ui.newDetails=''; render(); },
   closeForm:function(){ ui.newOpen=false; ui.editId=null; ui.iconPicker=false; render(); },
   editTask:function(d){
     var t=S.tasks.filter(function(x){return x.id===d.id})[0];
@@ -4166,6 +4187,7 @@ var A={
       ui.newAssignAll=!!t.assign_all; ui.newPicked=t.assign_all?[]:pickedIds;
     } else {
       ui.newSTitle=t.title; ui.newSPoints=String(t.points);
+      var dl0=t.deadline?new Date(t.deadline):null; ui.newSDate=dl0?ymd(dl0):''; ui.newSTime=(dl0&&!(dl0.getHours()===23&&dl0.getMinutes()===59))?(('0'+dl0.getHours()).slice(-2)+':'+('0'+dl0.getMinutes()).slice(-2)):'';
     }
     render();
   },
@@ -4215,6 +4237,7 @@ var A={
     toast(on?'🎒 C’est la rentrée : toutes les routines sont de retour':'🏖️ Mode vacances activé');
     await refreshParentScreen();
   },
+  clearDeadline:function(){ ui.newSDate=''; ui.newSTime=''; render(); },
   setSchoolOnly:function(d){ ui.newSchoolOnly=d.v==='1'; render(); },
   toggleAssignAll:function(){ ui.newAssignAll=!ui.newAssignAll; if(ui.newAssignAll) ui.newPicked=[]; render(); },
   togglePick:function(d){ var i=ui.newPicked.indexOf(d.v); if(i>-1)ui.newPicked.splice(i,1); else ui.newPicked.push(d.v); if(ui.newPicked.length) ui.newAssignAll=false; render(); },
@@ -4253,6 +4276,14 @@ var A={
     var points=parseInt(ui.newSPoints,10)||5;
     if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
     var fields={title:title, points:points, icon:ui.newIcon||null, details:detailsToSave()};
+    var dl=null;
+    if(ui.newSDate){
+      var dt=new Date(ui.newSDate+'T'+(ui.newSTime||'23:59')+':00');
+      if(isNaN(dt.getTime())){ ui.formErr='Date ou heure invalide.'; render(); return; }
+      dl=dt.toISOString();
+    }
+    var prevS=ui.editId?S.tasks.filter(function(x){return x.id===ui.editId})[0]:null;
+    if(dl||(prevS&&prevS.deadline)) fields.deadline=dl;   // la colonne n'est utilisée que si nécessaire
     if(ui.editId){
       var {error}=await client.from('tasks').update(fields).eq('id',ui.editId);
       if(error){ ui.formErr=error.message; render(); return; }
@@ -4630,6 +4661,8 @@ document.addEventListener('input',function(e){
   else if(f==='npoints') ui.newPoints=el.value;
   else if(f==='stitle'){ ui.newSTitle=el.value; if(!ui.newIconManual) ui.newIcon=autoIcon(el.value); refreshIconUI(el.value); }
   else if(f==='ndetails') ui.newDetails=el.value;
+  else if(f==='sdate') ui.newSDate=el.value;
+  else if(f==='stime') ui.newSTime=el.value;
   else if(f==='accTitle'&&ui.accessForm){ ui.accessForm.title=el.value; if(!ui.newIconManual) ui.newIcon=autoIcon(el.value); refreshIconUI(el.value); }
   else if(f==='accN'&&ui.accessForm){ var _c=ui.accessForm.conds[parseInt(el.dataset.i,10)]; if(_c) _c[el.dataset.k]=el.value; }
   else if(f==='corrComment'&&ui.corr) ui.corr.comment=el.value;
