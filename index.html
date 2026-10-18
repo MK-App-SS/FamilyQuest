@@ -156,7 +156,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .ast-cta{display:inline-block;margin-top:6px;border:0;border-radius:999px;background:var(--pri-soft);color:var(--pri);font:inherit;font-weight:800;font-size:12.5px;padding:3px 11px;cursor:pointer}
 .ast-cta:active{transform:scale(.95)}
 .hero.wx{position:relative;overflow:hidden;padding-top:34px;background:var(--wxbg);color:var(--wxink)}
-.hero.wx>*:not(.wx-fx):not(.wx-chip){position:relative;z-index:1}
+.hero.wx>*:not(.wx-fx):not(.wx-chip):not(.hero-chips){position:relative;z-index:1}
 .hero.wx .hero-lvl,.hero.wx .muted{color:var(--wxsoft)}
 .wx.wx-dk{--wxink:#fff;--wxsoft:#dbe4ff;--cl:rgba(255,255,255,.28)}
 .wx.wx-lt{--wxink:#1f2a44;--wxsoft:#2f5aa8;--cl:rgba(255,255,255,.8)}
@@ -196,6 +196,31 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .wx-h{flex:none;min-width:58px;text-align:center;background:var(--card);border-radius:14px;padding:8px 6px;box-shadow:var(--shadow);font-weight:800;font-size:13px}
 .wx-h span{display:block;font-size:11px;color:var(--muted);font-weight:700}
 .wx-tip{background:var(--pri-soft);border-radius:14px;padding:10px 12px;font-weight:700;font-size:14px;margin-bottom:12px}
+.hero.hc{position:relative}
+.hero-chips{position:absolute;top:8px;right:10px;z-index:3;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.hero-chips .wx-chip{position:relative!important;top:auto;right:auto}
+.hero.hc .hero-name,.hero.hc .hero-lvl{padding-right:72px}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin:8px 0}
+.cal-nav b{font-size:17px;text-transform:capitalize}
+.cal-nav button{border:0;background:var(--pri-soft);color:var(--pri);border-radius:12px;width:38px;height:38px;font-size:20px;font-weight:800;cursor:pointer}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-dow{text-align:center;font-size:11px;font-weight:800;color:var(--muted);padding-bottom:2px}
+.cal-day{position:relative;aspect-ratio:1;border:2px solid transparent;border-radius:12px;background:var(--pri-soft);color:var(--ink);font:inherit;font-weight:800;font-size:14px;cursor:pointer;padding:0}
+.cal-day.out{opacity:.35;background:transparent}
+.cal-day.today{border-color:var(--pri)}
+.cal-day.sel{background:var(--pri);color:var(--pri-ink)}
+.cal-day .cdots{position:absolute;bottom:3px;left:0;right:0;display:flex;justify-content:center;gap:2px}
+.cal-day .cdots i{width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.8)}
+.cdots i.sp{background:#f97316}.cdots i.nt{background:#3b82f6}
+.cal-item{display:flex;gap:10px;align-items:flex-start;background:var(--pri-soft);border-radius:14px;padding:10px 12px;margin-bottom:8px}
+.cal-item .ci{font-size:22px;line-height:1.1;width:30px;text-align:center;flex:none}
+.cal-item .cm{flex:1;min-width:0;font-weight:800;font-size:14.5px}
+.cal-item .cm small{display:block;font-weight:600;color:var(--muted);font-size:12.5px;margin-top:2px;white-space:pre-wrap}
+.cal-item .cb{display:flex;gap:6px}
+.cal-item .cb button{border:0;background:var(--card);border-radius:10px;width:32px;height:32px;cursor:pointer;font-size:15px}
+.cel-dots{display:flex;gap:6px;justify-content:center;margin:12px 0 2px}
+.cel-dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.cel-dots i.on{background:var(--pri);width:20px;border-radius:6px}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .ktask .t-rule{display:block;font-size:11.5px;color:var(--muted);font-weight:700;margin-top:2px}
 .stat-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -1090,6 +1115,7 @@ async function loadFamSettings(){
 }
 async function loadParentData(){
   await loadFamSettings();
+  await loadCalNotes();
   var {data:tasks}=await client.from('tasks').select('*, task_assignees(child_id)').eq('family_id',S.profile.family_id).order('created_at');
   S.tasks=tasks||[];
   var spIds=S.tasks.filter(function(t){return !t.recurring}).map(function(t){return t.id});
@@ -1151,6 +1177,7 @@ async function loadChildData(){
     S.reviewOff=!!rvErr; S.myReview=rv||null;
   }catch(e){ S.reviewOff=true; S.myReview=null; }
   await loadFamSettings(); S.famLoaded=true;
+  await loadCalNotes();
   S.myStreak=await computeStreak(S.me.id);
   await loadMyAccess();
   var {data:rewards}=await client.from('rewards').select('*').eq('family_id',S.profile.family_id).order('cost');
@@ -1551,6 +1578,103 @@ function validateModalContent(childId){
   h+='<div class="sec"><h3>⏳ Missions</h3></div>'+pendingRows(childId);
   h+='<div class="sec"><h3>🎁 Récompenses</h3></div>'+redemptionRowsFor(childId);
   return h;
+}
+/* ---------- calendrier partagé (missions spéciales + infos des parents) ---------- */
+async function loadCalNotes(){
+  try{
+    var q=client.from('calendar_notes').select('*').eq('family_id',S.profile.family_id).gte('date',addDays(todayStr(),-120)).order('date');
+    if(S.profile.role!=='parent'&&S.me) q=q.or('child_id.is.null,child_id.eq.'+S.me.id);
+    var r=await q; if(r.error) throw r.error;
+    S.calNotes=r.data||[]; S.calOff=false;
+  }catch(e){ S.calNotes=[]; S.calOff=true; }
+}
+function calSpecials(){
+  if(ui.view==='child') return activeSpecials().filter(function(t){return t.deadline});
+  return S.tasks.filter(function(t){
+    if(t.recurring||!t.deadline) return false;
+    if(!(t.assign_all||(t.task_assignees&&t.task_assignees.length))) return false;
+    if(!ui.calChild) return true;
+    return t.assign_all||t.task_assignees.some(function(a){return a.child_id===ui.calChild});
+  });
+}
+function calNotesList(){
+  return (S.calNotes||[]).filter(function(n){
+    if(ui.view==='child') return true;
+    return !ui.calChild||!n.child_id||n.child_id===ui.calChild;
+  });
+}
+function calItemsOn(day){
+  return {
+    sp:calSpecials().filter(function(t){return ymd(new Date(t.deadline))===day}),
+    nt:calNotesList().filter(function(n){return n.date===day})
+  };
+}
+function calCount(){ var it=calItemsOn(ymd(new Date())); return it.sp.length+it.nt.length; }
+function calChip(inRow){
+  var n=calCount();
+  return '<button class="wx-chip'+(inRow?' in':'')+'" data-a="openCal" aria-label="Ouvrir le calendrier">📅'+(n?' '+n:'')+'</button>';
+}
+function calModalHtml(){
+  var today=ymd(new Date()), ms=ui.calMonth||today.slice(0,7), y=+ms.slice(0,4), m=+ms.slice(5,7)-1, sel=ui.calSel||today;
+  var isParent=ui.view==='parent';
+  var h='<div class="modal-head"><h2>📅 Calendrier</h2><button class="modal-x" data-a="closeCal" aria-label="Fermer">✕</button></div>';
+  if(ui.calForm) return h+calFormHtml();
+  if(isParent&&S.children.length>1){
+    h+='<div class="chiprow" style="margin-bottom:6px"><button class="chip '+(!ui.calChild?'sel':'')+'" data-a="calChild" data-v="">👨‍👩‍👧 Tous</button>'+S.children.map(function(c){return '<button class="chip '+(ui.calChild===c.id?'sel':'')+'" data-a="calChild" data-v="'+c.id+'">'+av(c.avatar)+' '+esc(c.display_name)+'</button>';}).join('')+'</div>';
+  }
+  var label=new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  h+='<div class="cal-nav"><button data-a="calPrev" aria-label="Mois précédent">‹</button><b>'+esc(label)+'</b><button data-a="calNext" aria-label="Mois suivant">›</button></div>';
+  h+='<div class="cal-grid">'+['L','M','M','J','V','S','D'].map(function(d){return '<div class="cal-dow">'+d+'</div>';}).join('');
+  var first=new Date(y,m,1), off=(first.getDay()+6)%7, dim=new Date(y,m+1,0).getDate(), cells=Math.ceil((off+dim)/7)*7;
+  for(var i=0;i<cells;i++){
+    var dt=new Date(y,m,1-off+i), key=ymd(dt), out=dt.getMonth()!==m, it=calItemsOn(key);
+    var dots=(it.sp.length||it.nt.length)?'<span class="cdots">'+(it.sp.length?'<i class="sp"></i>':'')+(it.nt.length?'<i class="nt"></i>':'')+'</span>':'';
+    h+='<button class="cal-day'+(out?' out':'')+(key===today?' today':'')+(key===sel?' sel':'')+'" data-a="calPick" data-d="'+key+'" aria-label="'+key+'">'+dt.getDate()+dots+'</button>';
+  }
+  h+='</div><p class="muted" style="font-size:12px;margin:8px 0 0;text-align:center"><span style="color:#f97316">●</span> mission spéciale à rendre · <span style="color:#3b82f6">●</span> info des parents</p>';
+  var sp=new Date(+sel.slice(0,4),+sel.slice(5,7)-1,+sel.slice(8,10)).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  var items=calItemsOn(sel);
+  h+='<div class="sec"><h3 style="text-transform:capitalize">'+esc(sp)+'</h3></div>';
+  if(!items.sp.length&&!items.nt.length) h+='<p class="muted" style="margin:0 0 8px">Rien de prévu ce jour-là.</p>';
+  items.sp.forEach(function(t){
+    var f=dlFmt(t), kids=isParent?(t.assign_all?S.children:(t.task_assignees||[]).map(function(a){return S.children.filter(function(c){return c.id===a.child_id})[0]}).filter(Boolean)):[];
+    h+='<div class="cal-item"><span class="ci">'+taskIco(t,'✨')+'</span><span class="cm">'+esc(t.title)+'<small>⏰ À rendre '+esc(f.txt)+(f.passed?' · échéance dépassée':'')+(isParent&&kids.length?' · '+kids.map(function(c){return esc(c.display_name)}).join(', '):'')+'</small></span></div>';
+  });
+  items.nt.forEach(function(n){
+    var who=isParent?(n.child_id?((S.children.filter(function(c){return c.id===n.child_id})[0]||{}).display_name||'Un enfant'):'Tous les enfants'):'';
+    h+='<div class="cal-item"><span class="ci">📝</span><span class="cm">'+esc(n.title)+'<small>'+(n.details?esc(n.details)+(who?'\n':''):'')+(who?'Pour : '+esc(who):'')+'</small></span>'+(isParent?'<span class="cb"><button data-a="calEdit" data-id="'+n.id+'" aria-label="Modifier">✏️</button><button data-a="calDelete" data-id="'+n.id+'" aria-label="Supprimer">🗑️</button></span>':'')+'</div>';
+  });
+  if(isParent){
+    if(S.calOff) h+='<p class="muted" style="font-size:13px;margin:6px 0 0">⚠️ Les infos du calendrier ne sont pas encore activées (SQL « calendar_notes » à exécuter dans Supabase).</p>';
+    else h+='<button class="btn wide" style="margin-top:6px" data-a="calAdd">＋ Ajouter une info ce jour-là</button>';
+  }
+  return h;
+}
+function calFormHtml(){
+  var f=ui.calForm, h='<div class="sec"><h3>'+(f.id?'Modifier l’info':'Nouvelle info')+'</h3></div>';
+  h+='<label class="lbl">Date</label><input class="inp" type="date" data-field="calDate" value="'+esc(f.date||'')+'">';
+  h+='<label class="lbl">Titre</label><input class="inp" data-field="calTitle" placeholder="Ex : Rendez-vous chez le dentiste" value="'+esc(f.title||'')+'">';
+  h+='<label class="lbl">Détails (facultatif)</label><textarea class="inp" rows="3" data-field="calDetails" placeholder="Heure, lieu, ce qu’il faut apporter…">'+esc(f.details||'')+'</textarea>';
+  if(!f.id){
+    h+='<label class="lbl">Pour qui ?</label><div class="chiprow"><button class="chip '+(f.all?'sel':'')+'" data-a="calToggleAll">👨‍👩‍👧 Tous</button>'+S.children.map(function(c){return '<button class="chip '+(!f.all&&f.ids.indexOf(c.id)>-1?'sel':'')+'" data-a="calToggleKid" data-v="'+c.id+'">'+av(c.avatar)+' '+esc(c.display_name)+'</button>';}).join('')+'</div>';
+  }
+  if(ui.formErr) h+='<p class="sherr">❌ '+esc(ui.formErr)+'</p>';
+  h+='<div style="display:flex;gap:10px;margin-top:16px"><button class="btn ghost" data-a="calCancel">Annuler</button><button class="btn wide" data-a="calSave">Enregistrer</button></div>';
+  return h;
+}
+function pDeadlines(){
+  var now=Date.now(), horizon=now+72*3600000;
+  var list=S.tasks.filter(function(t){
+    if(t.recurring||!t.deadline) return false;
+    if(!(t.assign_all||(t.task_assignees&&t.task_assignees.length))) return false;
+    var ms=new Date(t.deadline).getTime(); return ms<=horizon&&ms>=now-7*86400000;
+  }).sort(function(a,b){ return new Date(a.deadline)-new Date(b.deadline); });
+  if(!list.length) return '';
+  var rows=list.slice(0,4).map(function(t){
+    var f=dlFmt(t);
+    return '<button class="navrow" style="margin-bottom:6px" data-a="openSpecials"><span class="nr-i">'+taskIco(t,'✨')+'</span><span class="nr-t">'+esc(t.title)+'<span class="nr-s" style="'+(f.passed?'color:var(--bad)':'')+'">⏰ '+(f.passed?'Dépassée · ':'Avant ')+esc(f.txt)+'</span></span><span class="nr-c">›</span></button>';
+  }).join('');
+  return '<div class="sec"><h3>⏰ Échéances proches</h3></div>'+rows+(list.length>4?'<p class="muted" style="font-size:12.5px;margin:0 0 8px">+ '+(list.length-4)+' autre'+(list.length-4>1?'s':'')+' dans l’onglet Missions</p>':'');
 }
 function pToday(){
   if(!S.children.length) return '<div class="empty"><div class="big">👨‍👩‍👧</div><p>Aucun enfant pour l’instant.</p></div>';
@@ -2071,18 +2195,18 @@ function pActivity(){
   }).join('');
 }
 
-function pageHead(ico,title,sub,helpAction,helpLabel,wx){
+function pageHead(ico,title,sub,helpAction,helpLabel,wx,extra){
   wx=wx||{cls:'',fx:'',chip:''};
-  return '<header class="top ptop'+wx.cls+'">'+wx.fx+'<div class="ph-main"><div class="ph-title"><span class="ph-ico">'+ico+'</span>'+title+'</div><p class="ph-sub">'+sub+'</p></div>'+wx.chip+
+  return '<header class="top ptop'+wx.cls+'">'+wx.fx+'<div class="ph-main"><div class="ph-title"><span class="ph-ico">'+ico+'</span>'+title+'</div><p class="ph-sub">'+sub+'</p></div>'+wx.chip+(extra||'')+
     '<button class="info-btn" data-a="'+helpAction+'" aria-label="'+helpLabel+'">💡</button></header>';
 }
 function viewParent(){
-  var body = ui.ptab==='today' ? (pToday()+pScheduledToday()+pActivity())
+  var body = ui.ptab==='today' ? (pDeadlines()+pToday()+pScheduledToday()+pActivity())
     : ui.ptab==='missions' ? pMissions()
     : ui.ptab==='shop' ? pShop()
     : pFamily();
   var head;
-  if(ui.ptab==='today') head=pageHead('🏠','Accueil',esc(todayFr()),'replayTour','Revoir le tutoriel de cette page',wxHero(true));
+  if(ui.ptab==='today') head=pageHead('🏠','Accueil',esc(todayFr()),'replayTour','Revoir le tutoriel de cette page',wxHero(true),calChip(true));
   else if(ui.ptab==='missions') head=pageHead('📋','Missions','Créez, éditez et assignez vos missions','openMissionHelp','Conseils sur les missions');
   else if(ui.ptab==='shop') head=pageHead('🎁','Bonus','Accès à débloquer et cadeaux à acheter',ui.bonusTab==='buy'?'openRewardHelp':'openAccessHelp','Aide et conseils sur les bonus');
   else head=pageHead('⚙️','Préférences','Famille, pauses, ajustements et badges','replayTour','Revoir le tutoriel de cette page');
@@ -2709,6 +2833,18 @@ function astPick(){
   if(newA.length) msgs.push({id:'newBonus',text:astSay('newBonus',['Tes parents ont ajouté un nouveau bonus à débloquer ! Va voir ce qu’il faut faire 🔓','Il y a un nouveau bonus pour toi ! Regarde comment le débloquer.'],vars),cta:{a:'tab',t:'bonus',label:'Voir les bonus'}});
   if(newR.length) msgs.push({id:'newReward',text:astSay('newReward',['Du nouveau dans la boutique ! Tes parents ont ajouté un cadeau 🎁','Un nouveau cadeau t’attend dans la boutique !'],vars),cta:{a:'tab',t:'shop',label:'Voir la boutique'}});
   if(newS.length) msgs.push({id:'newSpecial',text:astSay('newSpecial',['Une nouvelle mission spéciale vient d’arriver ✨','Tes parents t’ont préparé une mission spéciale !'],vars)});
+  // 1b. échéance proche d'une mission spéciale (dans les 24 h)
+  (function(){
+    var now=Date.now(), best=null;
+    activeSpecials().forEach(function(t){
+      if(!t.deadline) return;
+      var ms=new Date(t.deadline).getTime()-now; if(ms<0||ms>86400000) return;
+      var mine=(S.specialLogs||[]).some(function(l){return l.task_id===t.id&&(l.child_id===S.me.id||t.assign_all)&&(l.status==='pending'||l.status==='validated')});
+      if(mine) return;
+      if(!best||ms<best.ms) best={t:t,ms:ms};
+    });
+    if(best) msgs.push({id:'deadline'+best.t.id,text:astSay('deadline',['Ta mission spéciale « {titre} » est à faire avant {quand}. Tu peux le faire ! 💪','Petit rappel : « {titre} », c’est avant {quand}. Je crois en toi ✨'],{titre:best.t.title,quand:dlFmt(best.t).txt}),cta:{a:'tab',t:'missions',label:'Voir'}});
+  })();
   // 2. bilan de fin de semaine
   if(!S.reviewOff&&!S.myReview&&(dow===6||dow===0)) msgs.push({id:'review',text:astSay('review',['C’est la fin de la semaine ! Prends un petit moment pour faire ton bilan 🌙','Si tu veux, c’est le bon moment pour ton bilan de la semaine 🌙'],vars),cta:{a:'openReview',label:'Faire mon bilan'}});
   // 3. journée parfaite
@@ -3322,7 +3458,7 @@ function viewChild(){
   var streak=S.myStreak||0;
   var got=currentBadgeIds(), wx=wxHero();
   return '<header class="top"><button class="ghost-link" data-a="replayTour">💡 Aide</button><span></span></header>'+
-    '<section class="hero'+wx.cls+'">'+wx.fx+wx.chip+'<div class="hero-av">'+av(myAvatar())+'<button class="av-gear" data-a="openAvatarMenu" aria-label="Personnaliser mon profil">⚙️</button></div><div class="hero-main">'+
+    '<section class="hero hc'+wx.cls+'">'+wx.fx+'<div class="hero-chips">'+wx.chip+calChip(false)+'</div><div class="hero-av">'+av(myAvatar())+'<button class="av-gear" data-a="openAvatarMenu" aria-label="Personnaliser mon profil">⚙️</button></div><div class="hero-main">'+
     '<div class="hero-name"><span>Salut '+esc(S.profile.display_name)+' !</span>'+accIconsHtml(kidAccItems(),28,true)+'</div>'+
     '<div class="hero-lvl">Niveau '+lvl+' · '+levelTitle(lvl)+'</div>'+
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
@@ -3372,26 +3508,75 @@ async function checkCelebration(){
     ui.celebrate={corr:corr,notice:notice,missions:missions,gifts:gifts,refused:refused,badges:badges,bonus:bonus,stars:stars,levelUp:levelUp?{lvl:lvl,title:levelTitle(lvl)}:null,lvl:lvl,stamp:stamps.length?stamps[stamps.length-1]:last,conf:conf};
   }catch(e){ console.error('celebration error',e); }
 }
-function celebrateHtml(c){
-  var d=0;
+/* Ordre des fenêtres : 1 gains d'étoiles · 2 badges · 3 trophées (plus tard) · 4 bonus débloqués · 5 demandes de cadeaux */
+function celList(){
+  var c=ui.celebrate, l=[];
+  if(c&&(c.notice||c.missions.length||c.bonus.length||c.levelUp||c.corr.length)) l.push('gains');
+  if(c&&c.badges.length) l.push('badges');
+  // trophées : à brancher ici plus tard
+  if(ui.accessUnlocked&&ui.accessUnlocked.length) l.push('unlock');
+  if(c&&(c.gifts.length||c.refused.length)) l.push('gifts');
+  return l;
+}
+function celEnsure(){
+  if(!ui.celSeq){ var l=celList(); if(l.length){ ui.celSeq=l; ui.celPos=0; ui.celFx={}; } }
+}
+function celConf(){
+  var colors=['#FF6B5E','#FFD166','#22B26B','#6C5CE7','#4FC3F7'], conf='';
+  for(var i=0;i<24;i++) conf+='<i style="left:'+Math.round(Math.random()*100)+'%;background:'+colors[i%colors.length]+';animation-duration:'+(2.4+Math.random()*2.4).toFixed(1)+'s;animation-delay:-'+(Math.random()*4).toFixed(1)+'s"></i>';
+  return conf;
+}
+function celStepHtml(){
+  var seq=ui.celSeq||[], pos=Math.min(ui.celPos||0,seq.length-1), step=seq[pos], last=pos===seq.length-1, c=ui.celebrate||{};
+  var d=0, name=esc(S.profile.display_name), emoji='🎉', title='', sub='', inner='', conf=true, btn=last?'Super !':'Suivant ›';
   function row(e,t,p,soft){ d+=0.18; return '<div class="cel-row'+(soft?' soft':'')+'" style="animation-delay:'+(0.5+d).toFixed(2)+'s"><span class="e">'+e+'</span><span class="t">'+t+'</span>'+(p?'<span class="p">'+p+'</span>':'')+'</div>'; }
-  var corrRows=(c.corr||[]).map(function(x){return row('↩️',esc(x.title)+(x.comment?'<span class="sub">« '+esc(x.comment)+' »</span>':''),'−'+(x.points||0)+' ⭐',true);}).join('');
-  if(c.notice){
-    return '<div class="cel-back"><div class="cel" data-a="noop"><div class="cel-big" style="animation:none">💬</div><h2>Un message de tes parents</h2><div class="cel-sub">Une validation a été modifiée</div>'+corrRows+
-      '<p class="muted" style="font-size:13px;font-weight:700;margin:10px 0 0">Ce n’est pas grave : tu pourras te rattraper dès aujourd’hui 💛</p><button class="btn go wide" data-a="closeCelebrate">J’ai compris</button></div></div>';
+  var total=function(n){ return n>0?'<div class="cel-total">+<span data-count="'+n+'">0</span> ⭐</div>':''; };
+  if(step==='gains'){
+    var corrRows=(c.corr||[]).map(function(x){return row('↩️',esc(x.title)+(x.comment?'<span class="sub">« '+esc(x.comment)+' »</span>':''),'−'+(x.points||0)+' ⭐',true);}).join('');
+    if(c.notice){
+      emoji='💬'; title='Un message de tes parents'; sub='Une validation a été modifiée'; conf=false;
+      inner=corrRows+'<p class="muted" style="font-size:13px;margin:10px 0 0;font-weight:700">Ce n’est pas grave : tu pourras te rattraper dès aujourd’hui 💛</p>';
+      if(last) btn='J’ai compris';
+    } else {
+      emoji=c.levelUp?'🚀':'🎉'; title='Bravo '+name+' !'; sub='Voilà les étoiles que tu as gagnées';
+      var stars=0; (c.missions||[]).forEach(function(m){stars+=m.points||0}); (c.bonus||[]).forEach(function(a){stars+=a.points||0});
+      if(c.levelUp) inner+='<div class="cel-lvl">⬆️ Niveau '+c.levelUp.lvl+' · '+esc(c.levelUp.title)+' !</div>';
+      if(c.missions.length) inner+='<div class="cel-sec">Missions validées</div>'+c.missions.map(function(m){return row('✅',esc(m.title||'Mission'),'+'+(m.points||0)+' ⭐');}).join('');
+      if(c.bonus.length) inner+='<div class="cel-sec">Autres gains d’étoiles</div>'+c.bonus.map(function(a){return row(a.points>=0?'✨':'⭐',esc(a.reason||'Ajustement'),(a.points>=0?'+':'')+a.points+' ⭐');}).join('');
+      if(corrRows) inner+='<div class="cel-sec">Modifié par tes parents</div>'+corrRows;
+      inner+=total(stars);
+    }
+  } else if(step==='badges'){
+    emoji='🏅'; title=c.badges.length>1?'Nouveaux badges !':'Nouveau badge !'; sub='Bravo, tu as relevé le défi';
+    var bs=0;
+    inner=c.badges.map(function(b){var def=badgeDef(b.badge_id); bs+=b.reward||0; return row(def.emoji,esc(def.name)+'<span class="sub">Objectif : '+esc(def.desc)+'</span>',b.reward?'+'+b.reward+' ⭐':'');}).join('')+total(bs);
+  } else if(step==='unlock'){
+    emoji='🔓'; title='Bonus débloqué !'; sub='Bravo, tu as rempli toutes les conditions';
+    inner=(ui.accessUnlocked||[]).map(function(a){d+=0.18; return '<div class="cel-row" style="animation-delay:'+(0.4+d).toFixed(2)+'s"><span class="e" style="width:32px;height:32px;display:inline-grid;place-items:center">'+iconImg(a.icon||autoIcon(a.title),'🎁')+'</span><span class="t">'+esc(a.title)+'</span></div>';}).join('');
+  } else if(step==='gifts'){
+    emoji='🎁';
+    if(c.gifts.length){ title='Demande acceptée !'; sub='Tes parents ont dit oui'; }
+    else { title='Réponse à ta demande'; sub='Tes parents t’ont répondu'; emoji='💬'; conf=false; }
+    inner=c.gifts.map(function(g){return row(g.emoji||'🎁',esc(g.title)+' est à toi !','');}).join('');
+    if(c.refused.length) inner+=(c.gifts.length?'<div class="cel-sec">Autre demande</div>':'')+c.refused.map(function(g){return row('💬','Pas cette fois pour « '+esc(g.title)+' »','',true);}).join('');
   }
-  var h='<div class="cel-back"><div class="cel-conf">'+c.conf+'</div><div class="cel" data-a="noop">';
-  h+=(celMascotHtml(c.levelUp?'🚀':(c.badges.length?'🏅':'🎉'))||'<div class="cel-big">'+(c.levelUp?'🚀':(c.badges.length?'🏅':'🎉'))+'</div>')+'<h2>Bravo '+esc(S.profile.display_name)+' !</h2><div class="cel-sub">Voilà ce qui s’est passé pendant ton absence</div>';
-  if(c.levelUp) h+='<div class="cel-lvl">⬆️ Niveau '+c.levelUp.lvl+' · '+esc(c.levelUp.title)+' !</div>';
-  if(c.missions.length){ h+='<div class="cel-sec">Missions validées</div>'+c.missions.map(function(m){return row('✅',esc(m.title||'Mission'),'+'+(m.points||0)+' ⭐');}).join(''); }
-  if(c.badges.length){ h+='<div class="cel-sec">Nouveaux badges</div>'+c.badges.map(function(b){var def=badgeDef(b.badge_id);return row(def.emoji,esc(def.name)+'<span class="sub">Objectif : '+esc(def.desc)+'</span>',b.reward?'+'+b.reward+' ⭐':'');}).join(''); }
-  if(c.bonus.length){ h+='<div class="cel-sec">Bonus</div>'+c.bonus.map(function(a){return row(a.points>=0?'✨':'⭐',esc(a.reason||'Ajustement'),(a.points>=0?'+':'')+a.points+' ⭐');}).join(''); }
-  if(c.gifts.length){ h+='<div class="cel-sec">Cadeaux accordés</div>'+c.gifts.map(function(g){return row(g.emoji||'🎁',esc(g.title)+' est à toi !','');}).join(''); }
-  if(c.refused.length){ h+='<div class="cel-sec">Demandes</div>'+c.refused.map(function(g){return row('💬','Pas cette fois pour « '+esc(g.title)+' »','',true);}).join(''); }
-  if(corrRows) h+='<div class="cel-sec">Modifié par tes parents</div>'+corrRows;
-  if(c.stars>0) h+='<div class="cel-total">+<span data-count="'+c.stars+'">0</span> ⭐</div>';
-  h+='<button class="btn go wide" data-a="closeCelebrate">Super !</button></div></div>';
-  return h;
+  var dots=seq.length>1?'<div class="cel-dots">'+seq.map(function(_,i){return '<i'+(i===pos?' class="on"':'')+'></i>';}).join('')+'</div>':'';
+  var mascot=celMascotHtml(emoji)||'<div class="cel-big"'+(conf?'':' style="animation:none"')+'>'+emoji+'</div>';
+  return '<div class="cel-back">'+(conf?'<div class="cel-conf">'+celConf()+'</div>':'')+'<div class="cel" data-a="noop">'+mascot+'<h2>'+title+'</h2><div class="cel-sub">'+sub+'</div>'+inner+dots+'<button class="btn go wide" data-a="celNext">'+btn+'</button></div></div>';
+}
+function celFinalize(){
+  var seq=ui.celSeq||[], c=ui.celebrate;
+  if(c&&seq.some(function(x){return x!=='unlock'})){
+    lsSet('mf_seen_'+S.me.id,c.stamp);
+    var prev=parseInt(lsGet('mf_lvl_'+S.me.id)||'0',10);
+    if(c.lvl>prev) lsSet('mf_lvl_'+S.me.id,c.lvl);
+    var ids=(c.badges||[]).map(function(b){return b.id});
+    if(ids.length) client.from('badges').update({seen:true}).in('id',ids).then(function(){});
+    ui.celebrate=null;
+  }
+  if(seq.indexOf('unlock')>-1) ui.accessUnlocked=null;
+  ui.celSeq=null; ui.celPos=0; ui.celFx=null;
+  render();
 }
 function runCountUps(){
   document.querySelectorAll('[data-count]').forEach(function(el){
@@ -3402,7 +3587,7 @@ function runCountUps(){
 }
 var _lastChildRefresh=0;
 async function refreshChild(){
-  if(ui.view!=='child'||ui.celebrate||Date.now()-_lastChildRefresh<15000) return;
+  if(ui.view!=='child'||ui.celebrate||ui.celSeq||Date.now()-_lastChildRefresh<15000) return;
   _lastChildRefresh=Date.now();
   try{
     var {data:pr}=await client.from('profiles').select('*').eq('id',S.me.id).single();
@@ -3446,9 +3631,9 @@ function render(){
   if(ui.review && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeReview"><div class="modal" data-a="noop">'+reviewModalHtml()+'</div></div>';
   if(ui.detailsTask && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeDetails"><div class="modal" data-a="noop">'+detailsModalHtml()+'</div></div>';
   if(ui.weatherOpen && (ui.view==='child'||ui.view==='parent')) modal='<div class="modal-backdrop" data-a="closeWeather"><div class="modal" data-a="noop">'+weatherModalHtml()+'</div></div>';
+  if(ui.calOpen && (ui.view==='child'||ui.view==='parent')) modal='<div class="modal-backdrop" data-a="closeCal"><div class="modal" data-a="noop">'+calModalHtml()+'</div></div>';
   if(ui.statSec!=null && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeStat"><div class="modal" data-a="noop">'+statModalHtml()+'</div></div>';
-  if(ui.accessUnlocked && ui.accessUnlocked.length && ui.view==='child') modal=accessUnlockedHtml();
-  if(ui.celebrate && ui.view==='child') modal=celebrateHtml(ui.celebrate);
+  if(ui.view==='child'){ celEnsure(); if(ui.celSeq) modal=celStepHtml(); }
   var app=document.getElementById('app');
   var hadModal=!!app.querySelector('.modal-backdrop');
   var _pm=app.querySelector('.modal'), _ps=_pm?_pm.scrollTop:0;
@@ -3462,16 +3647,15 @@ function render(){
   var viewKey=[ui.view,ui.ptab,ui.tab,ui.fview,ui.mview,ui.detailChild].join('|');
   var changed=viewKey!==render._k; render._k=viewKey;
   mvDetach();
-  if(_oldBack && !modal && !ui.celebrate){
+  if(_oldBack && !modal && !ui.celebrate && !ui.celSeq){
     var _g=_oldBack.cloneNode(true); _g.classList.add('ghost-out'); _g.classList.remove('enter');
     [].slice.call(_g.querySelectorAll('[data-a]')).forEach(function(n){n.removeAttribute('data-a')}); _g.removeAttribute('data-a');
     document.body.appendChild(_g); setTimeout(function(){_g.remove()},260);
   }
   app.className = nav ? '' : 'nonav';
   app.innerHTML = h+nav+modal;
-  if(changed && !ui.celebrate){ app.classList.add('anim-in'); clearTimeout(render._t); render._t=setTimeout(function(){app.classList.remove('anim-in')},400); }
-  if(ui.celebrate && ui.view==='child'){ runCountUps(); celebrateFx(ui.celebrate); }
-  else if(ui.accessUnlocked && ui.accessUnlocked.length && ui.view==='child'){ celebrateFx(ui.accessUnlocked); }
+  if(changed && !ui.celebrate && !ui.celSeq){ app.classList.add('anim-in'); clearTimeout(render._t); render._t=setTimeout(function(){app.classList.remove('anim-in')},400); }
+  if(ui.celSeq && ui.view==='child'){ runCountUps(); celebrateFx(ui.celFx||(ui.celFx={})); }
   if(!changed){
     [].slice.call(app.querySelectorAll('.mcard,.kid')).forEach(function(el){
       var k=_cardKey(el); if(!k) return;
@@ -3555,7 +3739,7 @@ function tourReset(pages){ pages.forEach(function(p){ try{localStorage.removeIte
 function tourCheck(){
   clearTimeout(_tourTimer);
   _tourTimer=setTimeout(function(){
-    if(_tour||!S.me||ui.celebrate) return;
+    if(_tour||!S.me||ui.celebrate||ui.celSeq) return;
     var page=tourPage(); if(!page||!TOURS[page]||lsGet(tourStoreKey(page))==='1') return;
     if(document.querySelector('.modal-backdrop,.dlg-back,.cel-back')) return;
     tourStart(page);
@@ -3778,7 +3962,6 @@ var A={
   },
   openAccessHelp:function(){ ui.accessHelp=true; render(); },
   closeAccessHelp:function(){ ui.accessHelp=false; render(); },
-  closeAccessUnlocked:function(){ ui.accessUnlocked=null; render(); },
   openAccessForm:function(){
     ui.formErr=null; ui.newIcon=null; ui.newIconManual=false; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank';
     ui.accessForm={id:null,title:'',childIds:[],conds:[accDefaultCond('routines')],active:true}; render();
@@ -4067,23 +4250,52 @@ var A={
     await loadChildDetail(d.id); render();
   },
   backToParent:function(){ ui.view='parent'; ui.detailSub=null; render(); },
+  openCal:async function(){ await loadCalNotes(); ui.calOpen=true; ui.calMonth=ymd(new Date()).slice(0,7); ui.calSel=ymd(new Date()); ui.calForm=null; render(); },
+  closeCal:function(){ ui.calOpen=false; ui.calForm=null; render(); },
+  calPrev:function(){ var ms=ui.calMonth, y=+ms.slice(0,4), m=+ms.slice(5,7)-2; var d=new Date(y,m,1); ui.calMonth=ymd(d).slice(0,7); render(); },
+  calNext:function(){ var ms=ui.calMonth, y=+ms.slice(0,4), m=+ms.slice(5,7); var d=new Date(y,m,1); ui.calMonth=ymd(d).slice(0,7); render(); },
+  calPick:function(d){ ui.calSel=d.d; ui.calMonth=d.d.slice(0,7); render(); },
+  calChild:function(d){ ui.calChild=d.v||null; render(); },
+  calAdd:function(){ ui.formErr=null; ui.calForm={id:null,date:ui.calSel,title:'',details:'',all:true,ids:[]}; render(); },
+  calEdit:function(d){
+    var n=(S.calNotes||[]).filter(function(x){return x.id===d.id})[0]; if(!n) return;
+    ui.formErr=null; ui.calForm={id:n.id,date:n.date,title:n.title,details:n.details||'',all:!n.child_id,ids:n.child_id?[n.child_id]:[]}; render();
+  },
+  calCancel:function(){ ui.calForm=null; ui.formErr=null; render(); },
+  calToggleAll:function(){ ui.calForm.all=true; ui.calForm.ids=[]; render(); },
+  calToggleKid:function(d){ var f=ui.calForm; f.all=false; var i=f.ids.indexOf(d.v); if(i>-1) f.ids.splice(i,1); else f.ids.push(d.v); if(!f.ids.length) f.all=true; render(); },
+  calSave:async function(){
+    var f=ui.calForm; if(!f) return;
+    var title=(f.title||'').trim();
+    if(!title){ ui.formErr='Un titre est nécessaire.'; render(); return; }
+    if(!f.date){ ui.formErr='Choisis une date.'; render(); return; }
+    var base={date:f.date,title:title,details:(f.details||'').trim()||null};
+    var res;
+    if(f.id) res=await client.from('calendar_notes').update(base).eq('id',f.id).select();
+    else {
+      var rows=(f.all?[null]:f.ids).map(function(cid){return Object.assign({family_id:S.profile.family_id,child_id:cid,created_by:S.me.id},base)});
+      res=await client.from('calendar_notes').insert(rows).select();
+    }
+    if(res.error||!res.data||!res.data.length){ ui.formErr=(res.error?res.error.message:'Enregistrement refusé (droits manquants ?)'); render(); return; }
+    ui.calForm=null; ui.formErr=null; ui.calSel=f.date; ui.calMonth=f.date.slice(0,7);
+    await loadCalNotes(); toast('📝 Info enregistrée'); render();
+  },
+  calDelete:async function(d){
+    if(!(await askConfirm({icon:'🗑️',title:'Supprimer cette info ?',message:'Elle disparaîtra du calendrier.',okLabel:'Supprimer',danger:true}))) return;
+    var r=await client.from('calendar_notes').delete().eq('id',d.id).select();
+    if(r.error||!r.data||!r.data.length){ showAlert('❌ Suppression impossible'+(r.error?' : '+r.error.message:'')); return; }
+    await loadCalNotes(); toast('Info supprimée'); render();
+  },
+  openSpecials:function(){ ui.ptab='missions'; ui.mview='special'; render(); window.scrollTo(0,0); },
   openDetailSub:function(d){ ui.detailSub=d.v; render(); window.scrollTo(0,0); },
   closeDetailSub:function(){ ui.detailSub=null; render(); window.scrollTo(0,0); },
   scrollToScheduled:function(){
     var el=document.getElementById('scheduled-today');
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
   },
-  closeCelebrate:async function(){
-    var c=ui.celebrate; ui.celebrate=null;
-    if(c){
-      lsSet('mf_seen_'+S.me.id,c.stamp);
-      var prev=parseInt(lsGet('mf_lvl_'+S.me.id)||'0',10);
-      if(c.lvl>prev) lsSet('mf_lvl_'+S.me.id,c.lvl);
-      var ids=c.badges.map(function(b){return b.id});
-      if(ids.length) client.from('badges').update({seen:true}).in('id',ids).then(function(){});
-    }
-    render();
-  },
+  celNext:function(){ var seq=ui.celSeq||[]; if((ui.celPos||0)<seq.length-1){ ui.celPos=(ui.celPos||0)+1; ui.celFx={}; render(); } else celFinalize(); },
+  closeCelebrate:function(){ celFinalize(); },
+  closeAccessUnlocked:function(){ ui.accessUnlocked=null; render(); },
   openValidateModal:function(d){ ui.validateModal=d.id; render(); },
   closeValidateModal:function(){ ui.validateModal=null; render(); },
   quickPause:function(d){ ui.ptab='family'; ui.fview='pauses'; ui.pauseChild=d.id; ui.view='parent'; render(); },
@@ -4661,6 +4873,9 @@ document.addEventListener('input',function(e){
   else if(f==='npoints') ui.newPoints=el.value;
   else if(f==='stitle'){ ui.newSTitle=el.value; if(!ui.newIconManual) ui.newIcon=autoIcon(el.value); refreshIconUI(el.value); }
   else if(f==='ndetails') ui.newDetails=el.value;
+  else if(f==='calTitle'&&ui.calForm) ui.calForm.title=el.value;
+  else if(f==='calDetails'&&ui.calForm) ui.calForm.details=el.value;
+  else if(f==='calDate'&&ui.calForm) ui.calForm.date=el.value;
   else if(f==='sdate') ui.newSDate=el.value;
   else if(f==='stime') ui.newSTime=el.value;
   else if(f==='accTitle'&&ui.accessForm){ ui.accessForm.title=el.value; if(!ui.newIconManual) ui.newIcon=autoIcon(el.value); refreshIconUI(el.value); }
