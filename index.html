@@ -991,7 +991,14 @@ function freqLabel(t){
   if(t.days.length===1) return 'le '+DAY_FULL[t.days[0]];
   return t.days.slice().sort(function(a,b){return ((a+6)%7)-((b+6)%7)}).map(function(d){return DAY_LABEL[d]}).join(', ');
 }
+function vacOn(dateStr){
+  var ps=(S.famSet&&S.famSet.vacation_periods)||[];
+  for(var i=0;i<ps.length;i++){ if(ps[i].from<=dateStr&&(!ps[i].to||dateStr<=ps[i].to)) return true; }
+  return false;
+}
+function vacNow(){ return vacOn(todayStr()); }
 function isDueToday(t){
+  if(t.school_only&&vacOn(todayStr())) return false;
   if(t.freq==='weekly') return (t.days||[]).indexOf(todayDow())>-1;
   return true;
 }
@@ -1143,6 +1150,7 @@ async function loadChildData(){
     var {data:rv,error:rvErr}=await client.from('weekly_reviews').select('answers,pride,goal,shared').eq('child_id',S.me.id).eq('week',mondayOf(todayStr())).maybeSingle();
     S.reviewOff=!!rvErr; S.myReview=rv||null;
   }catch(e){ S.reviewOff=true; S.myReview=null; }
+  await loadFamSettings(); S.famLoaded=true;
   S.myStreak=await computeStreak(S.me.id);
   await loadMyAccess();
   var {data:rewards}=await client.from('rewards').select('*').eq('family_id',S.profile.family_id).order('cost');
@@ -1275,7 +1283,7 @@ async function refreshChildScreen(){
 
 /* ---------- séries & badges ---------- */
 function appliesToList(t,cid){ return t.assign_all || (t.task_assignees||[]).some(function(a){return a.child_id===cid}); }
-function isDueOn(t,dateStr){ if(t.freq==='weekly') return (t.days||[]).indexOf(dowOf(dateStr))>-1; return true; }
+function isDueOn(t,dateStr){ if(t.school_only&&vacOn(dateStr)) return false; if(t.freq==='weekly') return (t.days||[]).indexOf(dowOf(dateStr))>-1; return true; }
 
 async function awardBadge(childId,badgeId,scope,period,reward){
   var {data:existing,error:cErr}=await client.from('badges').select('id').eq('child_id',childId).eq('badge_id',badgeId).eq('period',period);
@@ -1580,6 +1588,7 @@ function mform(){
       '<label class="lbl">Fréquence</label><div class="chiprow"><button class="chip '+(ui.newFreq==='daily'?'sel':'')+'" data-a="setFreq" data-v="daily">🔁 Chaque jour</button><button class="chip '+(ui.newFreq==='weekly'?'sel':'')+'" data-a="setFreq" data-v="weekly">📆 Certains jours</button></div>'+
       (ui.newFreq==='weekly'?'<div class="chiprow" style="margin-top:8px">'+[1,2,3,4,5,6,0].map(function(d){return '<button class="chip '+(ui.newDays.indexOf(d)>-1?'sel':'')+'" data-a="toggleDay" data-v="'+d+'">'+DAY_LABEL[d]+'</button>'}).join('')+'</div>':'')+
       '<label class="lbl">Moment de la journée</label><div class="chiprow">'+Object.keys(SLOT_LABEL).map(function(k){return '<button class="chip '+(ui.newSlot===k?'sel':'')+'" data-a="setSlot" data-v="'+k+'">'+SLOT_LABEL[k]+'</button>'}).join('')+'</div>'+
+      '<label class="lbl">Pendant les vacances</label><div class="chiprow"><button class="chip '+(!ui.newSchoolOnly?'sel':'')+'" data-a="setSchoolOnly" data-v="0">🔁 Permanente</button><button class="chip '+(ui.newSchoolOnly?'sel':'')+'" data-a="setSchoolOnly" data-v="1">🎒 Période scolaire uniquement</button></div><p class="muted" style="font-size:12px;margin:4px 0 0">'+(ui.newSchoolOnly?'Cette routine est désactivée tant que le mode vacances est actif.':'Cette routine reste active, même en vacances.')+'</p>'+
       '<label class="lbl">Pour qui ?</label><div class="chiprow">'+
       '<button class="chip '+(ui.newAssignAll?'sel':'')+'" data-a="toggleAssignAll">👨‍👩‍👧 Tous</button>'+
       S.children.map(function(c){return '<button class="chip '+(ui.newPicked.indexOf(c.id)>-1?'sel':'')+'" data-a="togglePick" data-v="'+c.id+'">'+av(c.avatar)+' '+esc(c.display_name)+'</button>'}).join('')+
@@ -1602,10 +1611,10 @@ function missionCard(t, daily){
   var slotText = daily ? (SLOT_LABEL[t.slot]||'') : (t.assign_all ? '⚡ Premier arrivé' : ((t.task_assignees&&t.task_assignees.length) ? '✅ Chacun' : '⚠️ Non assignée'));
   var kids = t.assign_all ? S.children : (t.task_assignees||[]).map(function(a){return S.children.filter(function(c){return c.id===a.child_id})[0]}).filter(Boolean);
   var avatars = kids.map(function(c,i){return '<span title="'+esc(c.display_name)+'">'+av(c.avatar)+'</span>';}).join('');
-  return '<div class="mcard" data-longpress="'+t.id+'">'+
+  return '<div class="mcard" data-longpress="'+t.id+'"'+(daily&&t.school_only&&vacNow()?' style="opacity:.55"':'')+'>'+
     '<div class="mcard-ico">'+taskIco(t,daily?'🔁':'✨')+'<span class="mcard-star">⭐'+t.points+'</span></div>'+
     '<div class="mcard-main"><div class="mcard-title">'+esc(t.title)+'</div>'+
-    '<div class="mcard-sub"><span>'+esc(freqText)+'</span>'+(slotText?'<span>· '+esc(slotText)+'</span>':'')+(detailLines(t).length?'<span>· 📋 Détails</span>':'')+'</div></div>'+
+    '<div class="mcard-sub"><span>'+esc(freqText)+'</span>'+(slotText?'<span>· '+esc(slotText)+'</span>':'')+(daily&&t.school_only?'<span>· 🎒 Scolaire'+(vacNow()?' (en pause)':'')+'</span>':'')+(detailLines(t).length?'<span>· 📋 Détails</span>':'')+'</div></div>'+
     '<div class="mcard-avatars">'+avatars+'</div>'+
     '</div>';
 }
@@ -1704,6 +1713,7 @@ function pFamily(){
     h+='<div class="sec"><h3>Réglages</h3></div><div style="display:flex;flex-direction:column;gap:10px">'+
       '<button class="btn ghost" data-a="changePassword">🔑 Changer mon mot de passe</button></div>';
     h+='<div class="sec"><h3>Apparence</h3></div><div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px"><span style="font-size:26px">🌙</span><div style="flex:1;min-width:0"><div style="font-weight:800">Mode sombre</div><div class="muted" style="font-size:13px">Plus reposant le soir.</div></div><button class="switch'+(isDarkTheme()?' on':'')+'" data-a="toggleTheme" role="switch" aria-checked="'+(isDarkTheme()?'true':'false')+'" aria-label="Mode sombre"></button></div>';
+    h+='<div class="sec"><h3>Vacances</h3></div><div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px"><span style="font-size:26px">🏖️</span><div style="flex:1;min-width:0"><div style="font-weight:800">Mode vacances</div><div class="muted" style="font-size:13px">'+(vacNow()?'Activé : seules les routines permanentes restent.':'Désactivé : toutes les routines sont actives.')+'</div></div><button class="switch'+(vacNow()?' on':'')+'" data-a="toggleVacation" role="switch" aria-checked="'+(vacNow()?'true':'false')+'" aria-label="Mode vacances"></button></div><p class="help-hint" style="margin:6px 2px 0">Les routines « Période scolaire uniquement » sont désactivées. Ça ne met pas les enfants en pause : les routines permanentes, les missions spéciales, les bonus et les cadeaux continuent.</p>';
     h+='<div class="sec"><h3>Météo</h3></div><div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px"><span style="font-size:26px">🌦️</span><div style="flex:1;min-width:0"><div style="font-weight:800">Ville de la famille</div><div class="muted" style="font-size:13px">'+(S.famSet&&S.famSet.weather_city?esc(S.famSet.weather_city):'Pas encore choisie')+'</div></div><button class="btn small ghost" data-a="openCity">'+(S.famSet&&S.famSet.weather_city?'Changer':'Choisir')+'</button></div><p class="help-hint" style="margin:6px 2px 0">Sert à afficher la météo du jour sur l’accueil des enfants.</p>';
     h+='<div class="sec"><h3>Aide</h3></div><div class="card" id="help-card" style="padding:12px 14px"><div style="font-weight:800">🎓 Tutoriel</div><p class="muted" style="font-size:13px;margin:4px 0 10px">Revois les explications de chaque page, pas à pas.</p><button class="btn ghost wide" data-a="restartTour">Revoir le tutoriel</button></div>';
     h+='<div class="sec"><h3>Compte</h3></div><button class="btn ghost wide" style="color:var(--bad);border-color:var(--bad)" data-a="logout">🚪 Me déconnecter</button>';
@@ -1826,6 +1836,7 @@ function starStats(c){
   var daily=0, partial=0, perDow=[0,0,0,0,0,0,0], routinePts=0;
   S.tasks.forEach(function(t){
     if(!t.recurring||!appliesToList(t,c.id)) return;
+    if(t.school_only&&vacNow()) return;
     var pts=t.points||0;
     if(t.freq==='weekly'){ var dd=t.days||[]; partial+=pts*dd.length; routinePts+=pts*dd.length; dd.forEach(function(dw){perDow[dw]++}); }
     else { daily+=pts*7; routinePts+=pts*7; for(var i=0;i<7;i++) perDow[i]++; }
@@ -2059,7 +2070,8 @@ function viewParent(){
   else head=pageHead('⚙️','Préférences','Famille, pauses, ajustements et badges','replayTour','Revoir le tutoriel de cette page');
   if(ui.ptab!=='today') return head+body;
   var scheduledCount=S.tasks.filter(function(t){return t.recurring && t.freq==='weekly' && isDueToday(t)}).length;
-  var banner=scheduledCount?'<button class="btn ghost small" style="margin-bottom:10px" data-a="scrollToScheduled">📌 '+scheduledCount+' mission(s) à penser aujourd’hui</button>':'';
+  var vacBanner=vacNow()?'<div class="card" style="padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font-size:22px">🏖️</span><div style="flex:1;font-weight:700;font-size:14px">Mode vacances : seules les routines permanentes sont actives.</div><button class="btn small ghost" data-a="toggleVacation">Reprendre l’école</button></div>':'';
+  var banner=vacBanner+(scheduledCount?'<button class="btn ghost small" style="margin-bottom:10px" data-a="scrollToScheduled">📌 '+scheduledCount+' mission(s) à penser aujourd’hui</button>':'');
   return head+banner+body;
 }
 
@@ -2109,6 +2121,7 @@ function childMissions(){
   if(specials.length){
     h+='<section class="special"><div class="sp-h"><span>✨ Missions spéciales</span></div><div class="sp-sub">À faire une seule fois pour gagner des étoiles en plus.</div>'+specials.map(specialCardKid).join('')+'</section>';
   }
+  if(vacNow()) h+='<div class="hint">🏖️ C’est les vacances ! Seules tes routines de vacances sont là.</div>';
   if(total){
     h+='<div class="prog"><div class="prog-h"><span>'+(done>=total?'🎉 Missions du jour terminées !':'Il te reste '+(total-done)+' mission'+(total-done>1?'s':'')+' du jour')+'</span><span>'+done+' / '+total+'</span></div><div class="bar"><i style="width:'+Math.round(done/total*100)+'%"></i></div></div>';
     ['morning','day','evening','none'].forEach(function(sl){
@@ -4137,7 +4150,7 @@ var A={
   mview:function(d){ ui.mview=d.v; ui.newOpen=false; ui.editId=null; ui.formErr=null; render(); },
   setMFilter:function(d){ ui.mfilter=d.v; render(); },
   setMFilterChild:function(d){ ui.mFilterChild=d.v; render(); },
-  openNew:function(){ ui.newOpen=true; ui.editId=null; ui.newFreq='daily'; ui.newSlot='none'; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='1'; ui.newSTitle=''; ui.newSPoints='5'; ui.newIcon=null; ui.newIconManual=false; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank'; ui.newHasDetails=false; ui.newDetails=''; render(); },
+  openNew:function(){ ui.newOpen=true; ui.editId=null; ui.newFreq='daily'; ui.newSlot='none'; ui.newSchoolOnly=false; ui.newAssignAll=false; ui.newPicked=[]; ui.newDays=[]; ui.newSMode='race'; ui.newSPicked=[]; ui.formErr=null; ui.newTitle=''; ui.newPoints='1'; ui.newSTitle=''; ui.newSPoints='5'; ui.newIcon=null; ui.newIconManual=false; ui.iconPicker=false; ui.iconSearch=''; ui.iconTab='bank'; ui.newHasDetails=false; ui.newDetails=''; render(); },
   closeForm:function(){ ui.newOpen=false; ui.editId=null; ui.iconPicker=false; render(); },
   editTask:function(d){
     var t=S.tasks.filter(function(x){return x.id===d.id})[0];
@@ -4149,7 +4162,7 @@ var A={
     var pickedIds=(t.task_assignees||[]).map(function(a){return a.child_id});
     if(t.recurring){
       ui.newTitle=t.title; ui.newPoints=String(t.points); ui.newFreq=t.freq||'daily';
-      ui.newDays=(t.days||[]).slice(); ui.newSlot=t.slot||'none';
+      ui.newDays=(t.days||[]).slice(); ui.newSlot=t.slot||'none'; ui.newSchoolOnly=!!t.school_only;
       ui.newAssignAll=!!t.assign_all; ui.newPicked=t.assign_all?[]:pickedIds;
     } else {
       ui.newSTitle=t.title; ui.newSPoints=String(t.points);
@@ -4185,6 +4198,24 @@ var A={
   setFreq:function(d){ ui.newFreq=d.v; render(); },
   toggleDay:function(d){ var v=+d.v,i=ui.newDays.indexOf(v); if(i>-1)ui.newDays.splice(i,1); else ui.newDays.push(v); render(); },
   setSlot:function(d){ ui.newSlot=d.v; render(); },
+  toggleVacation:async function(){
+    var on=vacNow(), today=todayStr();
+    var ok=await askConfirm(on
+      ? {icon:'🎒',title:'Reprendre l’école ?',message:'Les routines « Période scolaire uniquement » reviennent dès aujourd’hui.',okLabel:'Oui, reprendre'}
+      : {icon:'🏖️',title:'Passer en mode vacances ?',message:'Dès aujourd’hui, les routines « Période scolaire uniquement » sont désactivées. Les routines permanentes, les missions spéciales, les bonus et les cadeaux continuent.',okLabel:'Oui, c’est les vacances'});
+    if(!ok) return;
+    var ps=((S.famSet&&S.famSet.vacation_periods)||[]).map(function(x){return {from:x.from,to:x.to||null}});
+    if(!on) ps.push({from:today,to:null});
+    else {
+      for(var i=ps.length-1;i>=0;i--){ if(ps[i].from<=today&&(!ps[i].to||today<=ps[i].to)){ if(ps[i].from>=today) ps.splice(i,1); else ps[i].to=addDays(today,-1); break; } }
+    }
+    var {data,error}=await client.from('family_settings').upsert({family_id:S.profile.family_id,vacation_periods:ps,updated_at:new Date().toISOString()}).select();
+    if(error||!data||!data.length){ showAlert('❌ Impossible d’enregistrer le mode vacances'+(error?' : '+error.message:' (droits manquants ?)')+'\n\nVérifie que le SQL « vacation_periods » a bien été exécuté dans Supabase.'); return; }
+    S.famSet=data[0];
+    toast(on?'🎒 C’est la rentrée : toutes les routines sont de retour':'🏖️ Mode vacances activé');
+    await refreshParentScreen();
+  },
+  setSchoolOnly:function(d){ ui.newSchoolOnly=d.v==='1'; render(); },
   toggleAssignAll:function(){ ui.newAssignAll=!ui.newAssignAll; if(ui.newAssignAll) ui.newPicked=[]; render(); },
   togglePick:function(d){ var i=ui.newPicked.indexOf(d.v); if(i>-1)ui.newPicked.splice(i,1); else ui.newPicked.push(d.v); if(ui.newPicked.length) ui.newAssignAll=false; render(); },
   setSMode:function(d){ ui.newSMode=d.v; render(); },
@@ -4197,6 +4228,8 @@ var A={
     if(ui.newFreq==='weekly' && !ui.newDays.length){ ui.formErr='Choisissez au moins un jour de la semaine.'; render(); return; }
     var fields={title:title, points:points, icon:ui.newIcon||null, details:detailsToSave(), assign_all:ui.newAssignAll, freq:ui.newFreq, days:ui.newFreq==='weekly'?ui.newDays:null, slot:ui.newSlot};
     var taskId=ui.editId;
+    var prevT=taskId?S.tasks.filter(function(x){return x.id===taskId})[0]:null;
+    if(ui.newSchoolOnly||(prevT&&prevT.school_only)) fields.school_only=!!ui.newSchoolOnly;   // la colonne n'est utilisée que si nécessaire
     if(taskId){
       var {error}=await client.from('tasks').update(fields).eq('id',taskId);
       if(error){ ui.formErr=error.message; render(); return; }
