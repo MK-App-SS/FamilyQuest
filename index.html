@@ -212,6 +212,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pri);outline-of
 .cal-day.k-both{background:linear-gradient(135deg,#ff6b5e 0%,#e5484d 38%,#3b82f6 62%,#5aa2ff 100%)}
 .cal-day.k-none{background:var(--line);color:var(--muted);opacity:.6}
 .cal-day.out{opacity:.28}
+.cal-day.we .dn{background:#7c5cd6;color:#fff;border-radius:6px;padding:2px 4px;top:3px;left:4px}
+.cal-day.we.k-none{background:color-mix(in srgb,#7c5cd6 24%,var(--line));color:#5b45a8;opacity:.8}
+.cal-day.we.k-none .dn{background:#7c5cd6;color:#fff}
+.cal-day.vac.k-none{background:color-mix(in srgb,#22b26b 30%,var(--line));color:#12703f;opacity:.9}
+.cal-day.vac.k-none .dn{background:transparent;color:#12703f;padding:0;top:4px;left:6px}
+.cal-day .vc{position:absolute;top:3px;right:4px;font-size:11px;line-height:1}
 .cal-day.today{box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--ink)}
 .cal-day.sel{box-shadow:0 0 0 2px var(--card),0 0 0 5px var(--pri)}
 .cal-day .cav{position:absolute;bottom:4px;left:0;right:0;display:flex;justify-content:center}
@@ -701,10 +707,11 @@ var PX2=(function(){
     top:['#ff6b5e','#e5484d','#f97316','#ffd166','#a3d65c','#1fae6b','#14b8a6','#38bdf8','#3b82f6','#1e40af','#7c5cd6','#c084fc','#e66fa4','#ff9ecb','#17233c','#6b7280','#d1d5db','#ffffff','#8b5a2b','#f5e6c8'],
     bottom:['#3b5b92','#1e293b','#111827','#6b4f3a','#a47c52','#d6c3a1','#556b2f','#1fae6b','#14b8a6','#3b82f6','#7c5cd6','#c0392b','#e66fa4','#9ca3af','#f2d479','#ffffff'],
     shoe:['#ffffff','#17233c','#c0392b','#3b82f6','#6b4f3a','#ffd166','#e66fa4','#1fae6b','#f97316','#9ca3af'],
-    bg:['#ffe9a8','#ffd0cc','#cdeede','#cfe3ff','#e4d9ff','#ffd9ec','#ffe0c2','#d9f0f5']
+    bg:['#ffe9a8','#ffd0cc','#cdeede','#cfe3ff','#e4d9ff','#ffd9ec','#ffe0c2','#d9f0f5'],
+    eye:['#1f2937','#6b3f23','#3b82f6','#22b26b','#9a6b2f','#7c5cd6','#8e8e99','#e66fa4','#f2b01e']
   };
-  // ordre des champs : peau, coiffure, couleur cheveux, yeux, bouche, haut, couleur haut, bas, couleur bas, chaussures, couleur chaussures, accessoire, fond
-  var COUNTS=[6,8,10,4,4,3,20,3,16,2,10,5,8];
+  // ordre des champs : peau, coiffure, couleur cheveux, yeux, bouche, haut, couleur haut, bas, couleur bas, chaussures, couleur chaussures, accessoire, fond, couleur des yeux
+  var COUNTS=[6,16,10,10,4,3,20,3,16,2,10,5,8,9];
   function hex(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; }
   function mix(c,t,k){ return [Math.round(c[0]+(t[0]-c[0])*k),Math.round(c[1]+(t[1]-c[1])*k),Math.round(c[2]+(t[2]-c[2])*k)]; }
   function toHex(c){ return '#'+c.map(function(v){return ('0'+v.toString(16)).slice(-2)}).join(''); }
@@ -715,6 +722,7 @@ var PX2=(function(){
   function rr(m,x0,y0,w,h,r){ for(var y=y0;y<y0+h;y++)for(var x=x0;x<x0+w;x++){ if(x<0||y<0||x>=N||y>=N) continue;
     var cx=Math.min(Math.max(x+.5,x0+r),x0+w-r), cy=Math.min(Math.max(y+.5,y0+r),y0+h-r), dx=x+.5-cx, dy=y+.5-cy; if(dx*dx+dy*dy<=r*r) m[y*N+x]=1; } return m; }
   function poly(m,pts){ for(var y=0;y<N;y++)for(var x=0;x<N;x++){ var px=x+.5,py=y+.5,c=false; for(var i=0,j=pts.length-1;i<pts.length;j=i++){ var a=pts[i],b=pts[j]; if(((a[1]>py)!==(b[1]>py))&&(px<(b[0]-a[0])*(py-a[1])/(b[1]-a[1])+a[0])) c=!c; } if(c) m[y*N+x]=1; } return m; }
+  function inter(a,b){ var o=nm(); for(var i=0;i<N*N;i++) o[i]=(a[i]&&b[i])?1:0; return o; }
   function sub(a,b){ var o=nm(); for(var i=0;i<N*N;i++) o[i]=(a[i]&&!b[i])?1:0; return o; }
   function uni(){ var o=nm(); for(var k=0;k<arguments.length;k++) for(var i=0;i<N*N;i++) if(arguments[k][i]) o[i]=1; return o; }
   var px;
@@ -732,9 +740,13 @@ var PX2=(function(){
     px=new Array(N*N).fill(null);
     var skin=C.skin[v[0]], H=v[1], hc=C.hair[v[2]], E=v[3], M=v[4], T=v[5], tc=C.top[v[6]], B=v[7], bc=C.bottom[v[8]], S=v[9], shc=C.shoe[v[10]], A=v[11], bgc=hex(C.bg[v[12]]);
     F(ell(nm(),32,61,13,2.6),toHex(mix(bgc,[0,0,0],.12)));
-    var face=ell(nm(),32,26,12.5,11);
-    if(H===2) paint(rr(nm(),15,13,34,33,7),hc);
+    var face=ell(nm(),32,26,12.5,11), hshade=toHex(mix(hex(hc),[0,0,0],.28)), hlite=toHex(mix(hex(hc),[255,255,255],.3));
+    if(H===2||H===15) paint(rr(nm(),15,13,34,33,7),hc);
     if(H===3){ paint(ell(nm(),13.5,31,4.2,8),hc); paint(ell(nm(),50.5,31,4.2,8),hc); }
+    if(H===8) paint(rr(nm(),15,13,34,22,6),hc);
+    if(H===9) paint(ell(nm(),47.5,19,3.8,8.5),hc);
+    if(H===10){ paint(rr(nm(),14,24,5,24,2.5),hc); paint(rr(nm(),45,24,5,24,2.5),hc); for(var by=27;by<46;by+=4){ F(rect(nm(),14,by,5,1),hshade); F(rect(nm(),45,by,5,1),hshade); } }
+    if(H===11){ paint(rr(nm(),14,13,36,38,8),hc); paint(ell(nm(),14.5,40,2.4,3.5),hc); paint(ell(nm(),49.5,44,2.4,3.5),hc); }
     var legEnd=58, legC=(B===0)?bc:skin;
     paint(rr(nm(),26,49,6,legEnd-49,2),legC); paint(rr(nm(),32,49,6,legEnd-49,2),legC);
     var ls=rr(nm(),23,57,9,5,2), rs=rr(nm(),32,57,9,5,2);
@@ -756,10 +768,34 @@ var PX2=(function(){
     paint(ell(nm(),18.5,23,2.4,3),skin); paint(ell(nm(),45.5,23,2.4,3),skin);
     paint(ell(nm(),32,21,13.5,12.5),skin);
     F(ell(nm(),23.5,27.5,2.6,1.6),'#ff8fa3'); F(ell(nm(),40.5,27.5,2.6,1.6),'#ff8fa3');
-    if(E===0){ F(ell(nm(),26.5,23,1.8,2.6),'#1f2937'); F(ell(nm(),37.5,23,1.8,2.6),'#1f2937'); dots([[26,21],[37,21]],'#ffffff'); }
-    if(E===1){ F(ell(nm(),26.5,23,2.6,3.2),'#1f2937'); F(ell(nm(),37.5,23,2.6,3.2),'#1f2937'); F(ell(nm(),27.2,24.2,1.1,1.1),'#6aa6ff'); F(ell(nm(),38.2,24.2,1.1,1.1),'#6aa6ff'); dots([[25,21],[26,21],[36,21],[37,21],[25,22],[36,22]],'#ffffff'); }
-    if(E===2) dots([[24,24],[25,23],[26,22],[27,22],[28,23],[29,24],[35,24],[36,23],[37,22],[38,22],[39,23],[40,24]],'#1f2937');
-    if(E===3){ F(ell(nm(),26.5,23,1.8,2.6),'#1f2937'); dots([[35,23],[36,23],[37,23],[38,23],[39,23],[40,23]],'#1f2937'); dots([[26,21]],'#ffffff'); }
+    var legacy=!(v[13]>=0), eyeCol=legacy?'#1f2937':C.eye[v[13]];
+    if(legacy&&E<4){
+      if(E===0){ F(ell(nm(),26.5,23,1.8,2.6),'#1f2937'); F(ell(nm(),37.5,23,1.8,2.6),'#1f2937'); dots([[26,21],[37,21]],'#ffffff'); }
+      if(E===1){ F(ell(nm(),26.5,23,2.6,3.2),'#1f2937'); F(ell(nm(),37.5,23,2.6,3.2),'#1f2937'); F(ell(nm(),27.2,24.2,1.1,1.1),'#6aa6ff'); F(ell(nm(),38.2,24.2,1.1,1.1),'#6aa6ff'); dots([[25,21],[26,21],[36,21],[37,21],[25,22],[36,22]],'#ffffff'); }
+      if(E===2) dots([[24,24],[25,23],[26,22],[27,22],[28,23],[29,24],[35,24],[36,23],[37,22],[38,22],[39,23],[40,24]],'#1f2937');
+      if(E===3){ F(ell(nm(),26.5,23,1.8,2.6),'#1f2937'); dots([[35,23],[36,23],[37,23],[38,23],[39,23],[40,23]],'#1f2937'); dots([[26,21]],'#ffffff'); }
+    } else {
+      [26.5,37.5].forEach(function(cx,i){
+        var side=i?1:-1, fx=Math.floor(cx), D='#1f2937', W='#ffffff';
+        if(E===0){ F(ell(nm(),cx,23,1.8,2.6),eyeCol); dots([[fx,21]],W); }
+        else if(E===1){ F(ell(nm(),cx,23.2,2.9,3.5),D); F(ell(nm(),cx,23.6,2.3,2.9),eyeCol); F(ell(nm(),cx,24,1.2,1.6),D); dots([[fx-1,21],[fx,21],[fx-1,22]],W); }
+        else if(E===2){ dots([[fx-2,24],[fx-1,23],[fx,22],[fx+1,22],[fx+2,23],[fx+3,24]],D); }
+        else if(E===3){ if(side<0){ F(ell(nm(),cx,23,1.8,2.6),eyeCol); dots([[fx,21]],W); } else dots([[fx-2,23],[fx-1,23],[fx,23],[fx+1,23],[fx+2,23],[fx+3,23]],D); }
+        else if(E===4){ F(ell(nm(),cx,23,3.9,4.1),D); F(ell(nm(),cx,23,3.2,3.4),W); F(ell(nm(),cx,23.4,2.3,2.5),eyeCol); F(ell(nm(),cx,23.6,1.2,1.3),D); dots([[fx-1,22],[fx,22]],W); }
+        else if(E===5){
+          var inner=poly(nm(),[[cx-3.7,23.6],[cx-1.7,21.6],[cx+1.7,21.6],[cx+3.7,23.6],[cx+1.7,25],[cx-1.7,25]]);
+          F(poly(nm(),[[cx-4.6,23.6],[cx-2,20.6],[cx+2,20.6],[cx+4.6,23.6],[cx+2,26],[cx-2,26]]),D); F(inner,W);
+          F(inter(ell(nm(),cx,23.4,2.3,2.3),inner),eyeCol); F(inter(ell(nm(),cx,23.4,1,1.1),inner),D); dots([[fx-1,22]],W);
+        }
+        else if(E===6){ dots([[fx-2,23],[fx-1,24],[fx,24],[fx+1,24],[fx+2,23],[fx-3,22],[fx+3,22]],D); }
+        else if(E===7){
+          F(ell(nm(),cx,23.2,2.5,3.1),D); F(ell(nm(),cx,23.6,2,2.5),eyeCol); F(ell(nm(),cx,24,1,1.3),D); dots([[fx-1,21],[fx,21]],W);
+          dots(side<0?[[fx-3,21],[fx-4,20],[fx-3,22]]:[[fx+4,21],[fx+5,20],[fx+4,22]],D);
+        }
+        else if(E===8){ F(ell(nm(),cx,23.5,3.9,4.4),D); F(ell(nm(),cx,23.8,3.3,3.8),eyeCol); F(ell(nm(),cx,24.4,1.7,2.1),D); F(ell(nm(),cx-1.2,21.8,1.2,1.2),W); dots([[fx+1,25],[fx+2,24]],W); }
+        else if(E===9){ F(ell(nm(),cx,23,3.7,3.9),D); F(ell(nm(),cx,23,3,3.2),W); F(ell(nm(),cx,23,1.5,1.5),eyeCol); F(ell(nm(),cx,23,0.8,0.8),D); dots([[fx,22]],W); }
+      });
+    }
     var mc='#9b3d4f';
     if(M===0) dots([[29,29],[30,30],[31,30],[32,30],[33,30],[34,30],[35,29]],mc);
     if(M===1){ F(ell(nm(),32,30,3.4,2.4),mc); F(rect(nm(),29,28,6,1),'#ffffff'); F(ell(nm(),32,31.3,1.8,1),'#ff7a8a'); }
@@ -768,12 +804,24 @@ var PX2=(function(){
     dots([[32,26]],toHex(mix(hex(skin),[120,50,30],.35)));
     if(A===1){ var ring=function(cx){ return sub(ell(nm(),cx,23,5,4.2),ell(nm(),cx,23,3.6,2.9)); }; F(uni(ring(26.5),ring(37.5),rect(nm(),31,22,2,1)),'#374151'); }
     var cap=sub(ell(nm(),32,18,15.5,13.5),face), front=null;
-    if(H===1||H===2||H===3||H===7) front=cap;
+    var strand=[1,2,3,7,8,9,10,11,14,15].indexOf(H)>-1;
+    if(H===1||H===2||H===3||H===7||H===9||H===10||H===11) front=cap;
     if(H===4) front=uni(cap,poly(nm(),[[18,12],[21,3],[26,11]]),poly(nm(),[[26,10],[31,1],[36,10]]),poly(nm(),[[36,11],[42,3],[46,12]]));
     if(H===5) front=sub(ell(nm(),32,16,19.5,15.5),face);
     if(H===6) front=uni(sub(ell(nm(),32,18,15.5,13.5),ell(nm(),35,27,12.5,11)),rr(nm(),16.5,17,4,22,2));
     if(H===7) front=uni(front,ell(nm(),32,6.5,5.5,5));
+    if(H===8||H===15) front=uni(cap,rect(nm(),18,14,28,4));
+    if(H===12){ paint(sub(ell(nm(),32,17.5,14.5,12.5),ell(nm(),32,24,13.5,12.5)),hshade); front=rr(nm(),28,2,8,15,3.5); }
+    if(H===13) front=uni(cap,ell(nm(),20,14,5,5),ell(nm(),26,10,5,5),ell(nm(),32,8,5.5,5.5),ell(nm(),38,10,5,5),ell(nm(),44,14,5,5),ell(nm(),16.5,22,3.5,4),ell(nm(),47.5,22,3.5,4));
+    if(H===14) front=uni(cap,poly(nm(),[[29,6],[31,0],[35,0],[36,6]]));
     if(front) paint(front,hc);
+    if(strand){
+      dots([[27,8],[27,9],[26,10],[26,11],[25,12],[37,8],[37,9],[38,10],[38,11],[39,12]],hshade);
+      dots(H===11?[[32,6],[32,7],[32,8],[32,9],[32,10],[32,11],[32,12],[32,13],[32,14]]:[[32,6],[32,7],[32,8]],hshade);
+      dots([[24,10],[25,9],[26,8],[39,9],[40,10]],hlite);
+      if(H===8||H===15) dots([[24,16],[24,17],[30,16],[30,17],[36,16],[36,17],[41,16],[41,17]],hshade);
+    }
+    if(H===9) F(ell(nm(),45.5,12,1.8,1.8),'#e5484d');
     if(H===3){ F(ell(nm(),19,22,1.8,1.8),'#ff6b5e'); F(ell(nm(),45,22,1.8,1.8),'#ff6b5e'); }
     if(A===2){ paint(uni(sub(ell(nm(),32,14,15,11),rect(nm(),0,15,N,N)),rect(nm(),17,14,30,3)),tc); F(rr(nm(),30,15,22,4,2),toHex(mix(hex(tc),[0,0,0],.2))); }
     if(A===3) F(rect(nm(),17,15,30,3),'#e5484d');
@@ -786,11 +834,11 @@ var PX2=(function(){
 function isPx2(a){ return typeof a==='string'&&a.indexOf('px2:')===0; }
 function px2Parse(code){
   var v=String(code).slice(4).split('.').map(Number), o=[];
-  for(var i=0;i<PX2.COUNTS.length;i++){ var n=v[i]; o.push((n>=0&&n<PX2.COUNTS[i])?Math.floor(n):0); }
+  for(var i=0;i<PX2.COUNTS.length;i++){ var n=v[i]; o.push((n>=0&&n<PX2.COUNTS[i])?Math.floor(n):(i===13?-1:0)); }
   return o;
 }
 function px2Code(a){ return 'px2:'+a.join('.'); }
-function px2Default(){ return [1,1,1,1,0,0,0,0,0,0,0,0,0]; }
+function px2Default(){ return [1,1,1,1,0,0,0,0,0,0,0,0,0,2]; }
 function px2Random(){ return PX2.COUNTS.map(function(n){ return Math.floor(Math.random()*n); }); }
 // Convertit un ancien personnage 16×16 pour continuer à le modifier
 function px2FromLegacy(code){
@@ -798,11 +846,11 @@ function px2FromLegacy(code){
   a[0]=o[0]; a[1]=[0,1,2,3,4,5,6,7,2][o[1]]; a[2]=o[2]; a[3]=[0,1,2,3,1,2][o[3]]; a[4]=[0,1,2,3,0][o[4]];
   a[5]=[0,0,1,2,0,0][o[5]];
   var legacyTop=PX_TOPC[o[6]], i=PX2.C.top.indexOf(legacyTop); a[6]=i<0?0:i;
-  a[11]=[0,1,1,3,2,0,4][o[7]]; a[12]=o[8];
+  a[11]=[0,1,1,3,2,0,4][o[7]]; a[12]=o[8]; a[13]=(a[3]===1)?2:0;
   return a;
 }
 var _px2Cache={};
-var PX2_BUST=[10,5,44,44], PX2_CROP={hair:[11,1,42,42],eyes:[16,12,32,32],mouth:[17,17,30,30],top:[12,26,38,38],bottom:[13,28,38,36],shoes:[12,30,40,34],acc:[11,1,42,42],full:[0,0,64,64]};
+var PX2_BUST=[10,5,44,44], PX2_CROP={hair:[8,1,48,48],eyes:[16,12,32,32],mouth:[17,17,30,30],top:[12,26,38,38],bottom:[13,28,38,36],shoes:[12,30,40,34],acc:[11,1,42,42],full:[0,0,64,64]};
 function px2Url(a,crop){
   var key=a.join('.')+'|'+crop.join(',');
   if(_px2Cache[key]!==undefined) return _px2Cache[key];
@@ -819,7 +867,6 @@ function px2Url(a,crop){
   _px2Cache[key]=url; return url;
 }
 function px2Img(a,crop,cls){ var u=px2Url(a,crop); return u?'<img class="'+cls+'" src="'+u+'" alt="Avatar" draggable="false">':'🎨'; }
-
 function av(a){
   if(isPx2(a)) return px2Img(px2Parse(a),PX2_BUST,'pxav2');
   return isPx(a)?pxSvg(pxParse(a)):a;
@@ -830,7 +877,8 @@ var PX2_CATS=[ // [titre, champ, 'sw' (couleurs) ou 'th' (vignettes), liste de c
   ['🧑 Peau',0,'sw','skin'],
   ['💇 Coiffure',1,'th','hair',2],
   ['🎨 Couleur des cheveux',2,'sw','hair'],
-  ['👀 Yeux',3,'th','eyes'],
+  ['👀 Yeux',3,'th','eyes',13],
+  ['🎨 Couleur des yeux',13,'sw','eye'],
   ['👄 Bouche',4,'th','mouth'],
   ['👕 Haut',5,'th','top',6],
   ['🎨 Couleur du haut',6,'sw','top'],
@@ -861,7 +909,7 @@ function avatarModalHtml(){
         if(c[2]==='sw'){
           h+='<button type="button" class="px-sw'+sel+'" style="background:'+PX2.C[c[3]][v]+'" data-a="pxSet" data-k="'+k+'" data-v="'+v+'" aria-label="'+c[0]+' '+(v+1)+'"></button>';
         } else {
-          var b=[1,1,1,1,0,0,0,0,0,0,0,0,7];       // personnage neutre : les vignettes restent en mémoire
+          var b=[1,1,1,1,0,0,0,0,0,0,0,0,7,2];       // personnage neutre : les vignettes restent en mémoire
           b[2]=a[2]; if(c[4]!=null) b[c[4]]=a[c[4]];  // seule la couleur concernée suit ton choix
           b[k]=v;
           h+='<button type="button" class="px-th'+sel+'" data-a="pxSet" data-k="'+k+'" data-v="'+v+'" aria-label="'+c[0]+' '+(v+1)+'">'+px2Img(b,PX2_CROP[c[3]],'pxth')+'</button>';
@@ -1614,6 +1662,23 @@ function calItemsOn(day){
     nt:calNotesList().filter(function(n){return n.date===day})
   };
 }
+// Vacances scolaires (métropole) : [nom, premier jour, jour de reprise (exclu), zones]
+// Sources : calendrier officiel de l'Éducation nationale 2025-2026 et 2026-2027. L'été 2027 s'arrête au 1er septembre par hypothèse.
+var SCHOOL_HOL=[
+  ['Toussaint','2025-10-18','2025-11-03','ABC'],['Noël','2025-12-20','2026-01-05','ABC'],
+  ['Hiver','2026-02-07','2026-02-23','A'],['Hiver','2026-02-14','2026-03-02','B'],['Hiver','2026-02-21','2026-03-09','C'],
+  ['Printemps','2026-04-04','2026-04-20','A'],['Printemps','2026-04-11','2026-04-27','B'],['Printemps','2026-04-18','2026-05-04','C'],
+  ['Été','2026-07-04','2026-09-01','ABC'],
+  ['Toussaint','2026-10-17','2026-11-02','ABC'],['Noël','2026-12-19','2027-01-04','ABC'],
+  ['Hiver','2027-02-13','2027-03-01','A'],['Hiver','2027-02-20','2027-03-08','B'],['Hiver','2027-02-06','2027-02-22','C'],
+  ['Printemps','2027-04-10','2027-04-26','A'],['Printemps','2027-04-17','2027-05-03','B'],['Printemps','2027-04-03','2027-04-19','C'],
+  ['Été','2027-07-03','2027-09-01','ABC']
+];
+function schoolHolOn(day){
+  var z=S.famSet&&S.famSet.school_zone; if(!z) return null;
+  for(var i=0;i<SCHOOL_HOL.length;i++){ var h=SCHOOL_HOL[i]; if(h[3].indexOf(z)>-1&&day>=h[1]&&day<h[2]) return h[0]; }
+  return null;
+}
 function calKids(it){
   var ids={}, all=false;
   if(ui.view==='child'){
@@ -1641,18 +1706,21 @@ function calModalHtml(){
   if(ui.calForm) return h+calFormHtml();
   var label=new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
   h+='<div class="cal-nav"><button data-a="calPrev" aria-label="Mois précédent">‹</button><b>'+esc(label)+'</b><button data-a="calNext" aria-label="Mois suivant">›</button></div>';
-  h+='<div class="cal-grid">'+['L','M','M','J','V','S','D'].map(function(d){return '<div class="cal-dow">'+d+'</div>';}).join('');
+  h+='<div class="cal-grid">'+['L','M','M','J','V','S','D'].map(function(d,i){return '<div class="cal-dow"'+(i>4?' style="color:#7c5cd6"':'')+'>'+d+'</div>';}).join('');
   var first=new Date(y,m,1), off=(first.getDay()+6)%7, dim=new Date(y,m+1,0).getDate(), cells=Math.ceil((off+dim)/7)*7;
   for(var i=0;i<cells;i++){
     var dt=new Date(y,m,1-off+i), key=ymd(dt), out=dt.getMonth()!==m, it=calItemsOn(key);
     var kind=it.sp.length&&it.nt.length?'k-both':(it.sp.length?'k-sp':(it.nt.length?'k-nt':'k-none'));
-    h+='<button class="cal-day '+kind+(out?' out':'')+(key===today?' today':'')+(key===sel?' sel':'')+'" data-a="calPick" data-d="'+key+'"'+(isParent?' data-longpress-day="'+key+'"':'')+' aria-label="'+key+'"><span class="dn">'+dt.getDate()+'</span>'+calAvatars(calKids(it))+'</button>';
+    var wd=dt.getDay(), vac=schoolHolOn(key);
+    h+='<button class="cal-day '+kind+(wd===0||wd===6?' we':'')+(vac?' vac':'')+(out?' out':'')+(key===today?' today':'')+(key===sel?' sel':'')+'" data-a="calPick" data-d="'+key+'"'+(isParent?' data-longpress-day="'+key+'"':'')+' aria-label="'+key+'"><span class="dn">'+dt.getDate()+'</span>'+(vac?'<span class="vc">🏖️</span>':'')+calAvatars(calKids(it))+'</button>';
   }
-  h+='</div><p class="muted" style="font-size:12px;margin:8px 0 0;text-align:center"><span style="color:#e5484d">■</span> mission spéciale à rendre · <span style="color:#3b82f6">■</span> info des parents · dégradé : les deux</p>'+(isParent?'<p class="muted" style="font-size:12.5px;margin:4px 0 0;text-align:center;font-weight:700">👆 Appui long sur un jour pour les options</p>':'');
+  h+='</div><p class="muted" style="font-size:12px;margin:8px 0 0;text-align:center"><span style="color:#e5484d">■</span> mission spéciale à rendre · <span style="color:#3b82f6">■</span> info des parents · dégradé : les deux<br><span style="color:#7c5cd6">■</span> week-end · 🏖️ vacances scolaires'+(S.famSet&&S.famSet.school_zone?' (zone '+S.famSet.school_zone+')':'')+'</p>'+(isParent&&!(S.famSet&&S.famSet.school_zone)?'<p class="muted" style="font-size:12.5px;margin:4px 0 0;text-align:center">🏖️ Choisis la zone scolaire dans Préférences pour voir les vacances.</p>':'')+(isParent?'<p class="muted" style="font-size:12.5px;margin:4px 0 0;text-align:center;font-weight:700">👆 Appui long sur un jour pour les options</p>':'');
   var sp=new Date(+sel.slice(0,4),+sel.slice(5,7)-1,+sel.slice(8,10)).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   var items=calItemsOn(sel);
   h+='<div class="sec"><h3 style="text-transform:capitalize">'+esc(sp)+'</h3></div>';
-  if(!items.sp.length&&!items.nt.length) h+='<p class="muted" style="margin:0 0 8px">Rien de prévu ce jour-là.</p>';
+  var vacSel=schoolHolOn(sel);
+  if(vacSel) h+='<div class="cal-item" style="background:color-mix(in srgb,#22b26b 22%,var(--card))"><span class="ci">🏖️</span><span class="cm">Vacances de '+esc(vacSel==='Été'?'l’été':(vacSel==='Noël'?'Noël':'la '+vacSel))+'<small>Zone '+esc(S.famSet.school_zone)+'</small></span></div>';
+  if(!items.sp.length&&!items.nt.length&&!vacSel) h+='<p class="muted" style="margin:0 0 8px">Rien de prévu ce jour-là.</p>';
   items.sp.forEach(function(t){
     var f=dlFmt(t), kids=isParent?(t.assign_all?S.children:(t.task_assignees||[]).map(function(a){return S.children.filter(function(c){return c.id===a.child_id})[0]}).filter(Boolean)):[];
     h+='<div class="cal-item"><span class="ci">'+taskIco(t,'✨')+'</span><span class="cm">'+esc(t.title)+'<small>⏰ À rendre '+esc(f.txt)+(f.passed?' · échéance dépassée':'')+(isParent&&kids.length?' · '+kids.map(function(c){return esc(c.display_name)}).join(', '):'')+'</small></span></div>';
@@ -1890,7 +1958,7 @@ function pFamily(){
     h+='<div class="sec"><h3>Réglages</h3></div><div style="display:flex;flex-direction:column;gap:10px">'+
       '<button class="btn ghost" data-a="changePassword">🔑 Changer mon mot de passe</button></div>';
     h+='<div class="sec"><h3>Apparence</h3></div><div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px"><span style="font-size:26px">🌙</span><div style="flex:1;min-width:0"><div style="font-weight:800">Mode sombre</div><div class="muted" style="font-size:13px">Plus reposant le soir.</div></div><button class="switch'+(isDarkTheme()?' on':'')+'" data-a="toggleTheme" role="switch" aria-checked="'+(isDarkTheme()?'true':'false')+'" aria-label="Mode sombre"></button></div>';
-    h+='<div class="sec"><h3>Vacances</h3></div><div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px"><span style="font-size:26px">🏖️</span><div style="flex:1;min-width:0"><div style="font-weight:800">Mode vacances</div><div class="muted" style="font-size:13px">'+(vacNow()?'Activé : seules les routines permanentes restent.':'Désactivé : toutes les routines sont actives.')+'</div></div><button class="switch'+(vacNow()?' on':'')+'" data-a="toggleVacation" role="switch" aria-checked="'+(vacNow()?'true':'false')+'" aria-label="Mode vacances"></button></div><p class="help-hint" style="margin:6px 2px 0">Les routines « Période scolaire uniquement » sont désactivées. Ça ne met pas les enfants en pause : les routines permanentes, les missions spéciales, les bonus et les cadeaux continuent.</p>';
+    h+='<div class="sec"><h3>Vacances</h3></div><div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px"><span style="font-size:26px">🏖️</span><div style="flex:1;min-width:0"><div style="font-weight:800">Mode vacances</div><div class="muted" style="font-size:13px">'+(vacNow()?'Activé : seules les routines permanentes restent.':'Désactivé : toutes les routines sont actives.')+'</div></div><button class="switch'+(vacNow()?' on':'')+'" data-a="toggleVacation" role="switch" aria-checked="'+(vacNow()?'true':'false')+'" aria-label="Mode vacances"></button></div><div class="card" style="padding:12px 14px;margin-top:10px"><div style="font-weight:800">🏫 Zone scolaire</div><div class="muted" style="font-size:13px;margin:2px 0 8px">Pour afficher les vacances scolaires dans le calendrier.</div><div class="chiprow">'+['A','B','C'].map(function(z){return '<button class="chip '+((S.famSet&&S.famSet.school_zone)===z?'sel':'')+'" data-a="setZone" data-v="'+z+'">Zone '+z+'</button>';}).join('')+'</div><p class="muted" style="font-size:12px;margin:8px 0 0">A : Besançon, Bordeaux, Clermont-Ferrand, Dijon, Grenoble, Limoges, Lyon, Poitiers. B : Aix-Marseille, Amiens, Lille, Nancy-Metz, Nantes, Nice, Normandie, Orléans-Tours, Reims, Rennes, Strasbourg. C : Créteil, Montpellier, Paris, Toulouse, Versailles. Corse et outre-mer : non gérés.</p></div><p class="help-hint" style="margin:6px 2px 0">Les routines « Période scolaire uniquement » sont désactivées. Ça ne met pas les enfants en pause : les routines permanentes, les missions spéciales, les bonus et les cadeaux continuent.</p>';
     h+='<div class="sec"><h3>Météo</h3></div><div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px"><span style="font-size:26px">🌦️</span><div style="flex:1;min-width:0"><div style="font-weight:800">Ville de la famille</div><div class="muted" style="font-size:13px">'+(S.famSet&&S.famSet.weather_city?esc(S.famSet.weather_city):'Pas encore choisie')+'</div></div><button class="btn small ghost" data-a="openCity">'+(S.famSet&&S.famSet.weather_city?'Changer':'Choisir')+'</button></div><p class="help-hint" style="margin:6px 2px 0">Sert à afficher la météo du jour sur l’accueil des enfants.</p>';
     h+='<div class="sec"><h3>Aide</h3></div><div class="card" id="help-card" style="padding:12px 14px"><div style="font-weight:800">🎓 Tutoriel</div><p class="muted" style="font-size:13px;margin:4px 0 10px">Revois les explications de chaque page, pas à pas.</p><button class="btn ghost wide" data-a="restartTour">Revoir le tutoriel</button></div>';
     h+='<div class="sec"><h3>Compte</h3></div><button class="btn ghost wide" style="color:var(--bad);border-color:var(--bad)" data-a="logout">🚪 Me déconnecter</button>';
@@ -2119,7 +2187,7 @@ function viewChildDetail(){
   var base=(c.level-1)*50, progress=Math.max(0,c.earned-base), pct=Math.min(100,Math.round(progress/50*100)), remaining=Math.max(0,50-progress);
 
   var h='<header class="top"><button class="ghost-link" data-a="backToParent">← Retour</button></header>';
-  h+='<section class="hero"><div class="hero-av">'+av(c.avatar)+'</div><div class="hero-main"><div class="hero-name"><span>'+esc(c.display_name)+'</span>'+accIconsHtml(parentAccItems(c.id),26,false)+'</div>'+
+  h+='<section class="hero"><div class="hero-av" data-a="gdTap">'+av(c.avatar)+'</div><div class="hero-main"><div class="hero-name"><span>'+esc(c.display_name)+'</span>'+accIconsHtml(parentAccItems(c.id),26,false)+'</div>'+
     '<div class="hero-lvl">Niveau '+c.level+'</div>'+
     '<div class="bar" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>'+
     '<div class="muted" style="font-size:12px;margin-top:4px">'+remaining+' ⭐ pour le niveau suivant</div>'+
@@ -2188,6 +2256,7 @@ function viewChildDetail(){
   h+=navRow('corr','✏️','Corriger une validation',nCorr?(nCorr+' validation'+(nCorr>1?'s':'')+' d’hier et d’aujourd’hui'):'Hier et aujourd’hui',nCorr);
   h+=navRow('rewards','🎁','Récompenses',d.rewardsGiven+' obtenue'+(d.rewardsGiven>1?'s':''),0);
   h+=navRow('feed','🕒','Activités récentes','Dernières missions et cadeaux',0);
+  if(lsGet('mf_gd')==='1') h+='<button class="navrow" data-a="openGame" data-id="'+c.id+'"><span class="nr-i">🎮</span><span class="nr-t">Jeu<span class="nr-s">Ouvre le jeu avec le profil de '+esc(c.display_name)+'</span></span><span class="nr-c">↗</span></button>';
 
   h+='<div style="display:flex;flex-direction:column;gap:10px;margin-top:20px">'+
     '<button class="btn ghost" data-a="quickPause" data-id="'+c.id+'">⏸️ Mettre en pause</button>'+
@@ -4286,6 +4355,18 @@ var A={
     await loadChildDetail(d.id); render();
   },
   backToParent:function(){ ui.view='parent'; ui.detailSub=null; render(); },
+  gdTap:function(){
+    var now=Date.now(); ui._gdTaps=(ui._gdTaps||[]).filter(function(t){return now-t<3000}); ui._gdTaps.push(now);
+    if(ui._gdTaps.length>=5){
+      ui._gdTaps=[]; var on=lsGet('mf_gd')!=='1'; lsSet('mf_gd',on?'1':'0');
+      toast(on?'🎮 Lien du jeu affiché':'Lien du jeu masqué'); render();
+    }
+  },
+  openGame:function(d){
+    var c=S.children.filter(function(x){return x.id===d.id})[0]; if(!c) return;
+    var q=new URLSearchParams({uuid:c.id,family_id:c.family_id||S.profile.family_id,display_name:c.display_name,star_balance:String(c.star_balance||0)});
+    window.open(GAME_URL+'?'+q.toString(),'_blank','noopener');
+  },
   openCal:async function(){ await loadCalNotes(); ui.calOpen=true; ui.calMonth=ymd(new Date()).slice(0,7); ui.calSel=ymd(new Date()); ui.calForm=null; render(); },
   closeCal:function(){ ui.calOpen=false; ui.calForm=null; render(); },
   calPrev:function(){ var ms=ui.calMonth, y=+ms.slice(0,4), m=+ms.slice(5,7)-2; var d=new Date(y,m,1); ui.calMonth=ymd(d).slice(0,7); render(); },
@@ -4488,6 +4569,12 @@ var A={
   setFreq:function(d){ ui.newFreq=d.v; render(); },
   toggleDay:function(d){ var v=+d.v,i=ui.newDays.indexOf(v); if(i>-1)ui.newDays.splice(i,1); else ui.newDays.push(v); render(); },
   setSlot:function(d){ ui.newSlot=d.v; render(); },
+  setZone:async function(d){
+    var z=d.v; if(S.famSet&&S.famSet.school_zone===z) z=null;
+    var {data,error}=await client.from('family_settings').upsert({family_id:S.profile.family_id,school_zone:z,updated_at:new Date().toISOString()}).select();
+    if(error||!data||!data.length){ showAlert('❌ Impossible d’enregistrer la zone'+(error?' : '+error.message:'')+'\n\nVérifie que le SQL « school_zone » a bien été exécuté dans Supabase.'); return; }
+    S.famSet=data[0]; toast(z?'🏫 Zone '+z+' enregistrée':'Zone retirée'); render();
+  },
   toggleVacation:async function(){
     var on=vacNow(), today=todayStr();
     var ok=await askConfirm(on
@@ -4777,7 +4864,7 @@ var A={
     var d={id:t.id,title:t.title,points:t.points};
     if(t.recurring) await A.doTask(d); else await A.doSpecial(d);
   },
-  openAvatarMenu:function(){ var c=myAvatar(); ui.avatarMenu=true; ui.avatarPick=c; ui.avatarMode=(isPx(c)||isPx2(c))?'px':'emoji'; ui.pxEdit=isPx2(c)?px2Parse(c):(isPx(c)?px2FromLegacy(c):px2Random()); render(); },
+  openAvatarMenu:function(){ var c=myAvatar(); ui.avatarMenu=true; ui.avatarPick=c; ui.avatarMode=(isPx(c)||isPx2(c))?'px':'emoji'; ui.pxEdit=isPx2(c)?px2Parse(c):(isPx(c)?px2FromLegacy(c):px2Random()); if(ui.pxEdit[13]<0) ui.pxEdit[13]=(ui.pxEdit[3]===1)?2:0; render(); },
   closeAvatarMenu:function(){ ui.avatarMenu=false; ui.avatarPick=null; ui.avatarMode=null; ui.pxEdit=null; render(); },
   avMode:function(d){
     ui.avatarMode=d.v;
@@ -4898,6 +4985,7 @@ var A={
 };
 
 /* appui long sur une carte de mission -> menu Assigner/Éditer/Supprimer */
+var GAME_URL='https://gd.games/games/80117990-30fa-4777-ac1f-654a3a21a2d1';
 var _lpTimer=null, _taskMenuOpenedAt=0, _rewardMenuOpenedAt=0, _calLpAt=0;
 document.addEventListener('pointerdown',function(e){
   var el=e.target.closest?e.target.closest('[data-longpress]'):null;
