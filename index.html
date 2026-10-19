@@ -2386,10 +2386,10 @@ function childMissions(){
 var COOLDOWNS=[[0,'Aucun'],[1,'1 jour'],[2,'2 jours'],[3,'3 jours'],[7,'1 semaine'],[14,'2 semaines'],[30,'1 mois']];
 function cooldownLabel(n){ var c=COOLDOWNS.filter(function(x){return x[0]===(n||0)})[0]; return c?c[1]:(n+' jours'); }
 // Renvoie null si la récompense est disponible, sinon {date, days} (date de retour de disponibilité).
-function rewardLock(r){
+function rewardLock(r,list){
   var cd=r.cooldown_days||0; if(!cd) return null;
   var last=null;
-  (S.myGiven||[]).forEach(function(x){ if(x.reward_id===r.id&&x.decided_at){ var d=x.decided_at.slice(0,10); if(!last||d>last) last=d; } });
+  (list||S.myGiven||[]).forEach(function(x){ if(x.reward_id===r.id&&x.decided_at){ var d=x.decided_at.slice(0,10); if(!last||d>last) last=d; } });
   if(!last) return null;
   var unlock=addDays(last,cd), t=todayStr();
   if(t>=unlock) return null;
@@ -4364,8 +4364,16 @@ var A={
   },
   openGame:function(d){
     var c=S.children.filter(function(x){return x.id===d.id})[0]; if(!c) return;
-    var q=new URLSearchParams({uuid:c.id,family_id:c.family_id||S.profile.family_id,display_name:c.display_name,star_balance:String(c.star_balance||0)});
-    window.open(GAME_URL+'?'+q.toString(),'_blank','noopener');
+    var enc=encodeURIComponent;   // %20 pour les espaces : lu correctement par tous les décodeurs (pas de « + »)
+    // Cadeaux de la famille, avec leur disponibilité pour CET enfant (délai de rachat = cooldown_days)
+    var given=(S.detail&&S.detail.childId===c.id)?(S.detail.given||[]):[];
+    var rewards=(S.rewards||[]).map(function(r){
+      var lk=rewardLock(r,given);
+      var pend=(S.redemptions||[]).some(function(x){return x.child_id===c.id&&x.reward_id===r.id&&x.status==='pending'});
+      return {id:r.id,title:r.title,cost:r.cost,available:!lk,available_on:lk?lk.date:'',pending:pend};
+    });
+    var url=GAME_URL+'?uuid='+enc(c.id)+'&family_id='+enc(c.family_id||S.profile.family_id)+'&display_name='+enc(c.display_name)+'&star_balance='+enc(String(c.star_balance||0))+'&rewards='+enc(JSON.stringify(rewards));
+    window.open(url,'_blank','noopener');
   },
   openCal:async function(){ await loadCalNotes(); ui.calOpen=true; ui.calMonth=ymd(new Date()).slice(0,7); ui.calSel=ymd(new Date()); ui.calForm=null; render(); },
   closeCal:function(){ ui.calOpen=false; ui.calForm=null; render(); },
