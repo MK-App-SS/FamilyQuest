@@ -1481,49 +1481,86 @@ function pStatsHtml(c){
     return '<button class="stat-btn" style="--c:'+STAT_META[i][1]+'" data-a="openPStat" data-v="'+i+'"><span class="sb-i">'+STAT_META[i][0]+'</span><span class="sb-t">'+x.t+'</span><span class="sb-s">'+subs[i]+'</span></button>';
   }).join('')+'</div>';
 }
-function dayCheckKey(){ return 'mf_daycheck_'+S.me.id; }
+var DAYCHECK_DAYS=30;
 async function checkYesterday(){
   try{
-    var today=todayStr();
-    if(lsGet(dayCheckKey())===today) return;
-    var d=addDays(today,-1);
-    var {data:logs,error}=await client.from('task_logs').select('task_id,child_id').eq('family_id',S.profile.family_id).eq('date',d);
-    if(error){ console.error('daycheck',error); return; }
-    var items=[];
-    S.children.forEach(function(c){
-      var paused=S.pauses.some(function(p){return (p.child_id===c.id||!p.child_id)&&p.from_date<=d&&(!p.to_date||p.to_date>=d)});
-      if(paused) return;
-      var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,c.id)&&isDueOn(t,d)&&(!t.created_at||t.created_at.slice(0,10)<=d)});
-      var mine=(logs||[]).filter(function(l){return l.child_id===c.id});
-      var missing=due.filter(function(t){return !mine.some(function(l){return l.task_id===t.id})});
-      if(missing.length) items.push({child:c,tasks:missing});
-    });
-    if(items.length) ui.dayCheck={date:d,items:items,sel:{}};
-    else { ui.dayCheck=null; lsSet(dayCheckKey(),today); }
+    var fam=S.profile.family_id, today=todayStr(), from=addDays(today,-DAYCHECK_DAYS), to=addDays(today,-1);
+    var logs=[], pg=0, r;
+    while(pg<8){
+      r=await client.from('task_logs').select('task_id,child_id,date').eq('family_id',fam).gte('date',from).lte('date',to).order('date').range(pg*1000,pg*1000+999);
+      if(r.error){ console.error('daycheck',r.error); return; }
+      logs=logs.concat(r.data||[]); if(!r.data||r.data.length<1000) break; pg++;
+    }
+    var rc=await client.from('day_confirmations').select('child_id,date').eq('family_id',fam).gte('date',from);
+    if(rc.error){ S.dayConfOff=true; console.error('day_confirmations',rc.error); return; }
+    S.dayConfOff=false;
+    var conf={}; (rc.data||[]).forEach(function(x){ conf[x.child_id+'|'+x.date]=1; });
+    var done={}; logs.forEach(function(l){ done[l.date+'|'+l.child_id+'|'+l.task_id]=1; });
+    var days=[];
+    for(var k=1;k<=DAYCHECK_DAYS;k++){
+      var d=addDays(today,-k), items=[];
+      S.children.forEach(function(c){
+        if(conf[c.id+'|'+d]) return;
+        if(c.created_at&&c.created_at.slice(0,10)>d) return;
+        var paused=S.pauses.some(function(p){return (p.child_id===c.id||!p.child_id)&&p.from_date<=d&&(!p.to_date||p.to_date>=d)});
+        if(paused) return;
+        var due=S.tasks.filter(function(t){return t.recurring&&appliesToList(t,c.id)&&isDueOn(t,d)&&(!t.created_at||t.created_at.slice(0,10)<=d)});
+        var missing=due.filter(function(t){return !done[d+'|'+c.id+'|'+t.id]});
+        if(missing.length) items.push({child:c,tasks:missing});
+      });
+      if(items.length) days.push({date:d,items:items});
+    }
+    var wasHidden=!!ui.dayCheckHidden;
+    ui.dayCheck=days.length?{days:days,sel:{}}:null;
+    ui.dayCheckHidden=days.length?wasHidden:false;
+    S.dayCheckAt=Date.now();
   }catch(e){ console.error('daycheck',e); }
 }
 async function parentDayCheck(){
-  if(ui.view!=='parent'||ui.dayCheck||!S.me) return;
+  if(ui.view!=='parent'||!S.me) return;
+  if(ui.dayCheck&&!ui.dayCheckHidden) return;
+  if(Date.now()-(S.dayCheckAt||0)<5*60*1000) return;
   await checkYesterday();
-  if(ui.dayCheck) render();
+  if(ui.dayCheck&&!ui.dayCheckHidden) render();
 }
 function dayCheckCount(){ return Object.keys(ui.dayCheck.sel).filter(function(k){return ui.dayCheck.sel[k]}).length; }
+function dcDayLabel(d){
+  var p=d.split('-');
+  if(d===addDays(todayStr(),-1)) return 'Hier · '+p[2]+'/'+p[1];
+  var N=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'], n=N[dowOf(d)];
+  return n.charAt(0).toUpperCase()+n.slice(1)+' '+p[2]+'/'+p[1];
+}
 function dayCheckHtml(){
-  var dc=ui.dayCheck, p=dc.date.split('-'), n=dayCheckCount();
-  var h='<div class="modal-head"><h2>📅 Journée d’hier</h2></div>'+
-    '<p class="muted" style="font-size:14px;margin:0 0 8px">Hier ('+p[2]+'/'+p[1]+'), certaines routines n’ont pas été validées. Si elles ont bien été faites, tu peux les valider maintenant, avec ou sans étoile (la journée parfaite et la série sont alors préservées, sans gain d’étoile). Sinon, confirme que la journée était incomplète.</p>';
-  dc.items.forEach(function(it){
-    h+='<div style="font-weight:800;margin:12px 0 6px">'+av(it.child.avatar)+' '+esc(it.child.display_name)+'</div>';
-    h+=it.tasks.map(function(t){
-      var k=it.child.id+'|'+t.id, on=!!dc.sel[k];
-      return '<button type="button" class="chk-row'+(on?' on':'')+'" data-a="toggleDayCheck" data-k="'+k+'"><span class="chk-box">'+(on?'✓':'')+'</span><span style="flex:1;min-width:0">'+esc(t.title)+'</span><span class="muted" style="font-size:13px">'+t.points+' ⭐</span></button>';
-    }).join('');
+  var dc=ui.dayCheck, n=dayCheckCount(), nd=dc.days.length;
+  var title=(nd===1&&dc.days[0].date===addDays(todayStr(),-1))?'📅 Journée d’hier':'📅 Journées à traiter';
+  var h='<div class="modal-head"><h2>'+title+'</h2></div>'+
+    '<p class="muted" style="font-size:14px;margin:0 0 8px">Certaines routines n’ont pas été validées. Si elles ont bien été faites, tu peux les valider maintenant, avec ou sans étoile (la journée parfaite et la série sont alors préservées, sans gain d’étoile). Tu peux le faire en plusieurs fois. Sinon, confirme que la journée était incomplète : tant que ce n’est pas fait, elle te sera reproposée à chaque connexion.</p>';
+  dc.days.forEach(function(day){
+    h+='<div style="display:flex;align-items:center;gap:8px;margin:16px 0 2px"><b style="flex:1;font-size:15px">'+dcDayLabel(day.date)+'</b><button type="button" class="btn ghost small" data-a="confirmDayIncomplete" data-d="'+day.date+'">Journée incomplète</button></div>';
+    day.items.forEach(function(it){
+      h+='<div style="font-weight:800;margin:8px 0 6px">'+av(it.child.avatar)+' '+esc(it.child.display_name)+'</div>';
+      h+=it.tasks.map(function(t){
+        var k=day.date+'|'+it.child.id+'|'+t.id, on=!!dc.sel[k];
+        return '<button type="button" class="chk-row'+(on?' on':'')+'" data-a="toggleDayCheck" data-k="'+k+'"><span class="chk-box">'+(on?'✓':'')+'</span><span style="flex:1;min-width:0">'+esc(t.title)+'</span><span class="muted" style="font-size:13px">'+t.points+' ⭐</span></button>';
+      }).join('');
+    });
   });
-  h+='<button type="button" class="chip" style="margin-top:2px" data-a="selectAllDayCheck">Tout cocher</button>';
+  h+='<button type="button" class="chip" style="margin-top:10px" data-a="selectAllDayCheck">Tout cocher</button>';
   h+='<div class="dlg-btns" style="flex-direction:column;margin-top:14px"><button class="btn go wide" data-a="validateDayCheck"'+(n?'':' disabled')+'>✅ Valider les missions cochées'+(n?' ('+n+')':'')+'</button>'+
      '<button class="btn ghost wide" data-a="validateDayCheck" data-zero="1"'+(n?'':' disabled')+'>☑️ Valider sans étoile'+(n?' ('+n+')':'')+'</button>'+
-     '<button class="btn ghost wide" data-a="confirmDayIncomplete">Confirmer : journée incomplète</button></div>';
+     (nd>1?'<button class="btn ghost wide" data-a="confirmAllIncomplete">Tout confirmer : journées incomplètes</button>':'')+
+     '<button class="btn ghost wide" data-a="snoozeDayCheck">Plus tard</button></div>';
   return h;
+}
+async function saveDayConfirmations(list){
+  var rows=list.map(function(x){ return {family_id:S.profile.family_id,child_id:x.child_id,date:x.date}; });
+  if(!rows.length) return true;
+  var {data,error}=await client.from('day_confirmations').upsert(rows,{onConflict:'child_id,date'}).select('child_id');
+  if(error||!data||data.length<rows.length){
+    showAlert('❌ Impossible d’enregistrer'+(error?' : '+error.message:'')+'\n\nVérifie que la table « day_confirmations » a bien été créée dans Supabase (SQL fourni).');
+    return false;
+  }
+  return true;
 }
 async function retroBadges(childId,dateStr){
   var {data}=await client.from('task_logs').select('task_id').eq('child_id',childId).eq('status','validated').eq('date',dateStr);
@@ -2382,7 +2419,8 @@ function viewParent(){
   if(ui.ptab!=='today') return head+body;
   var scheduledCount=S.tasks.filter(function(t){return t.recurring && t.freq==='weekly' && isDueToday(t)}).length;
   var vacBanner=vacNow()?'<div class="card" style="padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font-size:22px">🏖️</span><div style="flex:1;font-weight:700;font-size:14px">Mode vacances : seules les routines permanentes sont actives.</div><button class="btn small ghost" data-a="toggleVacation">Reprendre l’école</button></div>':'';
-  var banner=vacBanner+(scheduledCount?'<button class="btn ghost small" style="margin-bottom:10px" data-a="scrollToScheduled">📌 '+scheduledCount+' mission(s) à penser aujourd’hui</button>':'');
+  var dayBanner=(ui.dayCheck&&ui.dayCheckHidden)?'<button class="btn ghost small" style="margin-bottom:10px" data-a="reopenDayCheck">📅 '+ui.dayCheck.days.length+' journée'+(ui.dayCheck.days.length>1?'s':'')+' à traiter</button>':'';
+  var banner=vacBanner+dayBanner+(scheduledCount?'<button class="btn ghost small" style="margin-bottom:10px" data-a="scrollToScheduled">📌 '+scheduledCount+' mission(s) à penser aujourd’hui</button>':'');
   return head+banner+body;
 }
 
@@ -3797,7 +3835,7 @@ function render(){
   else if(ui.rewardMenu) modal='<div class="modal-backdrop" data-a="closeRewardMenu"><div class="modal" data-a="noop">'+rewardMenuContent()+'</div></div>';
   else if(ui.avatarMenu && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeAvatarMenu"><div class="modal" data-a="noop">'+avatarModalHtml()+'</div></div>';
   else if(ui.childMenu) modal='<div class="modal-backdrop" data-a="closeChildMenu"><div class="modal" data-a="noop">'+childMenuContent()+'</div></div>';
-  if(ui.dayCheck && ui.view==='parent' && !modal) modal='<div class="modal-backdrop"><div class="modal">'+dayCheckHtml()+'</div></div>';
+  if(ui.dayCheck && !ui.dayCheckHidden && ui.view==='parent' && !modal) modal='<div class="modal-backdrop"><div class="modal">'+dayCheckHtml()+'</div></div>';
   if(ui.mascotMenu && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeMascot"><div class="modal" data-a="noop">'+mascotModalHtml()+'</div></div>';
   if(ui.review && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeReview"><div class="modal" data-a="noop">'+reviewModalHtml()+'</div></div>';
   if(ui.detailsTask && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeDetails"><div class="modal" data-a="noop">'+detailsModalHtml()+'</div></div>';
@@ -3809,7 +3847,7 @@ function render(){
     if(_dc && ui.pStat!=null) modal='<div class="modal-backdrop" data-a="closePStats"><div class="modal" data-a="noop">'+pStatsHtml(_dc)+'</div></div>';
     if(_dc && ui.pReview) modal='<div class="modal-backdrop" data-a="closePReview"><div class="modal" data-a="noop">'+pReviewHtml(_dc,S.detail)+'</div></div>';
   }
-  if(ui.rvNotice && ui.view==='parent' && !modal && !ui.dayCheck) modal='<div class="modal-backdrop" data-a="closeRvNotice"><div class="modal" data-a="noop">'+rvNoticeHtml()+'</div></div>';
+  if(ui.rvNotice && ui.view==='parent' && !modal && (!ui.dayCheck||ui.dayCheckHidden)) modal='<div class="modal-backdrop" data-a="closeRvNotice"><div class="modal" data-a="noop">'+rvNoticeHtml()+'</div></div>';
   if(ui.statSec!=null && ui.view==='child') modal='<div class="modal-backdrop" data-a="closeStat"><div class="modal" data-a="noop">'+statModalHtml()+'</div></div>';
   if(ui.view==='child'){ celEnsure(); if(ui.celSeq) modal=celStepHtml(); }
   var app=document.getElementById('app');
@@ -4377,26 +4415,63 @@ var A={
   toggleDayCheck:function(d){ if(!ui.dayCheck) return; ui.dayCheck.sel[d.k]=!ui.dayCheck.sel[d.k]; render(); },
   selectAllDayCheck:function(){
     if(!ui.dayCheck) return;
-    ui.dayCheck.items.forEach(function(it){ it.tasks.forEach(function(t){ ui.dayCheck.sel[it.child.id+'|'+t.id]=true; }); });
+    ui.dayCheck.days.forEach(function(day){ day.items.forEach(function(it){ it.tasks.forEach(function(t){ ui.dayCheck.sel[day.date+'|'+it.child.id+'|'+t.id]=true; }); }); });
     render();
   },
-  confirmDayIncomplete:function(){
-    lsSet(dayCheckKey(),todayStr()); ui.dayCheck=null; render();
-    toast('📅 Journée d’hier confirmée comme incomplète');
+  snoozeDayCheck:function(){ ui.dayCheckHidden=true; render(); },
+  reopenDayCheck:function(){ ui.dayCheckHidden=false; render(); },
+  confirmDayIncomplete:async function(d,btn){
+    var dc=ui.dayCheck; if(!dc) return;
+    var day=dc.days.filter(function(x){return x.date===d.d})[0]; if(!day) return;
+    if(btn) btn.disabled=true;
+    var ok=await saveDayConfirmations(day.items.map(function(it){ return {child_id:it.child.id,date:day.date}; }));
+    if(!ok){ if(btn) btn.disabled=false; return; }
+    day.items.forEach(function(it){ it.tasks.forEach(function(t){ delete dc.sel[day.date+'|'+it.child.id+'|'+t.id]; }); });
+    dc.days=dc.days.filter(function(x){return x.date!==day.date});
+    if(!dc.days.length){ ui.dayCheck=null; ui.dayCheckHidden=false; }
+    render();
+    toast('📅 '+dcDayLabel(day.date).replace(' · ',' ')+' confirmée comme incomplète');
+  },
+  confirmAllIncomplete:async function(){
+    var dc=ui.dayCheck; if(!dc) return;
+    if(!(await askConfirm({icon:'📅',title:'Tout confirmer comme incomplet ?',message:dc.days.length+' journées seront confirmées comme incomplètes et ne te seront plus proposées.',okLabel:'Tout confirmer'}))) return;
+    var list=[]; dc.days.forEach(function(day){ day.items.forEach(function(it){ list.push({child_id:it.child.id,date:day.date}); }); });
+    if(!(await saveDayConfirmations(list))) return;
+    ui.dayCheck=null; ui.dayCheckHidden=false; render();
+    toast('📅 Journées confirmées comme incomplètes');
   },
   validateDayCheck:async function(d,btn){
     var dc=ui.dayCheck; if(!dc||!dayCheckCount()) return;
     var zero=d&&d.zero==='1';
     if(btn) btn.disabled=true;
-    var rows=[], kids={};
-    dc.items.forEach(function(it){ it.tasks.forEach(function(t){
-      if(dc.sel[it.child.id+'|'+t.id]){ rows.push({family_id:S.profile.family_id,task_id:t.id,child_id:it.child.id,title:t.title,points:zero?0:t.points,status:'validated',date:dc.date,validated_at:new Date().toISOString()}); kids[it.child.id]=true; }
-    }); });
-    var {error}=await client.from('task_logs').insert(rows);
-    if(error){ if(btn) btn.disabled=false; showAlert('❌ '+error.message+'\n\nSi le message parle de « row-level security », la policy d’insertion des parents sur task_logs est manquante.'); return; }
-    for(var cid in kids){ await recalcBalance(cid); await retroBadges(cid,dc.date); await checkBadges(cid); }
-    lsSet(dayCheckKey(),todayStr()); ui.dayCheck=null;
-    toast((zero?'☑️ ':'✅ ')+rows.length+' mission'+(rows.length>1?'s':'')+(zero?' comptée'+(rows.length>1?'s':'')+' comme faite'+(rows.length>1?'s':'')+' (sans étoile)':' validée'+(rows.length>1?'s':''))+' pour hier');
+    var rows=[], now=new Date().toISOString();
+    dc.days.forEach(function(day){ day.items.forEach(function(it){ it.tasks.forEach(function(t){
+      if(dc.sel[day.date+'|'+it.child.id+'|'+t.id]) rows.push({family_id:S.profile.family_id,task_id:t.id,child_id:it.child.id,title:t.title,points:zero?0:t.points,status:'validated',date:day.date,validated_at:now});
+    }); }); });
+    // garde anti-doublon : on ignore ce qui existe déjà (envoyé entre-temps par l'enfant, par exemple)
+    var dts=[]; rows.forEach(function(r){ if(dts.indexOf(r.date)<0) dts.push(r.date); });
+    var {data:ex,error:exErr}=await client.from('task_logs').select('task_id,child_id,date').eq('family_id',S.profile.family_id).in('date',dts);
+    if(exErr){ if(btn) btn.disabled=false; showAlert('❌ '+exErr.message); return; }
+    var have={}; (ex||[]).forEach(function(x){ have[x.date+'|'+x.child_id+'|'+x.task_id]=1; });
+    var fresh=rows.filter(function(r){ return !have[r.date+'|'+r.child_id+'|'+r.task_id]; });
+    if(fresh.length){
+      var {error}=await client.from('task_logs').insert(fresh);
+      if(error){ if(btn) btn.disabled=false; showAlert('❌ '+error.message+'\n\nSi le message parle de « row-level security », la policy d’insertion des parents sur task_logs est manquante.'); return; }
+    }
+    var kids={}, pairs={};
+    fresh.forEach(function(r){ kids[r.child_id]=true; pairs[r.child_id+'|'+r.date]=[r.child_id,r.date]; });
+    for(var cid in kids){ await recalcBalance(cid); }
+    for(var pk in pairs){ await reconcileBadges(pairs[pk][0],pairs[pk][1]); }
+    for(var cid2 in kids){ await checkBadges(cid2); }
+    // on retire de la liste tout ce qui vient d'être coché ; la fenêtre reste ouverte s'il en reste
+    var doneKeys={}; rows.forEach(function(r){ var k=r.date+'|'+r.child_id+'|'+r.task_id; doneKeys[k]=true; delete dc.sel[k]; });
+    dc.days=dc.days.map(function(day){
+      return {date:day.date,items:day.items.map(function(it){ return {child:it.child,tasks:it.tasks.filter(function(t){return !doneKeys[day.date+'|'+it.child.id+'|'+t.id]})}; }).filter(function(it){return it.tasks.length})};
+    }).filter(function(day){return day.items.length});
+    var left=dc.days.reduce(function(a,day){ return a+day.items.reduce(function(b,it){return b+it.tasks.length},0); },0);
+    if(!dc.days.length){ ui.dayCheck=null; ui.dayCheckHidden=false; }
+    var n=fresh.length||rows.length, when=dts.length===1?' ('+frDate(dts[0])+')':' sur '+dts.length+' jours';
+    toast((zero?'☑️ ':'✅ ')+n+' mission'+(n>1?'s':'')+(zero?' comptée'+(n>1?'s':'')+' comme faite'+(n>1?'s':'')+' (sans étoile)':' validée'+(n>1?'s':''))+when+(left?' · il en reste '+left:''));
     await refreshParentScreen();
   },
   toggleTheme:function(){
